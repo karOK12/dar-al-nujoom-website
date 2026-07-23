@@ -1,7 +1,6 @@
 // app/api/chat/route.ts
 import { NextResponse } from 'next/server';
 
-// 1. تعريف نوع الرسالة صراحةً لحل مشكلة TypeScript (Implicit Any)
 interface ChatMessage {
   role: string;
   content: string;
@@ -10,10 +9,8 @@ interface ChatMessage {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    // 2. تحديد النوع للمصفوفة
     const messages: ChatMessage[] = body.messages || [];
     
-    // ⚠️ التغيير المهم هنا: نبحث عن مفتاح Groq وليس جوجل
     const apiKey = process.env.GROQ_API_KEY; 
 
     if (!apiKey) {
@@ -26,7 +23,6 @@ export async function POST(req: Request) {
     const lastUserMessage = messages[messages.length - 1]?.content || "";
     const lowerText = lastUserMessage.toLowerCase();
 
-    // كشف التحويل
     const escalationKeywords = ['مدير', 'بشر', 'شكوى', 'تحويل', 'موظف', 'دعم فني', 'خدمة عملاء'];
     const isEscalation = escalationKeywords.some(keyword => lowerText.includes(keyword));
 
@@ -37,13 +33,12 @@ export async function POST(req: Request) {
       });
     }
 
-    // 3. بناء السياق مع تحديد النوع (m: ChatMessage)
     const conversation = messages.map((m: ChatMessage) => {
       const roleText = (m.role === 'assistant' || m.role === 'bot') ? 'المساعد' : 'المستخدم';
       return `${roleText}: ${m.content}`;
     }).join('\n');
 
-    // استدعاء Groq API (بدل Google)
+    // ⚠️ هنا التغيير: استخدام النموذج الأحدث والأقوى والمجاني
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -51,13 +46,16 @@ export async function POST(req: Request) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama3-8b-8192', // نموذج سريع، مجاني، وممتاز في العربية
+        model: 'llama-3.3-70b-versatile', // النموذج الجديد والمجاني
         messages: [
           {
             role: "system",
             content: "أنت المساعد الذكي الرسمي لقناة 'مجلة دار النجوم'. أجب بالعربية الفصحى الواضحة والمفيدة والودية. احتفظ بسياق المحادثة وأجب على جميع الأسئلة بدقة وتفصيل."
           },
-          ...messages.map(m => ({ role: m.role === 'assistant' || m.role === 'bot' ? 'assistant' : 'user', content: m.content }))
+          ...messages.map(m => ({ 
+            role: (m.role === 'assistant' || m.role === 'bot') ? 'assistant' : 'user', 
+            content: m.content 
+          }))
         ],
         temperature: 0.7,
         max_tokens: 800
