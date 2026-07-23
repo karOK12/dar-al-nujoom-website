@@ -1,87 +1,80 @@
 // app/api/chat/route.ts
 import { NextResponse } from 'next/server';
 
-const MODEL_URL = 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3';
-
 export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
+    
+    // تأكد من أن اسم المتغير هنا يطابق تماماً ما أضفته في فيرسيل
+    const apiKey = process.env.GEMINI_API_KEY; 
+
+    if (!apiKey) {
+      return NextResponse.json({
+        isEscalation: false,
+        text: "❌ خطأ في الإعدادات: المتغير GEMINI_API_KEY غير موجود في فيرسيل."
+      }, { status: 500 });
+    }
+
     const lastUserMessage = messages[messages.length - 1]?.content || "";
     const lowerText = lastUserMessage.toLowerCase();
 
-    // كشف التحويل (يمكن توسيعه)
-    const escalationKeywords = ['مدير', 'بشر', 'شكوى', 'تحويل', 'موظف', 'دعم فني', 'مشكلة معقدة'];
+    const escalationKeywords = ['مدير', 'بشر', 'شكوى', 'تحويل', 'موظف', 'دعم فني', 'خدمة عملاء'];
     const isEscalation = escalationKeywords.some(keyword => lowerText.includes(keyword));
 
     if (isEscalation) {
       return NextResponse.json({
         isEscalation: true,
-        text: "يرجى الانتظار، سيتم تحويلك إلى قسم الدعم الفني..."
+        text: "يرجى الانتظار، سيتم تحويلك إلى قسم الدعم الفني المختص..."
       });
     }
 
-    // بناء السياق للمحادثة
     const conversation = messages
-      .filter(m => m.role !== 'system') // تجاهل رسائل النظام
-      .map(m => `${m.role === 'assistant' ? 'المساعد:' : 'المستخدم:'} ${m.content}`)
-      .join('\n');
+      .filter(m => m.role !== 'system')
+      .map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
 
-    const prompt = `<s>[INST] أنت مساعد ذكي لقناة "مجلة دار النجوم". أجب بالعربية الفصحى الوضحة والمفيدة. احتفظ بسياق المحادثة.
-${conversation}
-المساعد: [/INST>`;
-
-    // محاولة أولى
-    const response = await fetch(MODEL_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 200,  // أقل من 500 لتسريع الاستجابة
-          temperature: 0.7,
-          return_full_text: false,
-          do_sample: true,
-          use_cache: true       // تسريع الاستجابات المتكررة
-        },
-        options: { wait_for_model: true } // انتظار تحميل النموذج إذا كان نائمًا
-      })
-    });
+    // استخدام v1beta مع الاسم الدقيق للنموذج (بدون -latest لتجنب خطأ 404)
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{
+              text: "أنت المساعد الذكي الرسمي لقناة 'مجلة دار النجوم'. أجب بالعربية الفصحى الواضحة والمفيدة والودية. احتفظ بسياق المحادثة وأجب على جميع الأسئلة بدقة وتفصيل."
+            }]
+          },
+          contents: conversation,
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 800,
+          }
+        })
+      }
+    );
 
     if (!response.ok) {
-      // إذا كان النموذج نائمًا (503), انتظر 10 ثوانٍ وأعد المحاولة
-      if (response.status === 503) {
-        await new Promise(resolve => setTimeout(resolve, 10000));
-        const retryResponse = await fetch(MODEL_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            inputs: prompt,
-            parameters: {
-              max_new_tokens: 200,
-              temperature: 0.7,
-              return_full_text: false,
-              use_cache: true
-            },
-            options: { wait_for_model: true }
-          })
-        });
-        const retryData = await retryResponse.json();
-        const aiText = retryData[0]?.generated_text?.trim() || "عذراً، النموذج قيد التحميل. حاول مرة أخرى بعد قليل.";
-        return NextResponse.json({ isEscalation: false, text: aiText });
-      }
-      throw new Error(`API Error: ${response.status}`);
+      const errorData = await response.text(); // قراءة الخطأ الخام من جوجل
+      console.error("Gemini API Raw Error:", response.status, errorData);
+      return NextResponse.json({
+        isEscalation: false,
+        text: `❌ خطأ من Google (${response.status}): ${errorData}`
+      }, { status: response.status });
     }
 
     const data = await response.json();
-    const aiText = data[0]?.generated_text?.trim() || "عذراً، لم أتمكن من توليد رد.";
+    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "عذراً، لم أتمكن من توليد رد.";
 
     return NextResponse.json({ isEscalation: false, text: aiText });
 
   } catch (error: any) {
-    console.error("Chat API Error:", error);
+    console.error("Chat API Crash:", error);
     return NextResponse.json({
       isEscalation: false,
-      text: "❌ حدث خطأ في الاتصال بالنموذج. حاول مرة أخرى بعد قليل."
-    });
+      text: `❌ خطأ برمجي: ${error.message}`
+    }, { status: 500 });
   }
 }
