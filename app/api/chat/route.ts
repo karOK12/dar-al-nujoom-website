@@ -3,15 +3,17 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { messages, currentStage } = await req.json();
+    const { messages } = await req.json();
     const apiKey = process.env.GEMINI_API_KEY;
 
-    // 1. فحص وجود المفتاح
+    // 1. فحص وجود المفتاح وطوله (للتأكد من أنه تم قراءته)
+    console.log("🔑 هل المفتاح موجود؟:", !!apiKey);
+    console.log("🔑 طول المفتاح:", apiKey ? apiKey.length : 0);
+
     if (!apiKey) {
-      console.error("❌ ERROR: GEMINI_API_KEY is missing in Vercel Environment Variables");
       return NextResponse.json({
         isEscalation: false,
-        text: "خطأ في الإعدادات: لم يتم العثور على GEMINI_API_KEY في فيرسيل."
+        text: "❌ خطأ في الإعدادات: لم يتم العثور على GEMINI_API_KEY في متغيرات بيئة فيرسيل."
       }, { status: 500 });
     }
 
@@ -37,7 +39,7 @@ export async function POST(req: Request) {
       parts: [{ text: m.content }]
     }));
 
-    // 4. استدعاء API (تم العودة إلى gemini-1.5-flash لضمان الاستقرار والتوافق مع الخطة المجانية)
+    // 4. استدعاء API (استخدام 1.5-flash لأنه المستقر والمجاني تماماً)
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
@@ -46,28 +48,23 @@ export async function POST(req: Request) {
         body: JSON.stringify({
           systemInstruction: {
             parts: [{
-              text: `أنت المساعد الذكي الرسمي لـ "قناة مجلة دار النجوم". 
-قواعدك الصارمة:
-1. أجب على أي سؤال بدقة وتفصيل.
-2. احتفظ بسياق المحادثة.
-3. تحدث بالعربية الفصحى الودية والمهنية.
-4. استخدم الإيموجي عند المناسبة.`
+              text: `أنت المساعد الذكي الرسمي لـ "قناة مجلة دار النجوم". أجب بدقة وتفصيل، واحتفظ بسياق المحادثة، وتحدث بالعربية الفصحى الودية.`
             }]
           },
           contents: geminiMessages,
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 800
-          }
+          generationConfig: { temperature: 0.7, maxOutputTokens: 800 }
         })
       }
     );
 
-    // 5. معالجة أخطاء API بدقة
+    // 5. إذا فشل الاتصال، اعرض الخطأ الحقيقي من جوجل للمستخدم
     if (!response.ok) {
-      const errorData = await response.text();
-      console.error("❌ Gemini API Error:", response.status, errorData);
-      throw new Error(`فشل الاتصال بـ Gemini (Code: ${response.status}). التفاصيل: ${errorData}`);
+      const errorText = await response.text();
+      console.error("❌ Gemini API Failed:", response.status, errorText);
+      return NextResponse.json({
+        isEscalation: false,
+        text: `❌ خطأ من Google (Code: ${response.status}): ${errorText}`
+      }, { status: response.status });
     }
 
     const data = await response.json();
@@ -79,13 +76,11 @@ export async function POST(req: Request) {
     });
 
   } catch (error: any) {
-    // طباعة الخطأ الحقيقي في سجلات فيرسيل وإرجاعه للمستخدم مؤقتاً للتشخيص
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("💥 CRITICAL CHAT ERROR:", errorMessage);
-    
-    return NextResponse.json({ 
-      isEscalation: false, 
-      text: `عذراً، حدث خطأ تقني: ${errorMessage}` // هذا السطر سيساعدنا في معرفة السبب فوراً
+    // عرض الخطأ البرمجي الحقيقي
+    console.error("💥 CRITICAL ERROR:", error);
+    return NextResponse.json({
+      isEscalation: false,
+      text: `❌ خطأ برمجي: ${error.message}`
     }, { status: 500 });
   }
 }
