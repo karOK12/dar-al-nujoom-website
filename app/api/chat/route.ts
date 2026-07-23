@@ -1,23 +1,32 @@
 // app/api/chat/route.ts
 import { NextResponse } from 'next/server';
 
+// 1. تعريف نوع الرسالة صراحةً لحل مشكلة TypeScript (Implicit Any)
+interface ChatMessage {
+  role: string;
+  content: string;
+}
+
 export async function POST(req: Request) {
   try {
-    const { messages } = await req.json();
+    const body = await req.json();
+    // 2. تحديد النوع للمصفوفة
+    const messages: ChatMessage[] = body.messages || [];
     
-    // تأكد من أن اسم المتغير هنا يطابق تماماً ما أضفته في فيرسيل
+    // تأكد أن هذا الاسم يطابق تماماً ما أضفته في إعدادات فيرسيل
     const apiKey = process.env.GEMINI_API_KEY; 
 
     if (!apiKey) {
-      return NextResponse.json({
-        isEscalation: false,
-        text: "❌ خطأ في الإعدادات: المتغير GEMINI_API_KEY غير موجود في فيرسيل."
-      }, { status: 500 });
+      return NextResponse.json(
+        { isEscalation: false, text: "❌ خطأ في الإعدادات: المتغير GEMINI_API_KEY غير موجود في فيرسيل." },
+        { status: 500 }
+      );
     }
 
     const lastUserMessage = messages[messages.length - 1]?.content || "";
     const lowerText = lastUserMessage.toLowerCase();
 
+    // كشف التحويل
     const escalationKeywords = ['مدير', 'بشر', 'شكوى', 'تحويل', 'موظف', 'دعم فني', 'خدمة عملاء'];
     const isEscalation = escalationKeywords.some(keyword => lowerText.includes(keyword));
 
@@ -28,14 +37,13 @@ export async function POST(req: Request) {
       });
     }
 
-    const conversation = messages
-      .filter(m => m.role !== 'system')
-      .map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      }));
+    // 3. بناء السياق مع تحديد النوع (m: ChatMessage) لحل الخطأ نهائياً
+    const conversation = messages.map((m: ChatMessage) => {
+      const roleText = (m.role === 'assistant' || m.role === 'bot') ? 'المساعد' : 'المستخدم';
+      return `${roleText}: ${m.content}`;
+    }).join('\n');
 
-    // استخدام v1beta مع الاسم الدقيق للنموذج (بدون -latest لتجنب خطأ 404)
+    // استدعاء Google Gemini API
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
@@ -47,7 +55,14 @@ export async function POST(req: Request) {
               text: "أنت المساعد الذكي الرسمي لقناة 'مجلة دار النجوم'. أجب بالعربية الفصحى الواضحة والمفيدة والودية. احتفظ بسياق المحادثة وأجب على جميع الأسئلة بدقة وتفصيل."
             }]
           },
-          contents: conversation,
+          contents: [
+            {
+              role: 'user',
+              parts: [{ 
+                text: `سجل المحادثة السابق:\n${conversation}\n\nالرد المطلوب:` 
+              }]
+            }
+          ],
           generationConfig: {
             temperature: 0.7,
             maxOutputTokens: 800,
@@ -57,7 +72,7 @@ export async function POST(req: Request) {
     );
 
     if (!response.ok) {
-      const errorData = await response.text(); // قراءة الخطأ الخام من جوجل
+      const errorData = await response.text();
       console.error("Gemini API Raw Error:", response.status, errorData);
       return NextResponse.json({
         isEscalation: false,
