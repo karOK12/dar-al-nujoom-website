@@ -13,12 +13,12 @@ export async function POST(req: Request) {
     // 2. تحديد النوع للمصفوفة
     const messages: ChatMessage[] = body.messages || [];
     
-    // تأكد أن هذا الاسم يطابق تماماً ما أضفته في إعدادات فيرسيل
-    const apiKey = process.env.GEMINI_API_KEY; 
+    // ⚠️ التغيير المهم هنا: نبحث عن مفتاح Groq وليس جوجل
+    const apiKey = process.env.GROQ_API_KEY; 
 
     if (!apiKey) {
       return NextResponse.json(
-        { isEscalation: false, text: "❌ خطأ في الإعدادات: المتغير GEMINI_API_KEY غير موجود في فيرسيل." },
+        { isEscalation: false, text: "❌ خطأ في الإعدادات: المتغير GROQ_API_KEY غير موجود في فيرسيل." },
         { status: 500 }
       );
     }
@@ -37,51 +37,44 @@ export async function POST(req: Request) {
       });
     }
 
-    // 3. بناء السياق مع تحديد النوع (m: ChatMessage) لحل الخطأ نهائياً
+    // 3. بناء السياق مع تحديد النوع (m: ChatMessage)
     const conversation = messages.map((m: ChatMessage) => {
       const roleText = (m.role === 'assistant' || m.role === 'bot') ? 'المساعد' : 'المستخدم';
       return `${roleText}: ${m.content}`;
     }).join('\n');
 
-    // استدعاء Google Gemini API
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{
-              text: "أنت المساعد الذكي الرسمي لقناة 'مجلة دار النجوم'. أجب بالعربية الفصحى الواضحة والمفيدة والودية. احتفظ بسياق المحادثة وأجب على جميع الأسئلة بدقة وتفصيل."
-            }]
+    // استدعاء Groq API (بدل Google)
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama3-8b-8192', // نموذج سريع، مجاني، وممتاز في العربية
+        messages: [
+          {
+            role: "system",
+            content: "أنت المساعد الذكي الرسمي لقناة 'مجلة دار النجوم'. أجب بالعربية الفصحى الواضحة والمفيدة والودية. احتفظ بسياق المحادثة وأجب على جميع الأسئلة بدقة وتفصيل."
           },
-          contents: [
-            {
-              role: 'user',
-              parts: [{ 
-                text: `سجل المحادثة السابق:\n${conversation}\n\nالرد المطلوب:` 
-              }]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 800,
-          }
-        })
-      }
-    );
+          ...messages.map(m => ({ role: m.role === 'assistant' || m.role === 'bot' ? 'assistant' : 'user', content: m.content }))
+        ],
+        temperature: 0.7,
+        max_tokens: 800
+      })
+    });
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error("Gemini API Raw Error:", response.status, errorData);
+      console.error("Groq API Raw Error:", response.status, errorData);
       return NextResponse.json({
         isEscalation: false,
-        text: `❌ خطأ من Google (${response.status}): ${errorData}`
+        text: `❌ خطأ من الخادم (${response.status}): ${errorData}`
       }, { status: response.status });
     }
 
     const data = await response.json();
-    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "عذراً، لم أتمكن من توليد رد.";
+    const aiText = data.choices?.[0]?.message?.content?.trim() || "عذراً، لم أتمكن من توليد رد.";
 
     return NextResponse.json({ isEscalation: false, text: aiText });
 
