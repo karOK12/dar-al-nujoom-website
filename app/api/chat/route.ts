@@ -6,10 +6,6 @@ export async function POST(req: Request) {
     const { messages } = await req.json();
     const apiKey = process.env.GEMINI_API_KEY;
 
-    // 1. فحص وجود المفتاح وطوله (للتأكد من أنه تم قراءته)
-    console.log("🔑 هل المفتاح موجود؟:", !!apiKey);
-    console.log("🔑 طول المفتاح:", apiKey ? apiKey.length : 0);
-
     if (!apiKey) {
       return NextResponse.json({
         isEscalation: false,
@@ -17,7 +13,6 @@ export async function POST(req: Request) {
       }, { status: 500 });
     }
 
-    // 2. كشف طلب التحويل
     const lastMessage = messages[messages.length - 1].content.toLowerCase();
     const isEscalation = lastMessage.includes('مدير') || 
                          lastMessage.includes('بشر') || 
@@ -27,21 +22,19 @@ export async function POST(req: Request) {
                          lastMessage.includes('خدمة عملاء');
 
     if (isEscalation) {
-      return NextResponse.json({
-        isEscalation: true,
-        text: "يرجى الانتظار، سيتم تحويلك إلى القسم المختص..."
-      });
+      return NextResponse.json({ isEscalation: true, text: "يرجى الانتظار، سيتم تحويلك إلى القسم المختص..." });
     }
 
-    // 3. تجهيز الرسائل
     const geminiMessages = messages.map((m: any) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }]
     }));
 
-    // 4. استدعاء API (استخدام 1.5-flash لأنه المستقر والمجاني تماماً)
+    // تم تحديث اسم النموذج إلى الأحدث والأكثر استقراراً
+    const modelName = "gemini-1.5-flash-latest"; 
+
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,7 +50,6 @@ export async function POST(req: Request) {
       }
     );
 
-    // 5. إذا فشل الاتصال، اعرض الخطأ الحقيقي من جوجل للمستخدم
     if (!response.ok) {
       const errorText = await response.text();
       console.error("❌ Gemini API Failed:", response.status, errorText);
@@ -70,13 +62,9 @@ export async function POST(req: Request) {
     const data = await response.json();
     const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "عذراً، لم أتمكن من توليد رد.";
 
-    return NextResponse.json({
-      isEscalation: false,
-      text: aiText.trim()
-    });
+    return NextResponse.json({ isEscalation: false, text: aiText.trim() });
 
   } catch (error: any) {
-    // عرض الخطأ البرمجي الحقيقي
     console.error("💥 CRITICAL ERROR:", error);
     return NextResponse.json({
       isEscalation: false,
