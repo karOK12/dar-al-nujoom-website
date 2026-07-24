@@ -32,7 +32,6 @@ const trendingProducts = [
 ];
 
 type ChatStatus = "typing" | "online" | "warning" | "ended";
-type ConversationStage = "greeting" | "inquiry" | "troubleshooting" | "escalated" | "resolved";
 
 export default function Home() {
   const [open, setOpen] = useState(false);
@@ -45,7 +44,6 @@ export default function Home() {
   const [sessionAgents, setSessionAgents] = useState<Agent[]>([]);
   
   const [chatStatus, setChatStatus] = useState<ChatStatus>("online");
-  const [conversationStage, setConversationStage] = useState<ConversationStage>("greeting");
   const [countdown, setCountdown] = useState(60);
   
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -64,7 +62,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [open]);
 
-  // 🔴 دالة حساب النص الديناميكي (تعرض "انتهت منذ..." بوضوح عند الإغلاق)
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
     if (chatStatus === "online") return "متصل الآن";
@@ -113,15 +110,12 @@ export default function Home() {
           });
         }, 1000);
       }
-    }, 120000); // دقيقتين من عدم النشاط
+    }, 120000);
   };
 
-  // 🔴 دالة الإغلاق التلقائي التي تعيد النظام للمساعد الذكي
   const handleCloseByBot = () => {
     setChatStatus("ended");
     setEndTime(new Date());
-    
-    // إعادة النظام افتراضياً للمساعد الذكي وإخفاء الموظفين
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
@@ -157,7 +151,7 @@ export default function Home() {
           id: "welcome-1",
           sender: "bot",
           role: "assistant",
-          text: "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
+          text: "أهلاً بك في قناة مجلة دار النجوم!  أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         }]);
@@ -171,6 +165,16 @@ export default function Home() {
       if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
     };
   }, [open]);
+
+  // 🔴 دالة كشف التحويل محلياً (تعمل 100% بغض النظر عن الـ API)
+  const checkEscalation = (userText: string): boolean => {
+    const lowerText = userText.toLowerCase();
+    const escalationKeywords = [
+      'مدير', 'بشر', 'شكوى', 'تحويل', 'موظف', 'خدمة عملاء', 
+      'دعم فني', 'إنسان', 'حقيقي', 'أريد التحدث', 'اتصل'
+    ];
+    return escalationKeywords.some(keyword => lowerText.includes(keyword));
+  };
 
   const sendMessage = async () => {
     if (!text.trim() || chatStatus === "ended") return;
@@ -193,80 +197,79 @@ export default function Home() {
     
     setMessages((prev) => [...prev, newUserMsg]);
 
-    try {
-      const apiMessages = messages
-        .filter(m => m.sender !== "system" && (m.sender !== "bot" || m.text.includes("أهلاً بك")))
-        .map(m => ({ role: m.role, content: m.text }));
-      
-      apiMessages.push({ role: "user", content: userText });
+    // 🔴 التحقق من التحويل محلياً أولاً
+    const isEscalationRequest = checkEscalation(userText);
 
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          messages: apiMessages, 
-          currentStage: conversationStage 
-        })
-      });
+    if (isEscalationRequest) {
+      // عرض رسالة التحويل المطلوبة
+      setMessages((prev) => [...prev, {
+        id: (Date.now() + 1).toString(),
+        sender: currentSpeaker,
+        role: "assistant",
+        text: "سيتم تحويلك إلى القسم المختص لدعم عملائنا...",
+        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+        status: "read"
+      }]);
 
-      const data = await response.json();
+      // محاكاة الانتظار ثم التحويل
+      setTimeout(() => {
+        if (currentSpeaker === "bot") {
+          // التحويل الأول: من البوت إلى الموظف الأول
+          const firstAgent = supportAgents[0];
+          setCurrentAgent(firstAgent);
+          setSessionAgents([firstAgent]);
+          setCurrentSpeaker("agent");
+          
+          setMessages((prev) => [...prev, {
+            id: (Date.now() + 2).toString(),
+            sender: "agent",
+            role: "assistant",
+            text: `أهلاً بك، أنا ${firstAgent.name} (${firstAgent.role}). لقد اطلعت على محادثتك، تفضل كيف يمكنني مساعدتك؟`,
+            time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+            status: "read"
+          }]);
+        } else {
+          // التحويل الثاني: من الموظف الأول إلى الثاني
+          const nextAgent = supportAgents.find(a => a.employeeId !== currentAgent?.employeeId) || supportAgents[1];
+          setSessionAgents(prev => [...prev, nextAgent]);
+          setCurrentAgent(nextAgent);
+          
+          setMessages((prev) => [...prev, {
+            id: (Date.now() + 3).toString(),
+            sender: "agent",
+            role: "assistant",
+            text: `مرحباً، أنا ${nextAgent.name} (${nextAgent.role}). زميلي أحال لي حالتك، وأنا هنا لحل مشكلتك بشكل نهائي. تفضل؟`,
+            time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+            status: "read"
+          }]);
+        }
+        setChatStatus("online");
+        setLastActivityTime(new Date());
+        resetInactivityTimer();
+      }, 2000);
 
-      // 🔴 منطق التصعيد الذكي (من بوت لموظف، أو من موظف لموظف آخر)
-      if (data.isEscalation) {
-        setMessages((prev) => [...prev, {
-          id: (Date.now() + 1).toString(),
-          sender: currentSpeaker,
-          role: "assistant",
-          text: "يرجى الانتظار، سيتم تحويلك إلى القسم المختص لمتابعة حالتك...",
-          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-          status: "read"
-        }]);
+    } else {
+      // رد عادي عبر الـ API
+      try {
+        const apiMessages = messages
+          .filter(m => m.sender !== "system" && (m.sender !== "bot" || m.text.includes("أهلاً بك")))
+          .map(m => ({ role: m.role, content: m.text }));
+        
+        apiMessages.push({ role: "user", content: userText });
 
-        setTimeout(() => {
-          if (currentSpeaker === "bot") {
-            // التحويل الأول: من البوت إلى الموظف الأول
-            const firstAgent = supportAgents[0];
-            setCurrentAgent(firstAgent);
-            setSessionAgents([firstAgent]);
-            setCurrentSpeaker("agent");
-            setConversationStage("escalated");
-            
-            setMessages((prev) => [...prev, {
-              id: (Date.now() + 2).toString(),
-              sender: "agent",
-              role: "assistant",
-              text: `أهلاً بك، أنا ${firstAgent.name} (${firstAgent.role}). لقد اطلعت على محادثتك، تفضل كيف يمكنني مساعدتك؟`,
-              time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-              status: "read"
-            }]);
-          } else {
-            // التحويل الثاني: من الموظف الأول إلى الموظف الثاني
-            // الموظف الأول يبقى في sessionAgents (للأرشفة) لكن currentAgent يصبح الجديد
-            const nextAgent = supportAgents.find(a => a.employeeId !== currentAgent?.employeeId) || supportAgents[1];
-            setSessionAgents(prev => [...prev, nextAgent]);
-            setCurrentAgent(nextAgent);
-            
-            setMessages((prev) => [...prev, {
-              id: (Date.now() + 3).toString(),
-              sender: "agent",
-              role: "assistant",
-              text: `مرحباً، أنا ${nextAgent.name} (${nextAgent.role}). زميلي أحال لي حالتك، وأنا هنا لحل مشكلتك بشكل نهائي. تفضل؟`,
-              time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-              status: "read"
-            }]);
-          }
-          setChatStatus("online");
-          setLastActivityTime(new Date());
-          resetInactivityTimer();
-        }, 2000);
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: apiMessages })
+        });
 
-      } else {
-        // رد طبيعي
+        const data = await response.json();
+
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
           sender: currentSpeaker,
           role: "assistant",
-          text: data.text,
+          text: data.text || "عذراً، لم أتمكن من الرد حالياً.",
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         };
@@ -274,18 +277,18 @@ export default function Home() {
         setChatStatus("online");
         setLastActivityTime(new Date());
         resetInactivityTimer();
+      } catch (error) {
+        console.error("Chat Error:", error);
+        setMessages((prev) => [...prev, {
+          id: Date.now().toString(),
+          sender: "system",
+          text: "عذراً، حدث خطأ في الاتصال. يرجى المحاولة مرة أخرى.",
+          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+          status: "read"
+        }]);
+        setChatStatus("online");
+        resetInactivityTimer();
       }
-    } catch (error) {
-      console.error("Chat Error:", error);
-      setMessages((prev) => [...prev, {
-        id: Date.now().toString(),
-        sender: "system",
-        text: "عذراً، حدث خطأ في الاتصال. يرجى المحاولة مرة أخرى.",
-        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-        status: "read"
-      }]);
-      setChatStatus("online");
-      resetInactivityTimer();
     }
   };
 
@@ -379,7 +382,6 @@ export default function Home() {
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* 🔴 عرض أيقونة المساعد الذكي عند الإغلاق أو عدم وجود موظفين */}
             {(sessionAgents.length === 0 || chatStatus === "ended") ? (
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400">
@@ -399,7 +401,6 @@ export default function Home() {
                 }`}></span>
               </div>
             ) : (
-              /* 🔴 عرض أيقونات الموظفين (الأول كأرشفة، والثاني كنشط) */
               <div className="flex -space-x-3 rtl:space-x-reverse">
                 {sessionAgents.map((agent, idx) => (
                   <div key={agent.employeeId} className="relative group" title={`${agent.name} - ${agent.role}`}>
@@ -485,7 +486,6 @@ export default function Home() {
             </button>
           ) : (
             <div className="flex gap-2 items-end">
-              {/* 🔴 حقل الإدخال باللغة العربية فقط مع دعم الأسطر المتعددة */}
               <textarea 
                 value={text} 
                 placeholder="اكتب رسالتك هنا..." 
