@@ -17,11 +17,14 @@ interface Agent {
   name: string;
   img: string;
   role: string;
+  department: 'support' | 'ads'; // تحديد القسم
 }
 
+// 🔴 توسيع فريق الدعم ليشمل قسم الإعلانات والدعم الفني
 const supportAgents: Agent[] = [
-  { employeeId: "EMP-TEMP-001", name: "خالد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء" },
-  { employeeId: "EMP-TEMP-002", name: "نورة", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم" }
+  { employeeId: "EMP-TEMP-001", name: "خالد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support' },
+  { employeeId: "EMP-TEMP-002", name: "نورة", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'support' },
+  { employeeId: "EMP-TEMP-003", name: "سارة", img: "https://i.pravatar.cc/150?img=47", role: "مسؤولة الإعلانات", department: 'ads' }
 ];
 
 const trendingProducts = [
@@ -31,7 +34,7 @@ const trendingProducts = [
   { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=150&h=200&fit=crop", shape: "portrait" },
 ];
 
-type ChatStatus = "typing" | "online" | "idle" | "ended";
+type ChatStatus = "typing" | "online"; //  إزالة حالات idle و ended
 
 export default function Home() {
   const [open, setOpen] = useState(false);
@@ -49,13 +52,8 @@ export default function Home() {
   const chatButtonRef = useRef<HTMLDivElement>(null);
   
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
-  const [endTime, setEndTime] = useState<Date | null>(null);
 
-  // مؤقتات تتبع النشاط
-  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // 🔴 دالة حفظ الحالة في الذاكرة المحلية
+  //  دالة حفظ الحالة في الذاكرة المحلية (بدون مؤقتات)
   const saveStateToStorage = () => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
@@ -63,8 +61,7 @@ export default function Home() {
         currentSpeaker,
         currentAgent,
         sessionAgents,
-        chatStatus,
-        endTime
+        chatStatus
       }));
     }
   };
@@ -81,15 +78,6 @@ export default function Home() {
           setCurrentAgent(parsedState.currentAgent || null);
           setSessionAgents(parsedState.sessionAgents || []);
           setChatStatus(parsedState.chatStatus || "online");
-          setEndTime(parsedState.endTime ? new Date(parsedState.endTime) : null);
-          
-          // إعادة ضبط المؤقتات بناءً على الحالة المسترجعة
-          if (parsedState.chatStatus === "online") {
-            resetActivityTimers();
-          } else if (parsedState.chatStatus === "ended") {
-            if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-            if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-          }
           return true; 
         } catch (e) {
           console.error("Error loading chat state:", e);
@@ -105,73 +93,10 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [open]);
 
-  // عرض الحالة ديناميكياً
+  // عرض الحالة ديناميكياً (دائماً متصل الآن)
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
-    if (chatStatus === "online") return "متصل الآن";
-    if (chatStatus === "idle") return "انتهى مؤقتاً";
-    
-    if (chatStatus === "ended" && endTime) {
-      const diffSeconds = Math.floor((currentTime.getTime() - endTime.getTime()) / 1000);
-      if (diffSeconds < 60) return `انتهت منذ ${diffSeconds} ثانية`;
-      if (diffSeconds < 120) return "انتهت منذ دقيقة";
-      if (diffSeconds < 180) return "انتهت منذ دقيقتين";
-      if (diffSeconds < 3600) return `انتهت منذ ${Math.floor(diffSeconds / 60)} دقائق`;
-      return `انتهت منذ ${Math.floor(diffSeconds / 3600)} ساعات`;
-    }
-    return "غير نشط";
-  };
-
-  // إعادة ضبط المؤقتات عند أي نشاط
-  const resetActivityTimers = () => {
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-
-    setChatStatus("online");
-    saveStateToStorage(); 
-
-    // المرحلة 1: بعد 5 دقائق يصبح "انتهى مؤقتاً"
-    idleTimerRef.current = setTimeout(() => {
-      setChatStatus("idle");
-      saveStateToStorage();
-    }, 5 * 60 * 1000); 
-
-    // المرحلة 2: بعد ساعة إضافية، إغلاق رسمي
-    autoCloseTimerRef.current = setTimeout(() => {
-      performAutoClose();
-    }, 65 * 60 * 1000); 
-  };
-
-  // الإغلاق الرسمي والعودة للمساعد الذكي
-  const performAutoClose = () => {
-    setChatStatus("ended");
-    setEndTime(new Date());
-    setCurrentSpeaker("bot");
-    setCurrentAgent(null);
-    setSessionAgents([]);
-    
-    const closeMsg: Message = {
-      id: Date.now().toString(),
-      sender: "system",
-      text: "⏱️ تم إنهاء المحادثة تلقائياً بسبب عدم النشاط الطويل. يمكنك بدء محادثة جديدة.",
-      time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-      status: "read"
-    };
-
-    setMessages((prev) => {
-      const newMessages = [...prev, closeMsg];
-      setTimeout(() => {
-         localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-          messages: newMessages,
-          currentSpeaker: "bot",
-          currentAgent: null,
-          sessionAgents: [],
-          chatStatus: "ended",
-          endTime: new Date().toISOString()
-        }));
-      }, 0);
-      return newMessages;
-    });
+    return "متصل الآن";
   };
 
   useEffect(() => {
@@ -187,7 +112,7 @@ export default function Home() {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
-  //  تأثير التحميل الأولي: استرجاع المحادثة أو بدء جديدة
+  // تأثير التحميل الأولي: استرجاع المحادثة أو بدء جديدة
   useEffect(() => {
     if (open && messages.length === 0) {
       const hasSavedState = loadStateFromStorage();
@@ -205,23 +130,29 @@ export default function Home() {
           };
           setMessages([welcomeMsg]);
           setChatStatus("online");
-          resetActivityTimers();
+          saveStateToStorage();
         }, 1000);
       }
     }
-    
-    return () => {
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-    };
   }, [open]);
 
-  // حفظ الحالة عند كل تغيير في الرسائل أو المتحدث
+  // حفظ الحالة عند كل تغيير
   useEffect(() => {
     if (messages.length > 0 || currentAgent) {
       saveStateToStorage();
     }
-  }, [messages, currentAgent, sessionAgents, currentSpeaker, chatStatus, endTime]);
+  }, [messages, currentAgent, sessionAgents, currentSpeaker, chatStatus]);
+
+  // 🔴 كشف نية المستخدم لتحديد القسم المناسب (دعم فني أم إعلانات)
+  const detectDepartment = (userText: string): 'support' | 'ads' => {
+    const text = userText.toLowerCase();
+    const adKeywords = ["إعلان", "رفع اعلان", "ترويج", "سبونسر", "اعلان", "بانر", "فيديو ترويجي"];
+    
+    if (adKeywords.some(k => text.includes(k))) {
+      return 'ads';
+    }
+    return 'support'; // الافتراضي هو الدعم الفني وخدمة العملاء
+  };
 
   // محرك فهم النوايا للتحويل للدعم البشري
   const checkEscalation = (userText: string): boolean => {
@@ -244,57 +175,78 @@ export default function Home() {
       "ابي موظف", "ابغى موظف",
       "ممكن اكلم موظف", "ممكن اتواصل", "ممكن احجي", "احجي ويا موظف", "احجي ويه موظف",
       "اكو موظف", "اكو احد", "احد يرد", "منو يرد",
-      "ما اريد روبوت", "مو روبوت", "لا اريد روبوت", "رد بشري", "مساعده بشريه", "دعم بشري"
+      "ما اريد روبوت", "مو روبوت", "لا اريد روبوت", "رد بشري", "مساعده بشريه", "دعم بشري",
+      // كلمات خاصة بالإعلانات
+      "إعلان", "رفع اعلان", "ترويج", "سبونسر", "اعلان", "بانر", "فيديو ترويجي"
     ];
 
     return keywords.some(keyword => text.includes(keyword));
   };
 
-  const performEscalation = () => {
+  // 🔴 منطق التحويل الذكي حسب القسم المطلوب
+  const performEscalation = (userText: string) => {
     setChatStatus("typing");
+    const targetDept = detectDepartment(userText);
+    
     setMessages((prev) => [...prev, {
       id: (Date.now() + 1).toString(),
       sender: currentSpeaker,
       role: "assistant",
-      text: "يرجى الانتظار، جاري تحويلك إلى قسم خدمة عملائنا المختص...",
+      text: targetDept === 'ads' 
+        ? "يرجى الانتظار، جاري تحويلك إلى قسم الإعلانات والترويج..." 
+        : "يرجى الانتظار، جاري تحويلك إلى قسم خدمة عملائنا المختص...",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     }]);
 
     setTimeout(() => {
-      if (sessionAgents.length === 0) {
-        const firstAgent = supportAgents[0];
-        setCurrentAgent(firstAgent);
-        setSessionAgents([firstAgent]);
+      // البحث عن أول موظف متاح في القسم المطلوب
+      let assignedAgent = supportAgents.find(a => a.department === targetDept);
+      
+      // إذا لم يوجد موظف في القسم المطلوب، نستخدم الموظف العام كحل بديل
+      if (!assignedAgent) {
+        assignedAgent = supportAgents[0]; 
+      }
+
+      // التحقق مما إذا كان الموظف الحالي ينتمي لنفس القسم لتجنب التكرار
+      const isSameDept = currentAgent?.department === targetDept;
+      
+      if (!isSameDept || !currentAgent) {
+        setCurrentAgent(assignedAgent);
+        
+        // إضافة الموظف الجديد للجلسة إذا لم يكن موجوداً
+        if (!sessionAgents.find(a => a.employeeId === assignedAgent!.employeeId)) {
+          setSessionAgents(prev => [...prev, assignedAgent!]);
+        }
+        
         setCurrentSpeaker("agent");
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(),
           sender: "agent",
           role: "assistant",
-          text: `أهلاً بك، أنا ${firstAgent.name} (${firstAgent.role}). لقد اطلعت على محادثتك، تفضل كيف يمكنني مساعدتك؟`,
+          text: `أهلاً بك، أنا ${assignedAgent.name} (${assignedAgent.role}). لقد اطلعت على طلبك، تفضل كيف يمكنني مساعدتك؟`,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         }]);
       } else {
-        const nextAgent = supportAgents.find(a => a.employeeId !== currentAgent?.employeeId) || supportAgents[1];
-        setSessionAgents(prev => [...prev, nextAgent]);
-        setCurrentAgent(nextAgent);
+        // إذا كان نفس القسم ونفس الموظف، نؤكد الاستمرار
         setMessages((prev) => [...prev, {
-          id: (Date.now() + 3).toString(),
+          id: (Date.now() + 2).toString(),
           sender: "agent",
           role: "assistant",
-          text: `مرحباً، أنا ${nextAgent.name}. زميلي أحال لي حالتك لحلها بشكل نهائي. تفضل؟`,
+          text: `أنا هنا بالفعل! ${currentAgent.name} (${currentAgent.role}) جاهز لمساعدتك. تفضل بطرح مشكلتك أو طلبك.`,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         }]);
       }
+      
       setChatStatus("online");
-      resetActivityTimers();
+      saveStateToStorage();
     }, 3000);
   };
 
   const sendMessage = async () => {
-    if (!text.trim() || chatStatus === "ended") return; 
+    if (!text.trim()) return; 
     
     setChatStatus("typing");
     const userText = text;
@@ -309,10 +261,10 @@ export default function Home() {
       status: "sent"
     }]);
 
-    resetActivityTimers();
+    saveStateToStorage();
 
     if (checkEscalation(userText)) {
-      performEscalation();
+      performEscalation(userText);
       return;
     }
 
@@ -336,6 +288,7 @@ export default function Home() {
         status: "read"
       }]);
       setChatStatus("online");
+      saveStateToStorage();
     } catch (error) {
       setMessages((prev) => [...prev, {
         id: Date.now().toString(),
@@ -345,6 +298,7 @@ export default function Home() {
         status: "read"
       }]);
       setChatStatus("online");
+      saveStateToStorage();
     }
   };
 
@@ -371,7 +325,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
-      {/* 🔴 تم إضافة حركة ظهور الأيقونة من اليمين هنا */}
       <style jsx global>{`
         @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
@@ -403,7 +356,8 @@ export default function Home() {
             </div>
           </div>
           <div className="actions flex items-center gap-2 md:gap-3 shrink-0">
-            <button className="btn upgrade hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-orange-500/30 transition">ترقية 👑</button>
+            {/* 🔴 زر الترقية يفتح صفحة ثانية */}
+            <a href="/upgrade" className="btn upgrade hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-orange-500/30 transition">ترقية 👑</a>
             <a href="/login" className="btn subscribe px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-purple-500/30 transition">اشتراك</a>
           </div>
         </div>
@@ -434,10 +388,9 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 🔴 تمت إضافة كلاس animate-slide-in-right هنا لإعادة الحركة */}
       <div ref={chatButtonRef} onClick={() => {
         setOpen(!open);
-        if (!open) resetActivityTimers();
+        if (!open) saveStateToStorage();
       }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة والدعم">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-blink"><circle cx="10" cy="14" r="5" fill="white" /><circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
@@ -449,7 +402,7 @@ export default function Home() {
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
-            {(sessionAgents.length === 0 || chatStatus === "ended") ? (
+            {sessionAgents.length === 0 ? (
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -463,8 +416,7 @@ export default function Home() {
                 </div>
                 <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] ${
                   chatStatus === "online" ? "bg-green-500" : 
-                  chatStatus === "typing" ? "bg-yellow-500 animate-pulse" : 
-                  chatStatus === "ended" ? "bg-red-500" : "bg-gray-500"
+                  chatStatus === "typing" ? "bg-yellow-500 animate-pulse" : "bg-gray-500"
                 }`}></span>
               </div>
             ) : (
@@ -479,18 +431,14 @@ export default function Home() {
           </div>
           <div className="flex-1 min-w-0">
             <h4 className="font-bold text-white text-sm truncate">
-              {chatStatus === "ended" ? "المحادثة منتهية" : (sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name)}
+              {sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name}
             </h4>
             <p className={`text-xs flex items-center gap-1 truncate ${
-              chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : 
-              chatStatus === "idle" ? "text-yellow-400" :
-              chatStatus === "ended" ? "text-red-400 font-bold" : "text-gray-400"
+              chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : "text-gray-400"
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                 chatStatus === "online" ? "bg-green-400 animate-pulse" : 
-                chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
-                chatStatus === "idle" ? "bg-yellow-400" :
-                chatStatus === "ended" ? "bg-red-400" : "bg-gray-400"
+                chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : "bg-gray-400"
               }`}></span>
               <span className="truncate">{getStatusText()}</span>
             </p>
@@ -506,7 +454,7 @@ export default function Home() {
             }
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
-                {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent && chatStatus !== "ended" ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
+                {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
                 <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
                   {msg.text}
                 </div>
@@ -531,69 +479,32 @@ export default function Home() {
         </div>
 
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
-          {chatStatus === "ended" ? (
-            <button 
-              onClick={() => {
-                setMessages([]);
-                setChatStatus("online");
-                setEndTime(null);
-                setOpen(true);
-                resetActivityTimers();
-                localStorage.removeItem('dar-alnujum-chat-state'); 
+          <div className="flex gap-2 items-end">
+            <textarea 
+              id="chat-input"
+              value={text} 
+              placeholder="اكتب رسالتك هنا..." 
+              onChange={(e) => {
+                setText(e.target.value);
+              }} 
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
               }}
-              className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"
+              rows={1}
+              className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed"
+            />
+            
+            <button 
+              onClick={sendMessage} 
+              disabled={!text.trim() || chatStatus === "typing"} 
+              className="bg-purple-600 text-white p-3 rounded-xl text-sm font-bold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed mb-0.5"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" /><path d="M3 3v9h9" /></svg>
-              بدء محادثة جديدة
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
             </button>
-          ) : (
-            <div className="flex gap-2 items-end">
-              {/* 🔴 تحسين منطقة الإدخال للانتهاء المؤقت */}
-              {chatStatus === "idle" ? (
-                <div 
-                  onClick={() => {
-                    resetActivityTimers(); 
-                    document.getElementById('chat-input')?.focus();
-                  }}
-                  className="flex-1 bg-[#0b0f1a]/50 border border-dashed border-yellow-500/50 rounded-xl p-3 text-center cursor-pointer hover:bg-[#0b0f1a] hover:border-yellow-500 transition-colors group"
-                >
-                  <p className="text-yellow-400 text-sm font-medium group-hover:text-yellow-300">
-                    ⚡ انقر هنا أو اكتب لإعادة تفعيل المحادثة
-                  </p>
-                </div>
-              ) : (
-                <textarea 
-                  id="chat-input"
-                  value={text} 
-                  placeholder="اكتب رسالتك هنا..." 
-                  onChange={(e) => {
-                    setText(e.target.value);
-                    resetActivityTimers();
-                  }} 
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage();
-                    }
-                  }}
-                  rows={1}
-                  className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed"
-                />
-              )}
-              
-              <button 
-                onClick={sendMessage} 
-                disabled={!text.trim() || chatStatus === "typing" || chatStatus === "idle"} 
-                className={`p-3 rounded-xl text-sm font-bold transition mb-0.5 ${
-                  chatStatus === "idle" 
-                    ? "bg-gray-700 text-gray-500 cursor-not-allowed" 
-                    : "bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                }`}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
-              </button>
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
