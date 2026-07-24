@@ -31,7 +31,7 @@ const trendingProducts = [
   { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=200&h=300&fit=crop", shape: "portrait" },
 ];
 
-type ChatStatus = "typing" | "online" | "warning" | "ended";
+type ChatStatus = "typing" | "online" | "ended";
 
 export default function Home() {
   const [open, setOpen] = useState(false);
@@ -44,17 +44,12 @@ export default function Home() {
   const [sessionAgents, setSessionAgents] = useState<Agent[]>([]);
   
   const [chatStatus, setChatStatus] = useState<ChatStatus>("online");
-  const [countdown, setCountdown] = useState(60);
   
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
   
-  const [lastActivityTime, setLastActivityTime] = useState<Date>(new Date());
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [endTime, setEndTime] = useState<Date | null>(null);
-
-  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -65,7 +60,6 @@ export default function Home() {
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
     if (chatStatus === "online") return "متصل الآن";
-    if (chatStatus === "warning") return `سيتم الإنهاء خلال ${countdown} ثانية`;
     
     if (chatStatus === "ended" && endTime) {
       const diffSeconds = Math.floor((currentTime.getTime() - endTime.getTime()) / 1000);
@@ -78,42 +72,8 @@ export default function Home() {
     return "غير نشط";
   };
 
-  const resetInactivityTimer = () => {
-    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
-    
-    if (chatStatus !== "ended") {
-      setChatStatus("online");
-      setCountdown(60);
-    }
-
-    inactivityTimerRef.current = setTimeout(() => {
-      if (chatStatus !== "ended" && open) {
-        setChatStatus("warning");
-        setMessages((prev) => [...prev, {
-          id: Date.now().toString(),
-          sender: currentSpeaker === "agent" ? "agent" : "bot",
-          role: "assistant",
-          text: "⚠️ لم ألاحظ أي نشاط مؤخراً. سيتم إنهاء هذه المحادثة تلقائياً خلال 60 ثانية.",
-          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-          status: "read"
-        }]);
-
-        countdownTimerRef.current = setInterval(() => {
-          setCountdown((prev) => {
-            if (prev <= 1) {
-              clearInterval(countdownTimerRef.current!);
-              handleCloseByBot();
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
-      }
-    }, 120000);
-  };
-
-  const handleCloseByBot = () => {
+  // 🔴 دالة الإنهاء اليدوي (بدون مؤقتات تلقائية)
+  const handleManualEndChat = () => {
     setChatStatus("ended");
     setEndTime(new Date());
     setCurrentSpeaker("bot");
@@ -122,9 +82,8 @@ export default function Home() {
 
     setMessages((prev) => [...prev, {
       id: Date.now().toString(),
-      sender: "bot",
-      role: "assistant",
-      text: "🔒 نظراً لعدم وجود نشاط، قمت بإنهاء هذه المحادثة تلقائياً. يمكنك بدء محادثة جديدة في أي وقت.",
+      sender: "system",
+      text: "🔒 تم إنهاء المحادثة يدوياً. يمكنك بدء محادثة جديدة في أي وقت.",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     }]);
@@ -151,61 +110,69 @@ export default function Home() {
           id: "welcome-1",
           sender: "bot",
           role: "assistant",
-          text: "أهلاً بك في قناة مجلة دار النجوم! أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
+          text: "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. يمكنني إخبارك بالتفصيل عن أسعارنا، باقاتنا، ومميزات خدماتنا. كيف يمكنني مساعدتك اليوم؟",
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         }]);
         setChatStatus("online");
-        setLastActivityTime(new Date());
-        resetInactivityTimer();
       }, 1000);
     }
-    return () => {
-      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
-    };
   }, [open]);
 
+  // 🔴 قاعدة معرفة البوت (يجيب بدقة وتنظيم)
+  const getBotKnowledgeResponse = (userText: string): string | null => {
+    const lowerText = userText.toLowerCase();
+    
+    // 1. الأسئلة المتعلقة بالأسعار والباقات
+    if (['سعر', 'كم', 'تكلفة', 'أسعار', 'باقات', 'اشتراك', 'دفع', 'فلوس', 'ثمن', 'قيمة', 'الباقات'].some(k => lowerText.includes(k))) {
+      return `💰 تفاصيل باقاتنا وأسعارها:
+
+📦 الباقة الأساسية: 100$ / شهرياً
+• وصول كامل للمحتوى بجودة HD
+• دعم فني عبر البريد الإلكتروني
+
+⭐ الباقة المتقدمة: 200$ / شهرياً
+• كل ميزات الباقة الأساسية
+• جودة بث 4K فائقة الوضوح
+• دعم فني مباشر 24/7
+
+👑 الباقة الاحترافية: 350$ / شهرياً
+• كل ميزات الباقة المتقدمة
+• بث مباشر غير محدود
+• أولوية قصوى في الدعم ومحتوى VIP
+
+🎁 عروض خاصة: خصم 25% على الاشتراكات السنوية.
+
+هل تريد مساعدة في اختيار الباقة المناسبة لك، أم تود التحدث مع ممثل خدمة عملاء للتأكيد؟`;
+    }
+
+    // 2. الأسئلة المتعلقة بالمميزات والتفاصيل
+    if (['مميزات', 'تفاصيل', 'خدمات', 'ماذا تقدمون', 'كيف', 'معلومات'].some(k => lowerText.includes(k))) {
+      return `🌟 نقدم في دار النجوم مجموعة متكاملة من الخدمات:
+1. محتوى إعلامي وترفيهي حصري عالي الجودة.
+2. تغطية مباشرة للأحداث والبرامج الخاصة.
+3. دعم فني متواصل لضمان أفضل تجربة مشاهدة.
+
+يمكنك الاطلاع على التفاصيل الدقيقة لكل خدمة في قسم "من نحن" أو "الخدمات" في الموقع. هل هناك خدمة محددة تود معرفة المزيد عنها؟`;
+    }
+
+    return null; // إذا لم يكن السؤال ضمن المعرفة المسبقة، ننتقل للـ API
+  };
+
+  // 🔴 كشف طلب التحويل للدعم البشري (كلمات محددة جداً)
   const checkEscalation = (userText: string): boolean => {
     const lowerText = userText.toLowerCase();
     const escalationKeywords = [
       'مدير', 'بشر', 'شكوى', 'تحويل', 'موظف', 'خدمة عملاء', 
       'دعم فني', 'إنسان', 'حقيقي', 'أريد التحدث', 'اتصل',
-      'تكلم', 'موظف حقيقي', 'شخص', 'ممثل', 'أحد', 'مساعدة بشرية',
-      'حولني', 'ابغى', 'احتاج', 'شخصي', 'دعم', 'مسؤول', 'مشرف'
+      'شخص', 'ممثل', 'تأكيد من الدعم', 'مساعدة بشرية'
     ];
     return escalationKeywords.some(keyword => lowerText.includes(keyword));
   };
 
-  // 🔴 تنسيق رسالة الأسعار بأسطر واضحة ومرتبة
-  const checkPricingQuestion = (userText: string): string | null => {
-    const lowerText = userText.toLowerCase();
-    const pricingKeywords = ['سعر', 'كم', 'تكلفة', 'أسعار', 'باقات', 'اشتراك', 'دفع', 'فلوس', 'ثمن', 'قيمة'];
-    
-    if (pricingKeywords.some(keyword => lowerText.includes(keyword))) {
-      return `💰 أسعار باقاتنا:
-
-📦 الباقة الأساسية: 100$ شهرياً
-• وصول كامل للمحتوى وجودة HD
-
-⭐ الباقة المتقدمة: 200$ شهرياً
-• جودة 4K ودعم فني مباشر 24/7
-
-👑 الباقة الاحترافية: 350$ شهرياً
-• بث غير محدود وأولوية في الدعم
-
-🎁 عروض خاصة: خصم 25% على الاشتراك السنوي
-
-هل تريد تفاصيل أكثر عن باقة معينة؟`;
-    }
-    return null;
-  };
-
-  // 🔴 دالة التحويل مع فترة انتظار واقعية
   const performEscalation = () => {
-    console.log("🔄 بدء عملية التحويل...");
-
-    // 1. إظهار رسالة الانتظار فوراً
+    setChatStatus("typing");
+    
     const transferMessage: Message = {
       id: (Date.now() + 1).toString(),
       sender: currentSpeaker,
@@ -215,27 +182,22 @@ export default function Home() {
       status: "read"
     };
     setMessages((prev) => [...prev, transferMessage]);
-    setChatStatus("typing"); // إظهار مؤشر الكتابة أثناء الانتظار
 
-    // 2. الانتظار (15000 ميلي ثانية = 15 ثانية). يمكنك تغييرها إلى 30000 لـ 30 ثانية
     setTimeout(() => {
-      console.log("⏰ تنفيذ التحويل الآن...");
-      
       if (sessionAgents.length === 0) {
         const firstAgent = supportAgents[0];
         setCurrentAgent(firstAgent);
         setSessionAgents([firstAgent]);
         setCurrentSpeaker("agent");
         
-        const agentWelcome: Message = {
+        setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(),
           sender: "agent",
           role: "assistant",
           text: `أهلاً بك، أنا ${firstAgent.name} (${firstAgent.role}). لقد اطلعت على محادثتك، تفضل كيف يمكنني مساعدتك؟`,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
-        };
-        setMessages((prev) => [...prev, agentWelcome]);
+        }]);
       } else {
         const currentAgentId = sessionAgents[sessionAgents.length - 1]?.employeeId;
         const nextAgent = supportAgents.find(a => a.employeeId !== currentAgentId) || supportAgents[1];
@@ -243,68 +205,59 @@ export default function Home() {
         setSessionAgents(prev => [...prev, nextAgent]);
         setCurrentAgent(nextAgent);
         
-        const agentWelcome: Message = {
+        setMessages((prev) => [...prev, {
           id: (Date.now() + 3).toString(),
           sender: "agent",
           role: "assistant",
           text: `مرحباً، أنا ${nextAgent.name} (${nextAgent.role}). زميلي أحال لي حالتك، وأنا هنا لحل مشكلتك بشكل نهائي. تفضل؟`,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
-        };
-        setMessages((prev) => [...prev, agentWelcome]);
+        }]);
       }
-      
       setChatStatus("online");
-      setLastActivityTime(new Date());
-      resetInactivityTimer();
-    }, 15000); // ⚠️ غيّر هذا الرقم إلى 30000 إذا أردت الانتظار 30 ثانية بالضبط
+    }, 3000); // انتظار 3 ثوانٍ فقط لمحاكاة واقعية وسريعة
   };
 
   const sendMessage = async () => {
     if (!text.trim() || chatStatus === "ended") return;
     
-    setLastActivityTime(new Date());
-    resetInactivityTimer();
     setChatStatus("typing");
-
     const userText = text;
     setText("");
 
-    const newUserMsg: Message = {
+    setMessages((prev) => [...prev, {
       id: Date.now().toString(),
       sender: "user",
       role: "user",
       text: userText,
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "sent"
-    };
-    
-    setMessages((prev) => [...prev, newUserMsg]);
+    }]);
 
-    const pricingResponse = checkPricingQuestion(userText);
-    if (pricingResponse) {
+    // 1. التحقق أولاً: هل يطلب الدعم البشري؟
+    if (checkEscalation(userText)) {
+      performEscalation();
+      return;
+    }
+
+    // 2. التحقق ثانياً: هل السؤال ضمن معرفة البوت المسبقة (أسعار، تفاصيل)؟
+    const knownResponse = getBotKnowledgeResponse(userText);
+    if (knownResponse) {
       setTimeout(() => {
         setMessages((prev) => [...prev, {
           id: (Date.now() + 1).toString(),
           sender: currentSpeaker,
           role: "assistant",
-          text: pricingResponse,
+          text: knownResponse,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         }]);
         setChatStatus("online");
-        setLastActivityTime(new Date());
-        resetInactivityTimer();
       }, 1000);
       return;
     }
 
-    const isEscalationRequest = checkEscalation(userText);
-    if (isEscalationRequest) {
-      performEscalation();
-      return;
-    }
-
+    // 3. إذا لم يكن أي مما سبق، نستخدم الذكاء الاصطناعي العام للإجابة
     try {
       const apiMessages = messages
         .filter(m => m.sender !== "system")
@@ -329,8 +282,6 @@ export default function Home() {
         status: "read"
       }]);
       setChatStatus("online");
-      setLastActivityTime(new Date());
-      resetInactivityTimer();
     } catch (error) {
       console.error("Chat Error:", error);
       setMessages((prev) => [...prev, {
@@ -341,19 +292,17 @@ export default function Home() {
         status: "read"
       }]);
       setChatStatus("online");
-      resetInactivityTimer();
     }
   };
 
-  // 🔴 تكبير وتنسيق أيقونات الإعلانات
   const renderSeamlessItems = () => {
     const repeatedProducts = [...trendingProducts, ...trendingProducts];
     return repeatedProducts.map((product, index) => {
       const shapeClass = 
-        product.shape === 'circle' ? 'w-20 h-20 rounded-full' :       // تكبير الدائرة
-        product.shape === 'rectangle' ? 'w-28 h-20 rounded-xl' :      // تكبير المستطيل
-        product.shape === 'portrait' ? 'w-20 h-28 rounded-2xl' :      // تكبير العامودي
-        'w-20 h-20 rounded-xl';                                       // تكبير المربع
+        product.shape === 'circle' ? 'w-20 h-20 rounded-full' :
+        product.shape === 'rectangle' ? 'w-28 h-20 rounded-xl' :
+        product.shape === 'portrait' ? 'w-20 h-28 rounded-2xl' :
+        'w-20 h-20 rounded-xl';
 
       return (
         <div key={`${product.id}-${index}`} className="flex-shrink-0 inline-flex items-center gap-4 mx-4 bg-[#1f2937]/90 backdrop-blur-sm px-5 py-4 border border-gray-700 hover:border-purple-500 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 w-[380px]">
@@ -374,7 +323,6 @@ export default function Home() {
         .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
         .animate-seamless-scroll:hover { animation-play-state: paused; }
         
-        /* 🔴 حركة ظهور أيقونة الدردشة من اليمين */
         @keyframes slide-in-right {
           0% { transform: translateX(100px); opacity: 0; }
           100% { transform: translateX(0); opacity: 1; }
@@ -432,13 +380,9 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 🔴 أيقونة الدردشة مع حركة الظهور من اليمين */}
       <div 
         ref={chatButtonRef} 
-        onClick={() => {
-          setOpen(!open);
-          if (!open) resetInactivityTimer();
-        }} 
+        onClick={() => setOpen(!open)} 
         className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" 
         title="مركز المساعدة والدعم"
       >
@@ -482,29 +426,34 @@ export default function Home() {
           </div>
           <div className="flex-1 min-w-0">
             <h4 className="font-bold text-white text-sm truncate">
-              {chatStatus === "ended" ? "المساعد الذكي" : (sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name)}
+              {chatStatus === "ended" ? "المحادثة منتهية" : (sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name)}
             </h4>
-            <p className={`text-xs flex items-center gap-1 truncate ${
-              chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : 
-              chatStatus === "ended" ? "text-red-400 font-bold" : "text-yellow-400"
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                chatStatus === "online" ? "bg-green-400 animate-pulse" : 
-                chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
-                chatStatus === "ended" ? "bg-red-400" : "bg-yellow-400 animate-pulse"
-              }`}></span>
-              <span className="truncate">{getStatusText()}</span>
-            </p>
+            <div className="flex items-center gap-2">
+              <p className={`text-xs flex items-center gap-1 truncate ${
+                chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : 
+                chatStatus === "ended" ? "text-red-400 font-bold" : "text-gray-400"
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                  chatStatus === "online" ? "bg-green-400 animate-pulse" : 
+                  chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
+                  chatStatus === "ended" ? "bg-red-400" : "bg-gray-400"
+                }`}></span>
+                <span className="truncate">{getStatusText()}</span>
+              </p>
+              
+              {/* 🔴 زر الإنهاء اليدوي (يظهر فقط عندما تكون المحادثة مفتوحة ومتصلة) */}
+              {chatStatus !== "ended" && (
+                <button 
+                  onClick={handleManualEndChat}
+                  className="text-[10px] bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white px-2 py-0.5 rounded transition border border-red-500/30"
+                  title="إنهاء المحادثة"
+                >
+                  إنهاء
+                </button>
+              )}
+            </div>
           </div>
         </div>
-
-        {chatStatus === "warning" && (
-          <div className="bg-yellow-500/10 border-b border-yellow-500/20 p-2 text-center animate-pulse">
-            <p className="text-xs text-yellow-400 font-medium">
-              سيتم إغلاق المحادثة تلقائياً خلال <span className="font-bold text-white">{countdown}</span> ثانية
-            </p>
-          </div>
-        )}
 
         <div className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50">
           {messages.map((msg) => {
@@ -515,11 +464,10 @@ export default function Home() {
             }
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
-                {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent && chatStatus !== "ended" ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
-                {/* 🔴 إضافة whiteSpace: 'pre-wrap' لضمان ظهور الأسطر الجديدة في رسالة الأسعار بشكل جميل */}
+                {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
                 <div 
                   className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}
-                  style={{ whiteSpace: 'pre-wrap' }}
+                  style={{ whiteSpace: 'pre-wrap' }} // 🔴 يضمن ظهور الأسطر الجديدة في رسالة الأسعار بشكل جميل
                 >
                   {msg.text}
                 </div>
@@ -551,7 +499,6 @@ export default function Home() {
                 setChatStatus("online");
                 setEndTime(null);
                 setOpen(true);
-                resetInactivityTimer();
               }}
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"
             >
@@ -563,10 +510,7 @@ export default function Home() {
               <textarea 
                 value={text} 
                 placeholder="اكتب رسالتك هنا..." 
-                onChange={(e) => {
-                  setText(e.target.value);
-                  resetInactivityTimer();
-                }} 
+                onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
