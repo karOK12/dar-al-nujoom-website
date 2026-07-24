@@ -1,7 +1,7 @@
 // app/api/chat/route.ts
 import { NextResponse } from 'next/server';
-import { kv } from '@vercel/kv'; // استيراد قاعدة KV
-import { v4 as uuidv4 } from 'uuid'; // لإنشاء معرفات فريدة
+import { kv } from '@vercel/kv';
+import { v4 as uuidv4 } from 'uuid';
 
 interface ChatMessage {
   role: string;
@@ -20,7 +20,6 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const messages: ChatMessage[] = body.messages || [];
-    // معرف الجلسة (يفضل إرساله من الواجهة الأمامية، أو نولده هنا)
     const sessionId = body.sessionId || uuidv4();
 
     const apiKey = process.env.GROQ_API_KEY;
@@ -34,7 +33,7 @@ export async function POST(req: Request) {
     const lastUserMessage = messages[messages.length - 1]?.content || '';
     const lowerText = lastUserMessage.toLowerCase();
 
-    // 1. تسجيل المحادثة في قاعدة البيانات (KV) بغض النظر عن الرد
+    // 1. تسجيل المحادثة في قاعدة البيانات (KV)
     try {
       const logEntry = {
         sessionId,
@@ -42,12 +41,10 @@ export async function POST(req: Request) {
         content: lastUserMessage,
         timestamp: new Date().toISOString(),
       };
-      // نضيف الرسالة إلى قائمة المحادثات لهذه الجلسة (نخزن آخر 50 رسالة مثلاً)
       await kv.lpush(`chat:${sessionId}`, JSON.stringify(logEntry));
-      await kv.ltrim(`chat:${sessionId}`, 0, 49); // نحتفظ بآخر 50 رسالة فقط عشان لا تمتلئ
+      await kv.ltrim(`chat:${sessionId}`, 0, 49);
     } catch (error) {
       console.error('فشل تسجيل المحادثة في KV:', error);
-      // نكمل التنفيذ حتى لو فشل التسجيل عشان الخدمة ما توقف
     }
 
     // 2. التحقق من كلمات التحويل
@@ -55,17 +52,13 @@ export async function POST(req: Request) {
     const isEscalation = escalationKeywords.some(keyword => lowerText.includes(keyword));
 
     if (isEscalation) {
-      // --- نختار موظف وهمي عشوائي (متصل) لتحويل المستخدم إليه ---
       const onlineAgents = MOCK_AGENTS.filter(agent => agent.isOnline);
-      // لو ما في موظف متصل، نختار أول واحد ونعتبره متصل بشكل افتراضي للمحاكاة
       const assignedAgent = onlineAgents.length > 0
         ? onlineAgents[Math.floor(Math.random() * onlineAgents.length)]
         : MOCK_AGENTS[0];
 
-      // توليد معرف فريد لطلب التحويل (التذكرة)
       const ticketId = uuidv4();
 
-      // 3. تسجيل طلب التحويل في قاعدة البيانات
       try {
         const escalationRecord = {
           ticketId,
@@ -74,34 +67,30 @@ export async function POST(req: Request) {
           agentName: assignedAgent.name,
           department: assignedAgent.department,
           userMessage: lastUserMessage,
-          status: 'pending', // pending, assigned, closed
+          status: 'pending',
           createdAt: new Date().toISOString(),
-          messages: messages, // نخزن سياق المحادثة كامل
+          messages: messages,
         };
-        // نضيف التذكرة إلى قائمة التذاكر المعلقة
         await kv.lpush('escalations:pending', JSON.stringify(escalationRecord));
-        // ممكن نخزن التذكرة بمفتاح خاص بها عشان نعدل حالتها بعدين
         await kv.set(`ticket:${ticketId}`, JSON.stringify(escalationRecord));
       } catch (error) {
         console.error('فشل تسجيل طلب التحويل:', error);
       }
 
-      // الرد على المستخدم مع ذكر اسم الموظف ومعرفه (هذي المحاكاة)
       return NextResponse.json({
         isEscalation: true,
         text: `🔄 جاري تحويلك إلى ${assignedAgent.name} (${assignedAgent.department}) - المعرف: ${assignedAgent.id}. سيتم التواصل معك قريباً...`,
-        // نرسل معلومات إضافية للواجهة الأمامية لعرضها (اختياري)
         agentInfo: {
           id: assignedAgent.id,
           name: assignedAgent.name,
           department: assignedAgent.department,
         },
-        ticketId: ticketId, // نرسله عشان الواجهة تتابع حالة التذكرة
+        ticketId: ticketId,
         sessionId: sessionId,
       });
     }
 
-    // --- باقي الكود الخاص بالذكاء الاصطناعي (الردود العادية) ---
+    // --- الذكاء الاصطناعي (الردود العادية) ---
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -136,9 +125,15 @@ export async function POST(req: Request) {
     }
 
     const data = await response.json();
-    const aiText = data.choices?.[0]?.message?.content?.trim() || 'عذراً، لم أتمكن من توليد رد.';
+    let aiText = data.choices?.[0]?.message?.content?.trim() || 'عذراً، لم أتمكن من توليد رد.';
 
-    // تسجيل رد المساعد في قاعدة البيانات
+    // ===== طبقة معالجة إضافية (تصحيح العملة) =====
+    // هذه الخطوة تضمن عدم ظهور أي عملة غير الدينار العراقي
+    aiText = aiText.replace(/ريال سعودي|ريال|SAR/g, 'دينار عراقي');
+    aiText = aiText.replace(/دولار|USD|\$/g, 'دينار عراقي');
+    aiText = aiText.replace(/درهم|دينار كويتي|دينار بحريني/g, 'دينار عراقي');
+
+    // تسجيل رد المساعد
     try {
       const logEntry = {
         sessionId,
@@ -155,7 +150,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       isEscalation: false,
       text: aiText,
-      sessionId: sessionId, // نرجعه عشان الواجهة تحتفظ به
+      sessionId: sessionId,
     });
   } catch (error: any) {
     console.error('Chat API Crash:', error);
