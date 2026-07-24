@@ -91,7 +91,7 @@ export default function Home() {
     }, 15 * 60 * 1000);
   };
 
-  //  دالة الإغلاق التلقائي والعودة للمساعد الذكي
+  // 🔴 دالة الإغلاق التلقائي والعودة للمساعد الذكي
   const performAutoClose = () => {
     setChatStatus("ended");
     setCurrentSpeaker("bot");
@@ -101,7 +101,7 @@ export default function Home() {
     setMessages((prev) => [...prev, {
       id: Date.now().toString(),
       sender: "system",
-      text: "⏱️ تم إنهاء المحادثة تلقائياً بسبب عدم النشاط. يمكنك بدء محادثة جديدة.",
+      text: "️ تم إنهاء المحادثة تلقائياً بسبب عدم النشاط. يمكنك بدء محادثة جديدة.",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     }]);
@@ -115,7 +115,7 @@ export default function Home() {
           id: "welcome-1",
           sender: "bot",
           role: "assistant",
-          text: "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. يمكنني إخبارك بالتفصيل عن أسعارنا، باقاتنا، ومميزات خدماتنا. كيف يمكنني مساعدتك اليوم؟",
+          text: "أهلاً بك في قناة مجلة دار النجوم!  أنا المساعد الذكي. يمكنني إخبارك بالتفصيل عن أسعارنا، باقاتنا، ومميزات خدماتنا. كيف يمكنني مساعدتك اليوم؟",
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         }]);
@@ -130,30 +130,53 @@ export default function Home() {
     };
   }, [open]);
 
-  // 🔴 قاعدة معرفة البوت الدقيقة للأسعار والتفاصيل
+  // 🔴 قاعدة معرفة البوت الدقيقة والشاملة للأسعار والتفاصيل
   const getBotKnowledgeResponse = (userText: string): string | null => {
     const lowerText = userText.toLowerCase();
-    if (['سعر', 'كم', 'تكلفة', 'أسعار', 'باقات', 'اشتراك', 'دفع', 'فلوس', 'ثمن', 'قيمة'].some(k => lowerText.includes(k))) {
+    
+    // كشف الأسئلة المتعلقة بالأسعار والباقات
+    if (['سعر', 'كم', 'تكلفة', 'أسعار', 'باقات', 'اشتراك', 'دفع', 'فلوس', 'ثمن', 'قيمة', 'الباقات'].some(k => lowerText.includes(k))) {
       return `💰 تفاصيل باقاتنا وأسعارها:
 
 📦 الباقة الأساسية: 100$ / شهرياً
 • وصول كامل للمحتوى بجودة HD
+• دعم فني عبر البريد الإلكتروني
 
 ⭐ الباقة المتقدمة: 200$ / شهرياً
-• جودة بث 4K ودعم فني مباشر 24/7
+• جودة بث 4K فائقة الوضوح
+• دعم فني مباشر 24/7
 
 👑 الباقة الاحترافية: 350$ / شهرياً
-• بث غير محدود وأولوية في الدعم
+• بث غير محدود وأولوية قصوى في الدعم
+• محتوى VIP حصري
 
-هل تريد مساعدة في اختيار الباقة المناسبة؟`;
+🎁 عروض خاصة: خصم 25% على الاشتراكات السنوية.
+
+هل تريد مساعدة في اختيار الباقة المناسبة لك؟`;
     }
+
+    // كشف الأسئلة المتعلقة بالمميزات والتفاصيل العامة
+    if (['مميزات', 'تفاصيل', 'خدمات', 'ماذا تقدمون', 'كيف', 'معلومات', 'شرح'].some(k => lowerText.includes(k))) {
+      return `🌟 نقدم في دار النجوم مجموعة متكاملة من الخدمات:
+1. محتوى إعلامي وترفيهي حصري عالي الجودة.
+2. تغطية مباشرة للأحداث والبرامج الخاصة.
+3. دعم فني متواصل لضمان أفضل تجربة مشاهدة.
+
+يمكنك الاطلاع على التفاصيل الدقيقة لكل خدمة في قسم "من نحن" أو "الخدمات" في الموقع. هل هناك خدمة محددة تود معرفة المزيد عنها؟`;
+    }
+
     return null;
   };
 
-  //  كشف دقيق لطلب الدعم البشري فقط
+  // 🔴 كشف ذكي وشامل لطلب الدعم البشري (يشمل كل الصيغ العشوائية)
   const checkEscalation = (userText: string): boolean => {
     const lowerText = userText.toLowerCase();
-    return ['حولني', 'تحويل', 'موظف', 'بشر', 'دعم فني', 'خدمة عملاء', 'مدير', 'شكوى'].some(k => lowerText.includes(k));
+    const escalationKeywords = [
+      'حولني', 'تحويل', 'موظف', 'بشر', 'دعم فني', 'خدمة عملاء', 'مدير', 'شكوى',
+      'أريد التحدث', 'اتصل', 'شخص', 'ممثل', 'مساعدة بشرية', 'إنسان', 'حقيقي',
+      'ابغى موظف', 'احتاج دعم', 'كلموني', 'رد بشري', 'مشكلة كبيرة', 'لا افهم'
+    ];
+    return escalationKeywords.some(keyword => lowerText.includes(keyword));
   };
 
   const performEscalation = () => {
@@ -177,7 +200,7 @@ export default function Home() {
           id: (Date.now() + 2).toString(),
           sender: "agent",
           role: "assistant",
-          text: `أهلاً بك، أنا ${firstAgent.name} (${firstAgent.role}). تفضل كيف يمكنني مساعدتك؟`,
+          text: `أهلاً بك، أنا ${firstAgent.name} (${firstAgent.role}). لقد اطلعت على محادثتك، تفضل كيف يمكنني مساعدتك؟`,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         }]);
@@ -215,10 +238,10 @@ export default function Home() {
       status: "sent"
     }]);
 
-    //  أهم سطر: إعادة ضبط المؤقتات عند إرسال المستخدم لأي رسالة
+    // 🔴 أهم سطر: إعادة ضبط المؤقتات عند إرسال المستخدم لأي رسالة
     resetActivityTimers();
 
-    // 1. التحقق أولاً: هل يطلب الدعم البشري بكلمات محددة؟
+    // 1. التحقق أولاً: هل يطلب الدعم البشري بأي صيغة؟
     if (checkEscalation(userText)) {
       performEscalation();
       return;
@@ -241,7 +264,7 @@ export default function Home() {
       return;
     }
 
-    // 3. إذا لم يكن أي مما سبق، نستخدم الذكاء الاصطناعي العام للإجابة على باقي الأسئلة
+    // 3. إذا لم يكن أي مما سبق، نستخدم الذكاء الاصطناعي العام للإجابة بذكاء على باقي الأسئلة
     try {
       const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: m.role || "user", content: m.text }));
       apiMessages.push({ role: "user", content: userText });
