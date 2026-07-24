@@ -64,6 +64,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [open]);
 
+  // 🔴 دالة حساب النص الديناميكي (تعرض "انتهت منذ..." بوضوح عند الإغلاق)
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
     if (chatStatus === "online") return "متصل الآن";
@@ -96,7 +97,7 @@ export default function Home() {
           id: Date.now().toString(),
           sender: currentSpeaker === "agent" ? "agent" : "bot",
           role: "assistant",
-          text: "⚠️ لم ألاحظ أي نشاط مؤخراً. سيتم إنهاء هذه المحادثة تلقائياً خلال 60 ثانية. يمكنك كتابة أي شيء لإبقائها مفتوحة.",
+          text: "⚠️ لم ألاحظ أي نشاط مؤخراً. سيتم إنهاء هذه المحادثة تلقائياً خلال 60 ثانية.",
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         }]);
@@ -112,12 +113,15 @@ export default function Home() {
           });
         }, 1000);
       }
-    }, 120000);
+    }, 120000); // دقيقتين من عدم النشاط
   };
 
+  // 🔴 دالة الإغلاق التلقائي التي تعيد النظام للمساعد الذكي
   const handleCloseByBot = () => {
     setChatStatus("ended");
     setEndTime(new Date());
+    
+    // إعادة النظام افتراضياً للمساعد الذكي وإخفاء الموظفين
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
@@ -126,7 +130,7 @@ export default function Home() {
       id: Date.now().toString(),
       sender: "bot",
       role: "assistant",
-      text: "🔒 نظراً لعدم وجود نشاط، قمت بإنهاء هذه المحادثة تلقائياً. يمكنك بدء محادثة جديدة في أي وقت. نتمنى لك يوماً سعيداً!",
+      text: "🔒 نظراً لعدم وجود نشاط، قمت بإنهاء هذه المحادثة تلقائياً. يمكنك بدء محادثة جديدة في أي وقت.",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     }]);
@@ -207,38 +211,57 @@ export default function Home() {
 
       const data = await response.json();
 
-      if (data.isEscalation && currentSpeaker === "bot") {
+      // 🔴 منطق التصعيد الذكي (من بوت لموظف، أو من موظف لموظف آخر)
+      if (data.isEscalation) {
         setMessages((prev) => [...prev, {
           id: (Date.now() + 1).toString(),
-          sender: "bot",
+          sender: currentSpeaker,
           role: "assistant",
-          text: data.text,
+          text: "يرجى الانتظار، سيتم تحويلك إلى القسم المختص لمتابعة حالتك...",
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         }]);
 
         setTimeout(() => {
-          const firstAgent = supportAgents[0];
-          setCurrentAgent(firstAgent);
-          setSessionAgents([firstAgent]);
-          setCurrentSpeaker("agent");
-          setConversationStage("escalated");
-          
-          const agentMsg: Message = {
-            id: (Date.now() + 2).toString(),
-            sender: "agent",
-            role: "assistant",
-            text: `أهلاً بك، أنا ${firstAgent.name} من ${firstAgent.role}. لقد اطلعت على محادثتك مع المساعد الذكي، وأنا هنا لخدمتك شخصياً. تفضل، كيف يمكنني مساعدتك؟`,
-            time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-            status: "read"
-          };
-          setMessages((prev) => [...prev, agentMsg]);
+          if (currentSpeaker === "bot") {
+            // التحويل الأول: من البوت إلى الموظف الأول
+            const firstAgent = supportAgents[0];
+            setCurrentAgent(firstAgent);
+            setSessionAgents([firstAgent]);
+            setCurrentSpeaker("agent");
+            setConversationStage("escalated");
+            
+            setMessages((prev) => [...prev, {
+              id: (Date.now() + 2).toString(),
+              sender: "agent",
+              role: "assistant",
+              text: `أهلاً بك، أنا ${firstAgent.name} (${firstAgent.role}). لقد اطلعت على محادثتك، تفضل كيف يمكنني مساعدتك؟`,
+              time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+              status: "read"
+            }]);
+          } else {
+            // التحويل الثاني: من الموظف الأول إلى الموظف الثاني
+            // الموظف الأول يبقى في sessionAgents (للأرشفة) لكن currentAgent يصبح الجديد
+            const nextAgent = supportAgents.find(a => a.employeeId !== currentAgent?.employeeId) || supportAgents[1];
+            setSessionAgents(prev => [...prev, nextAgent]);
+            setCurrentAgent(nextAgent);
+            
+            setMessages((prev) => [...prev, {
+              id: (Date.now() + 3).toString(),
+              sender: "agent",
+              role: "assistant",
+              text: `مرحباً، أنا ${nextAgent.name} (${nextAgent.role}). زميلي أحال لي حالتك، وأنا هنا لحل مشكلتك بشكل نهائي. تفضل؟`,
+              time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+              status: "read"
+            }]);
+          }
           setChatStatus("online");
           setLastActivityTime(new Date());
           resetInactivityTimer();
-        }, 2500);
+        }, 2000);
 
       } else {
+        // رد طبيعي
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
           sender: currentSpeaker,
@@ -356,6 +379,7 @@ export default function Home() {
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
+            {/* 🔴 عرض أيقونة المساعد الذكي عند الإغلاق أو عدم وجود موظفين */}
             {(sessionAgents.length === 0 || chatStatus === "ended") ? (
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400">
@@ -375,10 +399,11 @@ export default function Home() {
                 }`}></span>
               </div>
             ) : (
+              /* 🔴 عرض أيقونات الموظفين (الأول كأرشفة، والثاني كنشط) */
               <div className="flex -space-x-3 rtl:space-x-reverse">
                 {sessionAgents.map((agent, idx) => (
                   <div key={agent.employeeId} className="relative group" title={`${agent.name} - ${agent.role}`}>
-                    <img src={agent.img} alt={agent.name} className={`w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-[#111827] object-cover transition-all ${idx === sessionAgents.length - 1 ? "border-purple-500 z-10 ring-2 ring-purple-500/30" : "border-gray-500 z-0 opacity-70"}`} />
+                    <img src={agent.img} alt={agent.name} className={`w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-[#111827] object-cover transition-all ${idx === sessionAgents.length - 1 ? "border-purple-500 z-10 ring-2 ring-purple-500/30" : "border-gray-500 z-0 opacity-60 grayscale"}`} />
                   </div>
                 ))}
               </div>
@@ -390,7 +415,7 @@ export default function Home() {
             </h4>
             <p className={`text-xs flex items-center gap-1 truncate ${
               chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : 
-              chatStatus === "ended" ? "text-red-400" : "text-yellow-400"
+              chatStatus === "ended" ? "text-red-400 font-bold" : "text-yellow-400"
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                 chatStatus === "online" ? "bg-green-400 animate-pulse" : 
@@ -443,7 +468,6 @@ export default function Home() {
           )}
         </div>
 
-        {/* 🔴 منطقة الإدخال المحدثة لدعم الأسطر المتعددة */}
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           {chatStatus === "ended" ? (
             <button 
@@ -461,17 +485,17 @@ export default function Home() {
             </button>
           ) : (
             <div className="flex gap-2 items-end">
+              {/* 🔴 حقل الإدخال باللغة العربية فقط مع دعم الأسطر المتعددة */}
               <textarea 
                 value={text} 
-                placeholder="اكتب رسالتك هنا... (Shift + Enter لسطر جديد)" 
+                placeholder="اكتب رسالتك هنا..." 
                 onChange={(e) => {
                   setText(e.target.value);
                   resetInactivityTimer();
                 }} 
                 onKeyDown={(e) => {
-                  // إرسال الرسالة عند الضغط على Enter فقط (بدون Shift)
                   if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault(); // منع النزول لسطر جديد
+                    e.preventDefault();
                     sendMessage();
                   }
                 }}
