@@ -31,13 +31,8 @@ const trendingProducts = [
   { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=200&h=300&fit=crop", shape: "portrait" },
 ];
 
-type ChatStatus = "typing" | "online" | "idle" | "ended";
-
-// ️ المدة قبل "انتهى مؤقتاً" (5 دقائق)
-const IDLE_DELAY_MS = 300000;
-
-// ️ المدة قبل الإنهاء التلقائي الكامل (ساعة واحدة من آخر نشاط)
-const AUTO_CLOSE_DELAY_MS = 3600000;
+// 🔴 الحالة الآن إما متصل أو انتهى (لدمج الكلمة)
+type ChatStatus = "typing" | "online" | "ended";
 
 export default function Home() {
   const [open, setOpen] = useState(false);
@@ -53,80 +48,10 @@ export default function Home() {
   
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
-  
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
-  const [endTime, setEndTime] = useState<Date | null>(null);
 
-  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // مؤقتات تتبع نشاط المستخدم
+  const statusTimerRef = useRef<NodeJS.Timeout | null>(null);
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(interval);
-  }, [open]);
-
-  const getStatusText = () => {
-    if (chatStatus === "typing") return "يكتب الآن...";
-    if (chatStatus === "online") return "متصل الآن";
-    if (chatStatus === "idle") return "انتهى مؤقتاً";
-    
-    if (chatStatus === "ended" && endTime) {
-      const diffSeconds = Math.floor((currentTime.getTime() - endTime.getTime()) / 1000);
-      if (diffSeconds < 60) return `انتهى منذ ${diffSeconds} ثانية`;
-      if (diffSeconds < 120) return "انتهى منذ دقيقة";
-      if (diffSeconds < 180) return "انتهى منذ دقيقتين";
-      if (diffSeconds < 3600) return `انتهى منذ ${Math.floor(diffSeconds / 60)} دقائق`;
-      return `انتهى منذ ${Math.floor(diffSeconds / 3600)} ساعات`;
-    }
-    return "غير نشط";
-  };
-
-  // 🔴 الإنهاء التلقائي الكامل والعودة للمساعد الذكي
-  const handleAutoCloseByAgent = () => {
-    setChatStatus("typing");
-    
-    setTimeout(() => {
-      setChatStatus("ended");
-      setEndTime(new Date());
-      setCurrentSpeaker("bot");
-      setCurrentAgent(null);
-      setSessionAgents([]);
-      
-      setMessages((prev) => [...prev, {
-        id: Date.now().toString(),
-        sender: "bot",
-        role: "assistant",
-        text: "⏱️ نظراً لعدم وجود نشاط خلال الفترة الماضية، قمت بإنهاء هذه المحادثة تلقائياً. يمكنك بدء محادثة جديدة في أي وقت.",
-        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-        status: "read"
-      }]);
-    }, 1500);
-  };
-
-  // 🔴 الانتقال لحالة "انتهى مؤقتاً"
-  const handleIdleState = () => {
-    if (chatStatus !== "online") return;
-    setChatStatus("idle");
-    
-    // بدء العد التنازلي للإنهاء التلقائي بعد ساعة
-    autoCloseTimerRef.current = setTimeout(() => {
-      handleAutoCloseByAgent();
-    }, AUTO_CLOSE_DELAY_MS - IDLE_DELAY_MS);
-  };
-
-  // 🔴 إعادة ضبط جميع المؤقتات عند أي نشاط
-  const resetAllTimers = () => {
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-    
-    setChatStatus("online");
-    
-    // بدء المرحلة 2 بعد 5 دقائق من عدم النشاط
-    idleTimerRef.current = setTimeout(() => {
-      handleIdleState();
-    }, IDLE_DELAY_MS);
-  };
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -141,6 +66,50 @@ export default function Home() {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
+  // 🔴 دالة عرض الحالة (مدمجة: إما متصل الآن أو انتهى)
+  const getStatusText = () => {
+    if (chatStatus === "typing") return "يكتب الآن...";
+    if (chatStatus === "online") return "متصل الآن";
+    return "انتهى"; // عندما يتأخر المستخدم، تتغير الكلمة نفسها إلى "انتهى"
+  };
+
+  // 🔴 إعادة ضبط المؤقتات عند كل نشاط من المستخدم
+  const resetActivityTimers = () => {
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+
+    // 1. إرجاع الحالة إلى "متصل الآن" فوراً عند رد المستخدم
+    setChatStatus("online");
+
+    // 2. بعد 5 دقائق من عدم رد المستخدم، تتغير الكلمة إلى "انتهى" (المحادثة تبقى مفتوحة)
+    // يمكنك تغيير 5 * 60 * 1000 إلى 60 * 60 * 1000 لجعلها ساعة
+    statusTimerRef.current = setTimeout(() => {
+      setChatStatus("ended");
+    }, 5 * 60 * 1000); 
+
+    // 3. بعد 15 دقيقة من عدم النشاط، يتم إغلاق المحادثة تماماً والعودة للمساعد الذكي
+    // يمكنك تغيير 15 * 60 * 1000 إلى 2 * 60 * 60 * 1000 لساعتين
+    autoCloseTimerRef.current = setTimeout(() => {
+      performAutoClose();
+    }, 15 * 60 * 1000);
+  };
+
+  // 🔴 دالة الإغلاق التلقائي والعودة للمساعد الذكي
+  const performAutoClose = () => {
+    setChatStatus("ended");
+    setCurrentSpeaker("bot");
+    setCurrentAgent(null);
+    setSessionAgents([]);
+    
+    setMessages((prev) => [...prev, {
+      id: Date.now().toString(),
+      sender: "system",
+      text: "⏱️ تم إنهاء المحادثة تلقائياً بسبب عدم النشاط. يمكنك بدء محادثة جديدة.",
+      time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+      status: "read"
+    }]);
+  };
+
   useEffect(() => {
     if (open && messages.length === 0) {
       setChatStatus("typing");
@@ -154,75 +123,51 @@ export default function Home() {
           status: "read"
         }]);
         setChatStatus("online");
-        resetAllTimers();
+        resetActivityTimers();
       }, 1000);
     }
     
+    // تنظيف المؤقتات عند إغلاق النافذة
     return () => {
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
       if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
     };
   }, [open]);
 
   const getBotKnowledgeResponse = (userText: string): string | null => {
     const lowerText = userText.toLowerCase();
-    
-    if (['سعر', 'كم', 'تكلفة', 'أسعار', 'باقات', 'اشتراك', 'دفع', 'فلوس', 'ثمن', 'قيمة', 'الباقات'].some(k => lowerText.includes(k))) {
+    if (['سعر', 'كم', 'تكلفة', 'أسعار', 'باقات', 'اشتراك', 'دفع', 'فلوس', 'ثمن', 'قيمة'].some(k => lowerText.includes(k))) {
       return `💰 تفاصيل باقاتنا وأسعارها:
 
 📦 الباقة الأساسية: 100$ / شهرياً
 • وصول كامل للمحتوى بجودة HD
-• دعم فني عبر البريد الإلكتروني
 
 ⭐ الباقة المتقدمة: 200$ / شهرياً
-• كل ميزات الباقة الأساسية
-• جودة بث 4K فائقة الوضوح
-• دعم فني مباشر 24/7
+• جودة بث 4K ودعم فني مباشر 24/7
 
 👑 الباقة الاحترافية: 350$ / شهرياً
-• كل ميزات الباقة المتقدمة
-• بث مباشر غير محدود
-• أولوية قصوى في الدعم ومحتوى VIP
+• بث غير محدود وأولوية في الدعم
 
-🎁 عروض خاصة: خصم 25% على الاشتراكات السنوية.
-
-هل تريد مساعدة في اختيار الباقة المناسبة لك، أم تود التحدث مع ممثل خدمة عملاء للتأكيد؟`;
+هل تريد مساعدة في اختيار الباقة المناسبة؟`;
     }
-
-    if (['مميزات', 'تفاصيل', 'خدمات', 'ماذا تقدمون', 'كيف', 'معلومات'].some(k => lowerText.includes(k))) {
-      return `🌟 نقدم في دار النجوم مجموعة متكاملة من الخدمات:
-1. محتوى إعلامي وترفيهي حصري عالي الجودة.
-2. تغطية مباشرة للأحداث والبرامج الخاصة.
-3. دعم فني متواصل لضمان أفضل تجربة مشاهدة.
-
-يمكنك الاطلاع على التفاصيل الدقيقة لكل خدمة في قسم "من نحن" أو "الخدمات" في الموقع. هل هناك خدمة محددة تود معرفة المزيد عنها؟`;
-    }
-
     return null;
   };
 
   const checkEscalation = (userText: string): boolean => {
     const lowerText = userText.toLowerCase();
-    const escalationKeywords = [
-      'مدير', 'بشر', 'شكوى', 'تحويل', 'موظف', 'خدمة عملاء', 
-      'دعم فني', 'إنسان', 'حقيقي', 'أريد التحدث', 'اتصل',
-      'شخص', 'ممثل', 'تأكيد من الدعم', 'مساعدة بشرية'
-    ];
-    return escalationKeywords.some(keyword => lowerText.includes(keyword));
+    return ['مدير', 'بشر', 'شكوى', 'تحويل', 'موظف', 'خدمة عملاء', 'دعم فني', 'حقيقي', 'أريد التحدث'].some(k => lowerText.includes(k));
   };
 
   const performEscalation = () => {
     setChatStatus("typing");
-    
-    const transferMessage: Message = {
+    setMessages((prev) => [...prev, {
       id: (Date.now() + 1).toString(),
       sender: currentSpeaker,
       role: "assistant",
       text: "يرجى الانتظار، جاري تحويلك إلى قسم خدمة عملائنا المختص...",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
-    };
-    setMessages((prev) => [...prev, transferMessage]);
+    }]);
 
     setTimeout(() => {
       if (sessionAgents.length === 0) {
@@ -230,33 +175,29 @@ export default function Home() {
         setCurrentAgent(firstAgent);
         setSessionAgents([firstAgent]);
         setCurrentSpeaker("agent");
-        
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(),
           sender: "agent",
           role: "assistant",
-          text: `أهلاً بك، أنا ${firstAgent.name} (${firstAgent.role}). لقد اطلعت على محادثتك، تفضل كيف يمكنني مساعدتك؟`,
+          text: `أهلاً بك، أنا ${firstAgent.name} (${firstAgent.role}). تفضل كيف يمكنني مساعدتك؟`,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         }]);
       } else {
-        const currentAgentId = sessionAgents[sessionAgents.length - 1]?.employeeId;
-        const nextAgent = supportAgents.find(a => a.employeeId !== currentAgentId) || supportAgents[1];
-        
+        const nextAgent = supportAgents.find(a => a.employeeId !== currentAgent?.employeeId) || supportAgents[1];
         setSessionAgents(prev => [...prev, nextAgent]);
         setCurrentAgent(nextAgent);
-        
         setMessages((prev) => [...prev, {
           id: (Date.now() + 3).toString(),
           sender: "agent",
           role: "assistant",
-          text: `مرحباً، أنا ${nextAgent.name} (${nextAgent.role}). زميلي أحال لي حالتك، وأنا هنا لحل مشكلتك بشكل نهائي. تفضل؟`,
+          text: `مرحباً، أنا ${nextAgent.name}. زميلي أحال لي حالتك لحلها بشكل نهائي. تفضل؟`,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         }]);
       }
       setChatStatus("online");
-      resetAllTimers();
+      resetActivityTimers();
     }, 3000);
   };
 
@@ -276,7 +217,8 @@ export default function Home() {
       status: "sent"
     }]);
 
-    resetAllTimers();
+    // 🔴 أهم سطر: إعادة ضبط المؤقتات عند إرسال المستخدم لأي رسالة
+    resetActivityTimers();
 
     if (checkEscalation(userText)) {
       performEscalation();
@@ -295,16 +237,12 @@ export default function Home() {
           status: "read"
         }]);
         setChatStatus("online");
-        resetAllTimers();
       }, 1000);
       return;
     }
 
     try {
-      const apiMessages = messages
-        .filter(m => m.sender !== "system")
-        .map(m => ({ role: m.role || (m.sender === "user" ? "user" : "assistant"), content: m.text }));
-      
+      const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: m.role || "user", content: m.text }));
       apiMessages.push({ role: "user", content: userText });
 
       const response = await fetch('/api/chat', {
@@ -314,7 +252,6 @@ export default function Home() {
       });
 
       const data = await response.json();
-
       setMessages((prev) => [...prev, {
         id: (Date.now() + 1).toString(),
         sender: currentSpeaker,
@@ -324,30 +261,22 @@ export default function Home() {
         status: "read"
       }]);
       setChatStatus("online");
-      resetAllTimers();
     } catch (error) {
-      console.error("Chat Error:", error);
       setMessages((prev) => [...prev, {
         id: Date.now().toString(),
         sender: "system",
-        text: "عذراً، حدث خطأ في الاتصال. يرجى المحاولة مرة أخرى.",
+        text: "عذراً، حدث خطأ في الاتصال.",
         time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
         status: "read"
       }]);
       setChatStatus("online");
-      resetAllTimers();
     }
   };
 
   const renderSeamlessItems = () => {
     const repeatedProducts = [...trendingProducts, ...trendingProducts];
     return repeatedProducts.map((product, index) => {
-      const shapeClass = 
-        product.shape === 'circle' ? 'w-20 h-20 rounded-full' :
-        product.shape === 'rectangle' ? 'w-28 h-20 rounded-xl' :
-        product.shape === 'portrait' ? 'w-20 h-28 rounded-2xl' :
-        'w-20 h-20 rounded-xl';
-
+      const shapeClass = product.shape === 'circle' ? 'w-20 h-20 rounded-full' : product.shape === 'rectangle' ? 'w-28 h-20 rounded-xl' : product.shape === 'portrait' ? 'w-20 h-28 rounded-2xl' : 'w-20 h-20 rounded-xl';
       return (
         <div key={`${product.id}-${index}`} className="flex-shrink-0 inline-flex items-center gap-4 mx-4 bg-[#1f2937]/90 backdrop-blur-sm px-5 py-4 border border-gray-700 hover:border-purple-500 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 w-[380px]">
           <img src={product.img} alt={product.name} className={`object-cover border-2 border-purple-500 shadow-md flex-shrink-0 ${shapeClass}`} />
@@ -366,15 +295,8 @@ export default function Home() {
         @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
         .animate-seamless-scroll:hover { animation-play-state: paused; }
-        
-        @keyframes slide-in-right {
-          0% { transform: translateX(100px); opacity: 0; }
-          100% { transform: translateX(0); opacity: 1; }
-        }
-        .animate-slide-in-right {
-          animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-
+        @keyframes slide-in-right { 0% { transform: translateX(100px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
+        .animate-slide-in-right { animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
         .animate-blink { animation: blink 4s infinite; transform-origin: center; }
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
@@ -388,17 +310,8 @@ export default function Home() {
             <span className="brand-name text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">قناة مجلة دار النجوم</span>
           </a>
           <div className="search-box flex-1 max-w-md mx-2 hidden md:block">
-            <div className="relative">
-              <input type="text" placeholder=" ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
-            </div>
+            <input type="text" placeholder="🔎 ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
           </div>
-          <div className="actions flex items-center gap-2 md:gap-3 shrink-0">
-            <button className="btn upgrade hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-orange-500/30 transition">ترقية 👑</button>
-            <a href="/login" className="btn subscribe px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-purple-500/30 transition">اشتراك</a>
-          </div>
-        </div>
-        <div className="md:hidden px-2 pb-3">
-          <input type="text" placeholder="🔎 ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
         </div>
       </header>
 
@@ -409,27 +322,11 @@ export default function Home() {
       </div>
 
       <main className="container mx-auto px-4 py-8 flex-1">
-        <section className="hero text-center mb-12">
-          <div className="youtube-ad-marquee bg-purple-900/30 border border-purple-500/30 rounded-full py-2.5 mb-8 overflow-hidden relative">
-            <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[#0b0f1a] to-transparent z-10 pointer-events-none rounded-r-full"></div>
-            <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[#0b0f1a] to-transparent z-10 pointer-events-none rounded-l-full"></div>
-            <div className="flex whitespace-nowrap animate-seamless-scroll w-max">
-              {[...Array(10), ...Array(10)].map((_, i) => (
-                <span key={i} className="mx-8 text-purple-300 text-sm font-semibold flex items-center gap-2">إعلان حصري: تابعوا أحدث البرامج واللقاءات على قناة مجلة دار النجوم</span>
-              ))}
-            </div>
-          </div>
-          <h1 className="text-4xl md:text-6xl font-black mb-4 leading-tight">🌟 مرحبًا بكم في <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span></h1>
-          <p className="text-gray-400 text-lg mb-8 max-w-2xl mx-auto">منصتكم الإعلامية الأولى لعالم المشاهير والمحتوى الحصري.</p>
-        </section>
+        <h1 className="text-4xl md:text-6xl font-black mb-4 text-center leading-tight">🌟 مرحبًا بكم في <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span></h1>
+        <p className="text-gray-400 text-lg mb-8 max-w-2xl mx-auto text-center">منصتكم الإعلامية الأولى لعالم المشاهير والمحتوى الحصري.</p>
       </main>
 
-      <div 
-        ref={chatButtonRef} 
-        onClick={() => setOpen(!open)} 
-        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" 
-        title="مركز المساعدة والدعم"
-      >
+      <div ref={chatButtonRef} onClick={() => { setOpen(!open); if (!open) resetActivityTimers(); }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-blink"><circle cx="10" cy="14" r="5" fill="white" /><circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
           <g className="animate-blink"><circle cx="22" cy="14" r="5" fill="white" /><circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
@@ -440,7 +337,7 @@ export default function Home() {
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
-            {(sessionAgents.length === 0 || chatStatus === "ended") ? (
+            {(sessionAgents.length === 0 || chatStatus === "ended" && messages.some(m => m.sender === "system" && m.text.includes("تم إنهاء"))) ? (
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -452,16 +349,12 @@ export default function Home() {
                     <circle cx="12" cy="4" r="1.5" fill="white"/>
                   </svg>
                 </div>
-                <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] ${
-                  chatStatus === "online" ? "bg-green-500" : 
-                  chatStatus === "typing" ? "bg-yellow-500 animate-pulse" : 
-                  chatStatus === "ended" ? "bg-red-500" : "bg-gray-500"
-                }`}></span>
+                <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] ${chatStatus === "online" ? "bg-green-500" : chatStatus === "typing" ? "bg-yellow-500 animate-pulse" : "bg-red-500"}`}></span>
               </div>
             ) : (
               <div className="flex -space-x-3 rtl:space-x-reverse">
                 {sessionAgents.map((agent, idx) => (
-                  <div key={agent.employeeId} className="relative group" title={`${agent.name} - ${agent.role}`}>
+                  <div key={agent.employeeId} className="relative group">
                     <img src={agent.img} alt={agent.name} className={`w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-[#111827] object-cover transition-all ${idx === sessionAgents.length - 1 ? "border-purple-500 z-10 ring-2 ring-purple-500/30" : "border-gray-500 z-0 opacity-60 grayscale"}`} />
                   </div>
                 ))}
@@ -470,19 +363,12 @@ export default function Home() {
           </div>
           <div className="flex-1 min-w-0">
             <h4 className="font-bold text-white text-sm truncate">
-              {chatStatus === "ended" ? "المحادثة منتهية" : (sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name)}
+              {(chatStatus === "ended" && messages.some(m => m.sender === "system" && m.text.includes("تم إنهاء"))) ? "المحادثة منتهية" : (sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name)}
             </h4>
-            <p className={`text-xs flex items-center gap-1 truncate ${
-              chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : 
-              chatStatus === "idle" ? "text-yellow-400" :
-              chatStatus === "ended" ? "text-red-400 font-bold" : "text-gray-400"
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                chatStatus === "online" ? "bg-green-400 animate-pulse" : 
-                chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
-                chatStatus === "idle" ? "bg-yellow-400" :
-                chatStatus === "ended" ? "bg-red-400" : "bg-gray-400"
-              }`}></span>
+            
+            {/* 🔴 هنا يتم دمج الحالة: تظهر "متصل الآن" أو "انتهى" في نفس المكان بدون زر إضافي */}
+            <p className={`text-xs flex items-center gap-1 truncate ${chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : "text-red-400 font-bold"}`}>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${chatStatus === "online" ? "bg-green-400 animate-pulse" : chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : "bg-red-400"}`}></span>
               <span className="truncate">{getStatusText()}</span>
             </p>
           </div>
@@ -498,10 +384,7 @@ export default function Home() {
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
                 {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
-                <div 
-                  className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}
-                  style={{ whiteSpace: 'pre-wrap' }}
-                >
+                <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`} style={{ whiteSpace: 'pre-wrap' }}>
                   {msg.text}
                 </div>
                 <span className="text-[10px] text-gray-500 mt-1 px-1 flex items-center gap-1">
@@ -525,60 +408,21 @@ export default function Home() {
         </div>
 
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
-          {chatStatus === "ended" ? (
-            <button 
-              onClick={() => {
-                setMessages([]);
-                setChatStatus("online");
-                setEndTime(null);
-                setOpen(true);
-                resetAllTimers();
-              }}
-              className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"
-            >
+          {(chatStatus === "ended" && messages.some(m => m.sender === "system" && m.text.includes("تم إنهاء"))) ? (
+            <button onClick={() => { setMessages([]); setChatStatus("online"); setOpen(true); resetActivityTimers(); }} className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" /><path d="M3 3v9h9" /></svg>
               بدء محادثة جديدة
             </button>
           ) : (
             <div className="flex gap-2 items-end">
-              <textarea 
-                value={text} 
-                placeholder="اكتب رسالتك هنا..." 
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                rows={1}
-                className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed"
-              />
-              <button 
-                onClick={sendMessage} 
-                disabled={!text.trim() || chatStatus === "typing"} 
-                className="bg-purple-600 text-white p-3 rounded-xl text-sm font-bold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed mb-0.5"
-              >
+              <textarea value={text} placeholder="اكتب رسالتك هنا..." onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }} rows={1} className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed" />
+              <button onClick={sendMessage} disabled={!text.trim() || chatStatus === "typing"} className="bg-purple-600 text-white p-3 rounded-xl text-sm font-bold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed mb-0.5">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
               </button>
             </div>
           )}
         </div>
       </div>
-
-      <footer className="bg-[#0b0f1a] border-t border-gray-800 text-gray-400 mt-auto">
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex flex-col items-center gap-6">
-            <div className="flex flex-wrap justify-center gap-6 md:gap-8 text-sm font-medium border-t border-gray-800 pt-6 w-full">
-              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition underline underline-offset-4 decoration-blue-400/30 hover:decoration-blue-300">سياسة الخصوصية</a>
-              <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition underline underline-offset-4 decoration-blue-400/30 hover:decoration-blue-300">الشروط والأحكام</a>
-              <a href="/about" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition underline underline-offset-4 decoration-blue-400/30 hover:decoration-blue-300">من نحن</a>
-              <a href="/contact" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition underline underline-offset-4 decoration-blue-400/30 hover:decoration-blue-300">اتصل بنا</a>
-            </div>
-            <span className="block text-center text-xs text-gray-500 mt-4">جميع الحقوق محفوظة © قناة مجلة دار النجوم 2026</span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
