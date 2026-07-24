@@ -33,8 +33,11 @@ const trendingProducts = [
 
 type ChatStatus = "typing" | "online" | "idle" | "ended";
 
-const IDLE_DELAY_MS = 300000; // 5 دقائق
-const AUTO_CLOSE_DELAY_MS = 3600000; // ساعة واحدة
+// ️ المدة قبل "انتهى مؤقتاً" (5 دقائق)
+const IDLE_DELAY_MS = 300000;
+
+// ️ المدة قبل الإنهاء التلقائي الكامل (ساعة واحدة من آخر نشاط)
+const AUTO_CLOSE_DELAY_MS = 3600000;
 
 export default function Home() {
   const [open, setOpen] = useState(false);
@@ -79,37 +82,7 @@ export default function Home() {
     return "غير نشط";
   };
 
-  const handleManualEndChat = () => {
-    if (chatStatus === "ended") return;
-    
-    setChatStatus("ended");
-    setEndTime(new Date());
-    setCurrentSpeaker("bot");
-    setCurrentAgent(null);
-    setSessionAgents([]);
-    
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-
-    setMessages((prev) => [...prev, {
-      id: Date.now().toString(),
-      sender: "bot",
-      role: "assistant",
-      text: "🔒 تم إنهاء المحادثة. يمكنك بدء محادثة جديدة في أي وقت.",
-      time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-      status: "read"
-    }]);
-  };
-
-  const handleIdleState = () => {
-    if (chatStatus !== "online") return;
-    setChatStatus("idle");
-    
-    autoCloseTimerRef.current = setTimeout(() => {
-      handleAutoCloseByAgent();
-    }, AUTO_CLOSE_DELAY_MS - IDLE_DELAY_MS);
-  };
-
+  // 🔴 الإنهاء التلقائي الكامل والعودة للمساعد الذكي
   const handleAutoCloseByAgent = () => {
     setChatStatus("typing");
     
@@ -131,12 +104,25 @@ export default function Home() {
     }, 1500);
   };
 
+  // 🔴 الانتقال لحالة "انتهى مؤقتاً"
+  const handleIdleState = () => {
+    if (chatStatus !== "online") return;
+    setChatStatus("idle");
+    
+    // بدء العد التنازلي للإنهاء التلقائي بعد ساعة
+    autoCloseTimerRef.current = setTimeout(() => {
+      handleAutoCloseByAgent();
+    }, AUTO_CLOSE_DELAY_MS - IDLE_DELAY_MS);
+  };
+
+  // 🔴 إعادة ضبط جميع المؤقتات عند أي نشاط
   const resetAllTimers = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
     
     setChatStatus("online");
     
+    // بدء المرحلة 2 بعد 5 دقائق من عدم النشاط
     idleTimerRef.current = setTimeout(() => {
       handleIdleState();
     }, IDLE_DELAY_MS);
@@ -403,7 +389,7 @@ export default function Home() {
           </a>
           <div className="search-box flex-1 max-w-md mx-2 hidden md:block">
             <div className="relative">
-              <input type="text" placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
+              <input type="text" placeholder=" ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
             </div>
           </div>
           <div className="actions flex items-center gap-2 md:gap-3 shrink-0">
@@ -486,32 +472,19 @@ export default function Home() {
             <h4 className="font-bold text-white text-sm truncate">
               {chatStatus === "ended" ? "المحادثة منتهية" : (sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name)}
             </h4>
-            <div className="flex items-center gap-2">
-              <p className={`text-xs flex items-center gap-1 truncate ${
-                chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : 
-                chatStatus === "idle" ? "text-yellow-400" :
-                chatStatus === "ended" ? "text-red-400 font-bold" : "text-gray-400"
-              }`}>
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                  chatStatus === "online" ? "bg-green-400 animate-pulse" : 
-                  chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
-                  chatStatus === "idle" ? "bg-yellow-400" :
-                  chatStatus === "ended" ? "bg-red-400" : "bg-gray-400"
-                }`}></span>
-                <span className="truncate">{getStatusText()}</span>
-              </p>
-              
-              {/* 🔴 زر "إنهاء" بلون رمادي أنيق ومتناسق مع التصميم */}
-              {(chatStatus === "online" || chatStatus === "idle") && (
-                <button 
-                  onClick={handleManualEndChat}
-                  className="text-[10px] text-gray-400 hover:text-white hover:bg-gray-700 px-2 py-0.5 rounded transition border border-gray-600 flex-shrink-0"
-                  title="إنهاء المحادثة"
-                >
-                  إنهاء
-                </button>
-              )}
-            </div>
+            <p className={`text-xs flex items-center gap-1 truncate ${
+              chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : 
+              chatStatus === "idle" ? "text-yellow-400" :
+              chatStatus === "ended" ? "text-red-400 font-bold" : "text-gray-400"
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                chatStatus === "online" ? "bg-green-400 animate-pulse" : 
+                chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
+                chatStatus === "idle" ? "bg-yellow-400" :
+                chatStatus === "ended" ? "bg-red-400" : "bg-gray-400"
+              }`}></span>
+              <span className="truncate">{getStatusText()}</span>
+            </p>
           </div>
         </div>
 
