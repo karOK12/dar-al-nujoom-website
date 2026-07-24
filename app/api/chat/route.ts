@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const messages: ChatMessage[] = body.messages || [];
     // معرف الجلسة (يفضل إرساله من الواجهة الأمامية، أو نولده هنا)
-    const sessionId = body.sessionId || uuidv4(); 
+    const sessionId = body.sessionId || uuidv4();
 
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
@@ -58,8 +58,8 @@ export async function POST(req: Request) {
       // --- نختار موظف وهمي عشوائي (متصل) لتحويل المستخدم إليه ---
       const onlineAgents = MOCK_AGENTS.filter(agent => agent.isOnline);
       // لو ما في موظف متصل، نختار أول واحد ونعتبره متصل بشكل افتراضي للمحاكاة
-      const assignedAgent = onlineAgents.length > 0 
-        ? onlineAgents[Math.floor(Math.random() * onlineAgents.length)] 
+      const assignedAgent = onlineAgents.length > 0
+        ? onlineAgents[Math.floor(Math.random() * onlineAgents.length)]
         : MOCK_AGENTS[0];
 
       // توليد معرف فريد لطلب التحويل (التذكرة)
@@ -94,10 +94,10 @@ export async function POST(req: Request) {
         agentInfo: {
           id: assignedAgent.id,
           name: assignedAgent.name,
-          department: assignedAgent.department
+          department: assignedAgent.department,
         },
         ticketId: ticketId, // نرسله عشان الواجهة تتابع حالة التذكرة
-        sessionId: sessionId
+        sessionId: sessionId,
       });
     }
 
@@ -114,7 +114,7 @@ export async function POST(req: Request) {
           {
             role: 'system',
             content:
-              "أنت المساعد الذكي الرسمي لقناة 'مجلة دار النجوم'. أجب بالعربية الفصحى الواضحة والمفيدة والودية. احتفظ بسياق المحادثة وأجب على جميع الأسئلة بدقة وتفصيل. جميع الأسعار المذكورة تكون بالدينار العراقي (IQD) ما لم يذكر العميل خلاف ذلك.",
+              "أنت المساعد الذكي الرسمي لقناة 'مجلة دار النجوم'. أجب بالعربية الفصحى الواضحة والمفيدة والودية. احتفظ بسياق المحادثة وأجب على جميع الأسئلة بدقة وتفصيل.\n\n**تعليمات مهمة جداً:**\n1. جميع الأسعار والمبالغ المالية التي تذكرها يجب أن تكون بالدينار العراقي (IQD) فقط.\n2. لا تذكر أي عملة أخرى (مثل الريال السعودي، الدولار، إلخ) إلا إذا طلب العميل ذلك بشكل صريح.\n3. إذا ذكر العميل عملة أخرى، يمكنك التحويل إليها ولكن اذكر بوضوح أن السعر الأصلي بالدينار العراقي.\n4. تأكد من كتابة 'دينار عراقي' أو 'IQD' بعد كل مبلغ تذكره.",
           },
           ...messages.map((m) => ({
             role: m.role === 'assistant' || m.role === 'bot' ? 'assistant' : 'user',
