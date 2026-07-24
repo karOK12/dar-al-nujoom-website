@@ -33,9 +33,8 @@ const trendingProducts = [
 
 type ChatStatus = "typing" | "online" | "ended";
 
-// ⚠️ مدة الانتظار قبل الإغلاق التلقائي (بالمللي ثانية)
-// 5 دقائق = 300000 | ساعة واحدة = 3600000
-const AUTO_CLOSE_DELAY_MS = 300000; 
+// ⚠️ مدة الانتظار قبل الإغلاق التلقائي (ساعة واحدة = 3600000 مللي ثانية)
+const AUTO_CLOSE_DELAY_MS = 3600000; 
 
 export default function Home() {
   const [open, setOpen] = useState(false);
@@ -48,6 +47,8 @@ export default function Home() {
   const [sessionAgents, setSessionAgents] = useState<Agent[]>([]);
   
   const [chatStatus, setChatStatus] = useState<ChatStatus>("online");
+  
+  const [lastActivityTime, setLastActivityTime] = useState<Date>(new Date());
   
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
@@ -69,45 +70,45 @@ export default function Home() {
     
     if (chatStatus === "ended" && endTime) {
       const diffSeconds = Math.floor((currentTime.getTime() - endTime.getTime()) / 1000);
-      if (diffSeconds < 60) return `انتهت منذ ${diffSeconds} ثانية`;
-      if (diffSeconds < 120) return "انتهت منذ دقيقة";
-      if (diffSeconds < 180) return "انتهت منذ دقيقتين";
-      if (diffSeconds < 3600) return `انتهت منذ ${Math.floor(diffSeconds / 60)} دقائق`;
-      return `انتهت منذ ${Math.floor(diffSeconds / 3600)} ساعات`;
+      if (diffSeconds < 60) return `انتهى منذ ${diffSeconds} ثانية`;
+      if (diffSeconds < 120) return "انتهى منذ دقيقة";
+      if (diffSeconds < 180) return "انتهى منذ دقيقتين";
+      if (diffSeconds < 3600) return `انتهى منذ ${Math.floor(diffSeconds / 60)} دقائق`;
+      return `انتهى منذ ${Math.floor(diffSeconds / 3600)} ساعات`;
     }
     return "غير نشط";
   };
 
-  // 🔴 دالة الإغلاق التلقائي من قبل الموظف/البوت
+  // 🔴 دالة الإغلاق التلقائي من قبل الموظف (بعد سكوت لمدة ساعة)
   const handleAutoCloseByAgent = () => {
-    setChatStatus("typing"); // إظهار أن النظام يكتب رسالة الوداع
+    setChatStatus("typing");
     
     setTimeout(() => {
       setChatStatus("ended");
       setEndTime(new Date());
-      
-      // إعادة النظام افتراضياً للمساعد الذكي
       setCurrentSpeaker("bot");
       setCurrentAgent(null);
       setSessionAgents([]);
-
+      
       setMessages((prev) => [...prev, {
         id: Date.now().toString(),
-        sender: "bot", // البوت هو من ينهي المحادثة ويعود
+        sender: "bot",
         role: "assistant",
-        text: "⏱️ نظراً لعدم وجود نشاط خلال الفترة الماضية، قمت بإنهاء هذه المحادثة تلقائياً. يمكنك بدء محادثة جديدة في أي وقت. نتمنى لك يوماً سعيداً!",
+        text: "⏱️ نظراً لعدم وجود نشاط خلال الساعات الماضية، قمت بإنهاء هذه المحادثة تلقائياً. يمكنك بدء محادثة جديدة في أي وقت.",
         time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
         status: "read"
       }]);
-    }, 1500); // تأخير بسيط لمحاكاة الكتابة
+    }, 1500);
   };
 
-  // 🔴 دالة إعادة ضبط المؤقت التلقائي
+  // 🔴 دالة إعادة ضبط المؤقت (يبدأ من آخر نشاط)
   const resetAutoCloseTimer = () => {
+    setLastActivityTime(new Date());
+    
     if (autoCloseTimerRef.current) {
       clearTimeout(autoCloseTimerRef.current);
     }
-    // بدء المؤقت الجديد
+    
     autoCloseTimerRef.current = setTimeout(() => {
       handleAutoCloseByAgent();
     }, AUTO_CLOSE_DELAY_MS);
@@ -134,12 +135,12 @@ export default function Home() {
           id: "welcome-1",
           sender: "bot",
           role: "assistant",
-          text: "أهلاً بك في قناة مجلة دار النجوم!  أنا المساعد الذكي. يمكنني إخبارك بالتفصيل عن أسعارنا، باقاتنا، ومميزات خدماتنا. كيف يمكنني مساعدتك اليوم؟",
+          text: "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. يمكنني إخبارك بالتفصيل عن أسعارنا، باقاتنا، ومميزات خدماتنا. كيف يمكنني مساعدتك اليوم؟",
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         }]);
         setChatStatus("online");
-        resetAutoCloseTimer(); // بدء المؤقت بعد رسالة الترحيب
+        resetAutoCloseTimer();
       }, 1000);
     }
     
@@ -153,7 +154,7 @@ export default function Home() {
     const lowerText = userText.toLowerCase();
     
     if (['سعر', 'كم', 'تكلفة', 'أسعار', 'باقات', 'اشتراك', 'دفع', 'فلوس', 'ثمن', 'قيمة', 'الباقات'].some(k => lowerText.includes(k))) {
-      return ` تفاصيل باقاتنا وأسعارها:
+      return `💰 تفاصيل باقاتنا وأسعارها:
 
 📦 الباقة الأساسية: 100$ / شهرياً
 • وصول كامل للمحتوى بجودة HD
@@ -241,7 +242,7 @@ export default function Home() {
         }]);
       }
       setChatStatus("online");
-      resetAutoCloseTimer(); // إعادة ضبط المؤقت بعد التحويل
+      resetAutoCloseTimer(); // 🔴 إعادة ضبط المؤقت بعد التحويل
     }, 3000);
   };
 
@@ -259,9 +260,9 @@ export default function Home() {
       text: userText,
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "sent"
-    }]);
+    }));
 
-    // 🔴 إعادة ضبط المؤقت التلقائي عند كل رسالة من المستخدم
+    // 🔴 إعادة ضبط المؤقت بعد أي نشاط من المستخدم
     resetAutoCloseTimer();
 
     if (checkEscalation(userText)) {
@@ -281,7 +282,7 @@ export default function Home() {
           status: "read"
         }]);
         setChatStatus("online");
-        resetAutoCloseTimer(); // إعادة ضبط المؤقت بعد رد البوت
+        resetAutoCloseTimer(); // 🔴 إعادة ضبط المؤقت بعد رد البوت
       }, 1000);
       return;
     }
@@ -310,7 +311,7 @@ export default function Home() {
         status: "read"
       }]);
       setChatStatus("online");
-      resetAutoCloseTimer(); // إعادة ضبط المؤقت بعد رد الـ API
+      resetAutoCloseTimer(); // 🔴 إعادة ضبط المؤقت بعد رد الـ API
     } catch (error) {
       console.error("Chat Error:", error);
       setMessages((prev) => [...prev, {
