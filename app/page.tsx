@@ -31,14 +31,10 @@ const trendingProducts = [
   { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=200&h=300&fit=crop", shape: "portrait" },
 ];
 
-// 🔴 الحالات الثلاث للمحادثة
 type ChatStatus = "typing" | "online" | "idle" | "ended";
 
-// ⚠️ المدة قبل "انتهى مؤقتاً" (5 دقائق = 300000 مللي ثانية)
-const IDLE_DELAY_MS = 300000;
-
-// ⚠️ المدة قبل الإنهاء التلقائي الكامل (ساعة = 3600000 مللي ثانية)
-const AUTO_CLOSE_DELAY_MS = 3600000;
+const IDLE_DELAY_MS = 300000; // 5 دقائق
+const AUTO_CLOSE_DELAY_MS = 3600000; // ساعة واحدة
 
 export default function Home() {
   const [open, setOpen] = useState(false);
@@ -83,7 +79,6 @@ export default function Home() {
     return "غير نشط";
   };
 
-  // 🔴 دالة الإنهاء اليدوي من الموظف
   const handleManualEndChat = () => {
     if (chatStatus === "ended") return;
     
@@ -106,18 +101,15 @@ export default function Home() {
     }]);
   };
 
-  // 🔴 المرحلة 2: "انتهى مؤقتاً" (المحادثة مفتوحة لكن بدون نشاط)
   const handleIdleState = () => {
     if (chatStatus !== "online") return;
     setChatStatus("idle");
     
-    // بدء المرحلة 3: الإنهاء التلقائي الكامل بعد ساعة
     autoCloseTimerRef.current = setTimeout(() => {
       handleAutoCloseByAgent();
-    }, AUTO_CLOSE_DELAY_MS - IDLE_DELAY_MS); // الوقت المتبقي
+    }, AUTO_CLOSE_DELAY_MS - IDLE_DELAY_MS);
   };
 
-  // 🔴 المرحلة 3: الإنهاء التلقائي الكامل والعودة للمساعد الذكي
   const handleAutoCloseByAgent = () => {
     setChatStatus("typing");
     
@@ -139,14 +131,12 @@ export default function Home() {
     }, 1500);
   };
 
-  // 🔴 إعادة ضبط جميع المؤقتات عند أي نشاط
   const resetAllTimers = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
     
     setChatStatus("online");
     
-    // بدء المرحلة 2 بعد 5 دقائق
     idleTimerRef.current = setTimeout(() => {
       handleIdleState();
     }, IDLE_DELAY_MS);
@@ -439,7 +429,7 @@ export default function Home() {
             <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[#0b0f1a] to-transparent z-10 pointer-events-none rounded-l-full"></div>
             <div className="flex whitespace-nowrap animate-seamless-scroll w-max">
               {[...Array(10), ...Array(10)].map((_, i) => (
-                <span key={i} className="mx-8 text-purple-300 text-sm font-semibold flex items-center gap-2"> إعلان حصري: تابعوا أحدث البرامج واللقاءات على قناة مجلة دار النجوم</span>
+                <span key={i} className="mx-8 text-purple-300 text-sm font-semibold flex items-center gap-2">إعلان حصري: تابعوا أحدث البرامج واللقاءات على قناة مجلة دار النجوم</span>
               ))}
             </div>
           </div>
@@ -511,11 +501,11 @@ export default function Home() {
                 <span className="truncate">{getStatusText()}</span>
               </p>
               
-              {/* 🔴 زر "إنهاء" مدمج مع "متصل الآن" - يظهر فقط عندما تكون المحادثة نشطة */}
+              {/* 🔴 زر "إنهاء" بلون رمادي أنيق ومتناسق مع التصميم */}
               {(chatStatus === "online" || chatStatus === "idle") && (
                 <button 
                   onClick={handleManualEndChat}
-                  className="text-[10px] bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white px-2 py-0.5 rounded transition border border-red-500/30 flex-shrink-0"
+                  className="text-[10px] text-gray-400 hover:text-white hover:bg-gray-700 px-2 py-0.5 rounded transition border border-gray-600 flex-shrink-0"
                   title="إنهاء المحادثة"
                 >
                   إنهاء
