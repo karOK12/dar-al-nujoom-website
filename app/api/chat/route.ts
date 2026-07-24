@@ -33,12 +33,6 @@ export async function POST(req: Request) {
       });
     }
 
-    const conversation = messages.map((m: ChatMessage) => {
-      const roleText = (m.role === 'assistant' || m.role === 'bot') ? 'المساعد' : 'المستخدم';
-      return `${roleText}: ${m.content}`;
-    }).join('\n');
-
-    // ⚠️ هنا التغيير: استخدام النموذج الأحدث والأقوى والمجاني
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -46,7 +40,7 @@ export async function POST(req: Request) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile', // النموذج الجديد والمجاني
+        model: 'llama-3.3-70b-versatile',
         messages: [
           {
             role: "system",
