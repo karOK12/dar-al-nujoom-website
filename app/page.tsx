@@ -17,7 +17,7 @@ interface Agent {
   name: string;
   img: string;
   role: string;
-  department: 'support' | 'ads' | 'technical'; // تحديد القسم
+  department: 'support' | 'ads' | 'technical';
 }
 
 // 🔴 توسيع فريق الدعم ليشمل أقسام متعددة
@@ -55,19 +55,14 @@ export default function Home() {
   const [endTime, setEndTime] = useState<Date | null>(null);
 
   // مؤقتات تتبع النشاط
-  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);      // للانتهاء المؤقت (25 دقيقة)
-  const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null); // للإغلاق الرسمي (ساعة إضافية)
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // دالة حفظ الحالة في الذاكرة المحلية
   const saveStateToStorage = () => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-        messages,
-        currentSpeaker,
-        currentAgent,
-        sessionAgents,
-        chatStatus,
-        endTime
+        messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, endTime
       }));
     }
   };
@@ -86,17 +81,13 @@ export default function Home() {
           setChatStatus(parsedState.chatStatus || "online");
           setEndTime(parsedState.endTime ? new Date(parsedState.endTime) : null);
           
-          // إعادة ضبط المؤقتات بناءً على الحالة المسترجعة
-          if (parsedState.chatStatus === "online") {
-            resetActivityTimers();
-          } else if (parsedState.chatStatus === "ended") {
+          if (parsedState.chatStatus === "online") resetActivityTimers();
+          else if (parsedState.chatStatus === "ended") {
             if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
             if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
           }
           return true; 
-        } catch (e) {
-          console.error("Error loading chat state:", e);
-        }
+        } catch (e) { console.error("Error loading chat state:", e); }
       }
     }
     return false; 
@@ -165,12 +156,8 @@ export default function Home() {
       const newMessages = [...prev, closeMsg];
       setTimeout(() => {
          localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-          messages: newMessages,
-          currentSpeaker: "bot",
-          currentAgent: null,
-          sessionAgents: [],
-          chatStatus: "ended",
-          endTime: new Date().toISOString()
+          messages: newMessages, currentSpeaker: "bot", currentAgent: null,
+          sessionAgents: [], chatStatus: "ended", endTime: new Date().toISOString()
         }));
       }, 0);
       return newMessages;
@@ -194,14 +181,11 @@ export default function Home() {
   useEffect(() => {
     if (open && messages.length === 0) {
       const hasSavedState = loadStateFromStorage();
-      
       if (!hasSavedState) {
         setChatStatus("typing");
         setTimeout(() => {
           const welcomeMsg: Message = {
-            id: "welcome-1",
-            sender: "bot",
-            role: "assistant",
+            id: "welcome-1", sender: "bot", role: "assistant",
             text: "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
             time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
             status: "read"
@@ -212,7 +196,6 @@ export default function Home() {
         }, 1000);
       }
     }
-    
     return () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
@@ -221,15 +204,32 @@ export default function Home() {
 
   // حفظ الحالة عند كل تغيير
   useEffect(() => {
-    if (messages.length > 0 || currentAgent) {
-      saveStateToStorage();
-    }
+    if (messages.length > 0 || currentAgent) saveStateToStorage();
   }, [messages, currentAgent, sessionAgents, currentSpeaker, chatStatus, endTime]);
 
-  // كشف نية المستخدم لتحديد القسم المناسب
+  // 🔴 منطق فهم النوايا المنفصل والدقيق
+  // 1. هل يريد المستخدم بشراً أصلاً؟ (بدون النظر للقسم)
+  const wantsHumanContact = (text: string): boolean => {
+    const t = text.toLowerCase()
+      .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
+      .replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+
+    // عبارات صريحة تطلب بشراً أو موظفاً
+    const explicitKeywords = [
+      "حولني", "تحويل", "اتواصل", "اكلم", "كلم", "اتصل", "اتحدث",
+      "احتاج موظف", "اريد موظف", "ابي موظف", "ابغى موظف",
+      "ممكن اكلم", "احجي ويا", "احجي ويه", "اكو موظف", "احد يرد", "منو يرد",
+      "ما اريد روبوت", "مو روبوت", "لا اريد روبوت", "رد بشري", "مساعده بشريه",
+      "شخص", "انسان", "بشري", "حقيقي", "ممثل", "موظفه"
+    ];
+
+    return explicitKeywords.some(k => t.includes(k));
+  };
+
+  // 2. ما هو القسم المطلوب؟ (يتم استدعاؤها فقط إذا كان يريد بشراً)
   const detectDepartment = (userText: string): 'support' | 'ads' | 'technical' => {
     const text = userText.toLowerCase();
-    const adKeywords = ["إعلان", "رفع اعلان", "ترويج", "سبونسر", "اعلان", "بانر", "فيديو ترويجي"];
+    const adKeywords = ["إعلان", "رفع اعلان", "ترويج", "سبونسر", "بانر", "فيديو ترويجي"];
     const techKeywords = ["مشكلة", "خطأ", "لا يعمل", "تعطل", "فشل", "بطئ", "معلق", "لا افتح", "تسجيل دخول", "كلمة مرور", "دعم فني"];
     
     if (adKeywords.some(k => text.includes(k))) return 'ads';
@@ -237,37 +237,10 @@ export default function Home() {
     return 'support'; 
   };
 
-  // محرك فهم النوايا للتحويل للدعم البشري
-  const checkEscalation = (userText: string): boolean => {
-    const text = userText
-      .toLowerCase()
-      .replace(/[أإآ]/g, "ا")
-      .replace(/ة/g, "ه")
-      .replace(/ى/g, "ي")
-      .replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    const keywords = [
-      "دعم", "الدعم", "الدعم الفني", "دعم فني", "خدمه العملاء", "خدمة العملاء", "دعم العملاء",
-      "موظف", "موظفه", "ممثل", "شخص", "انسان", "بشري", "حقيقي",
-      "حولني", "حولني للدعم", "تحويل", "حول",
-      "اتواصل", "التواصل", "اكلم", "كلم", "اتصل", "اتحدث",
-      "احتاج موظف", "احتاج الدعم", "احتاج شخص", "احتاج انسان",
-      "اريد موظف", "اريد الدعم", "اريد شخص", "اريد انسان", "اريد اتواصل", "اريد اكلم",
-      "ابي موظف", "ابغى موظف",
-      "ممكن اكلم موظف", "ممكن اتواصل", "ممكن احجي", "احجي ويا موظف", "احجي ويه موظف",
-      "اكو موظف", "اكو احد", "احد يرد", "منو يرد",
-      "ما اريد روبوت", "مو روبوت", "لا اريد روبوت", "رد بشري", "مساعده بشريه", "دعم بشري",
-      "إعلان", "رفع اعلان", "ترويج", "سبونسر", "اعلان", "بانر", "فيديو ترويجي",
-      "مشكلة", "خطأ", "لا يعمل", "تعطل", "فشل", "بطئ", "معلق", "لا افتح", "تسجيل دخول", "كلمة مرور"
-    ];
-
-    return keywords.some(keyword => text.includes(keyword));
-  };
-
-  // منطق التحويل الذكي حسب القسم المطلوب
-  const performEscalation = (userText: string) => {
+  // محرك التحويل الرئيسي (يدمج الخطوتين أعلاه)
+  const checkAndPerformEscalation = (userText: string): boolean => {
+    if (!wantsHumanContact(userText)) return false; // إذا لم يطلب بشراً، لا تحول أبداً
+    
     setChatStatus("typing");
     const targetDept = detectDepartment(userText);
     
@@ -276,11 +249,8 @@ export default function Home() {
     if (targetDept === 'technical') transferMsg = "يرجى الانتظار، جاري تحويلك إلى الدعم الفني المتخصص...";
 
     setMessages((prev) => [...prev, {
-      id: (Date.now() + 1).toString(),
-      sender: currentSpeaker,
-      role: "assistant",
-      text: transferMsg,
-      time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+      id: (Date.now() + 1).toString(), sender: currentSpeaker, role: "assistant",
+      text: transferMsg, time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     }]);
 
@@ -297,27 +267,23 @@ export default function Home() {
         }
         setCurrentSpeaker("agent");
         setMessages((prev) => [...prev, {
-          id: (Date.now() + 2).toString(),
-          sender: "agent",
-          role: "assistant",
+          id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
           text: `أهلاً بك، أنا ${assignedAgent.name} (${assignedAgent.role}). لقد اطلعت على طلبك، تفضل كيف يمكنني مساعدتك؟`,
-          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-          status: "read"
+          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
         }]);
       } else {
         setMessages((prev) => [...prev, {
-          id: (Date.now() + 2).toString(),
-          sender: "agent",
-          role: "assistant",
+          id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
           text: `أنا هنا بالفعل! ${currentAgent.name} (${currentAgent.role}) جاهز لمساعدتك. تفضل بطرح مشكلتك أو طلبك.`,
-          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-          status: "read"
+          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
         }]);
       }
       
       setChatStatus("online");
       resetActivityTimers();
     }, 3000);
+
+    return true;
   };
 
   const sendMessage = async () => {
@@ -328,48 +294,37 @@ export default function Home() {
     setText("");
 
     setMessages((prev) => [...prev, {
-      id: Date.now().toString(),
-      sender: "user",
-      role: "user",
-      text: userText,
-      time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+      id: Date.now().toString(), sender: "user", role: "user",
+      text: userText, time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "sent"
     }]);
 
     resetActivityTimers();
 
-    if (checkEscalation(userText)) {
-      performEscalation(userText);
-      return;
-    }
+    // 🔴 التحقق من التحويل باستخدام المنطق الجديد المنفصل
+    if (checkAndPerformEscalation(userText)) return;
 
     try {
       const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: m.role || "user", content: m.text }));
       apiMessages.push({ role: "user", content: userText });
 
       const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: apiMessages })
       });
 
       const data = await response.json();
       setMessages((prev) => [...prev, {
-        id: (Date.now() + 1).toString(),
-        sender: currentSpeaker,
-        role: "assistant",
+        id: (Date.now() + 1).toString(), sender: currentSpeaker, role: "assistant",
         text: data.text || "عذراً، لم أتمكن من الرد حالياً.",
-        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-        status: "read"
+        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
       }]);
       setChatStatus("online");
     } catch (error) {
       setMessages((prev) => [...prev, {
-        id: Date.now().toString(),
-        sender: "system",
+        id: Date.now().toString(), sender: "system",
         text: "عذراً، حدث خطأ في الاتصال.",
-        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-        status: "read"
+        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
       }]);
       setChatStatus("online");
     }
@@ -381,8 +336,7 @@ export default function Home() {
       const shapeClass = 
         product.shape === 'circle' ? 'w-16 h-16 rounded-full' :
         product.shape === 'rectangle' ? 'w-20 h-14 rounded-xl' :
-        product.shape === 'portrait' ? 'w-14 h-20 rounded-2xl' :
-        'w-16 h-16 rounded-md';
+        product.shape === 'portrait' ? 'w-14 h-20 rounded-2xl' : 'w-16 h-16 rounded-md';
 
       return (
         <div key={`${product.id}-${index}`} className="flex-shrink-0 inline-flex items-center gap-4 mx-4 bg-[#1f2937]/90 backdrop-blur-sm px-4 py-3 border border-gray-700 hover:border-purple-500 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 w-[300px]">
@@ -403,13 +357,8 @@ export default function Home() {
         .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
         .animate-seamless-scroll:hover { animation-play-state: paused; }
         
-        @keyframes slide-in-right { 
-          0% { transform: translateX(100px); opacity: 0; } 
-          100% { transform: translateX(0); opacity: 1; } 
-        }
-        .animate-slide-in-right { 
-          animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
-        }
+        @keyframes slide-in-right { 0% { transform: translateX(100px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
+        .animate-slide-in-right { animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
         @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
         .animate-blink { animation: blink 4s infinite; transform-origin: center; }
@@ -429,7 +378,6 @@ export default function Home() {
             </div>
           </div>
           <div className="actions flex items-center gap-2 md:gap-3 shrink-0">
-            {/* 🔴 زر الترقية يفتح صفحة ثانية */}
             <a href="/upgrade" className="btn upgrade hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-orange-500/30 transition">ترقية 👑</a>
             <a href="/login" className="btn subscribe px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-purple-500/30 transition">اشتراك</a>
           </div>
@@ -461,10 +409,7 @@ export default function Home() {
         </section>
       </main>
 
-      <div ref={chatButtonRef} onClick={() => {
-        setOpen(!open);
-        if (!open) resetActivityTimers();
-      }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة والدعم">
+      <div ref={chatButtonRef} onClick={() => { setOpen(!open); if (!open) resetActivityTimers(); }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة والدعم">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-blink"><circle cx="10" cy="14" r="5" fill="white" /><circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
           <g className="animate-blink"><circle cx="22" cy="14" r="5" fill="white" /><circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
@@ -480,17 +425,14 @@ export default function Home() {
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <rect x="4" y="8" width="16" height="12" rx="3" fill="white" opacity="0.95"/>
-                    <circle cx="9" cy="14" r="1.5" fill="#7c3aed"/>
-                    <circle cx="15" cy="14" r="1.5" fill="#7c3aed"/>
+                    <circle cx="9" cy="14" r="1.5" fill="#7c3aed"/><circle cx="15" cy="14" r="1.5" fill="#7c3aed"/>
                     <path d="M9 17 Q12 19 15 17" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
                     <line x1="12" y1="8" x2="12" y2="5" stroke="white" strokeWidth="2" strokeLinecap="round"/>
                     <circle cx="12" cy="4" r="1.5" fill="white"/>
                   </svg>
                 </div>
                 <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] ${
-                  chatStatus === "online" ? "bg-green-500" : 
-                  chatStatus === "typing" ? "bg-yellow-500 animate-pulse" : 
-                  chatStatus === "ended" ? "bg-red-500" : "bg-gray-500"
+                  chatStatus === "online" ? "bg-green-500" : chatStatus === "typing" ? "bg-yellow-500 animate-pulse" : chatStatus === "ended" ? "bg-red-500" : "bg-gray-500"
                 }`}></span>
               </div>
             ) : (
@@ -509,14 +451,11 @@ export default function Home() {
             </h4>
             <p className={`text-xs flex items-center gap-1 truncate ${
               chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : 
-              chatStatus === "idle" ? "text-yellow-400" :
-              chatStatus === "ended" ? "text-red-400 font-bold" : "text-gray-400"
+              chatStatus === "idle" ? "text-yellow-400" : chatStatus === "ended" ? "text-red-400 font-bold" : "text-gray-400"
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                chatStatus === "online" ? "bg-green-400 animate-pulse" : 
-                chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
-                chatStatus === "idle" ? "bg-yellow-400" :
-                chatStatus === "ended" ? "bg-red-400" : "bg-gray-400"
+                chatStatus === "online" ? "bg-green-400 animate-pulse" : chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
+                chatStatus === "idle" ? "bg-yellow-400" : chatStatus === "ended" ? "bg-red-400" : "bg-gray-400"
               }`}></span>
               <span className="truncate">{getStatusText()}</span>
             </p>
@@ -537,8 +476,7 @@ export default function Home() {
                   {msg.text}
                 </div>
                 <span className="text-[10px] text-gray-500 mt-1 px-1 flex items-center gap-1">
-                  {msg.time}
-                  {isUser && <span>{msg.status === "read" ? "✓✓" : "✓"}</span>}
+                  {msg.time}{isUser && <span>{msg.status === "read" ? "✓✓" : "✓"}</span>}
                 </span>
               </div>
             );
@@ -558,64 +496,31 @@ export default function Home() {
 
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           {chatStatus === "ended" ? (
-            <button 
-              onClick={() => {
-                setMessages([]);
-                setChatStatus("online");
-                setEndTime(null);
-                setOpen(true);
-                resetActivityTimers();
-                localStorage.removeItem('dar-alnujum-chat-state'); 
-              }}
-              className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"
-            >
+            <button onClick={() => {
+                setMessages([]); setChatStatus("online"); setEndTime(null); setOpen(true);
+                resetActivityTimers(); localStorage.removeItem('dar-alnujum-chat-state'); 
+              }} className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" /><path d="M3 3v9h9" /></svg>
               بدء محادثة جديدة
             </button>
           ) : (
             <div className="flex gap-2 items-end">
-              {/* تحسين منطقة الإدخال للانتهاء المؤقت */}
               {chatStatus === "idle" ? (
-                <div 
-                  onClick={() => {
-                    resetActivityTimers(); 
-                    document.getElementById('chat-input')?.focus();
-                  }}
-                  className="flex-1 bg-[#0b0f1a]/50 border border-dashed border-yellow-500/50 rounded-xl p-3 text-center cursor-pointer hover:bg-[#0b0f1a] hover:border-yellow-500 transition-colors group"
-                >
-                  <p className="text-yellow-400 text-sm font-medium group-hover:text-yellow-300">
-                    ⚡ انقر هنا أو اكتب لإعادة تفعيل المحادثة
-                  </p>
+                <div onClick={() => { resetActivityTimers(); document.getElementById('chat-input')?.focus(); }}
+                  className="flex-1 bg-[#0b0f1a]/50 border border-dashed border-yellow-500/50 rounded-xl p-3 text-center cursor-pointer hover:bg-[#0b0f1a] hover:border-yellow-500 transition-colors group">
+                  <p className="text-yellow-400 text-sm font-medium group-hover:text-yellow-300">⚡ انقر هنا أو اكتب لإعادة تفعيل المحادثة</p>
                 </div>
               ) : (
-                <textarea 
-                  id="chat-input"
-                  value={text} 
-                  placeholder="اكتب رسالتك هنا..." 
-                  onChange={(e) => {
-                    setText(e.target.value);
-                    resetActivityTimers();
-                  }} 
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage();
-                    }
-                  }}
-                  rows={1}
-                  className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed"
-                />
+                <textarea id="chat-input" value={text} placeholder="اكتب رسالتك هنا..." 
+                  onChange={(e) => { setText(e.target.value); resetActivityTimers(); }} 
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                  rows={1} className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed" />
               )}
               
-              <button 
-                onClick={sendMessage} 
-                disabled={!text.trim() || chatStatus === "typing" || chatStatus === "idle"} 
+              <button onClick={sendMessage} disabled={!text.trim() || chatStatus === "typing" || chatStatus === "idle"} 
                 className={`p-3 rounded-xl text-sm font-bold transition mb-0.5 ${
-                  chatStatus === "idle" 
-                    ? "bg-gray-700 text-gray-500 cursor-not-allowed" 
-                    : "bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                }`}
-              >
+                  chatStatus === "idle" ? "bg-gray-700 text-gray-500 cursor-not-allowed" : "bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                }`}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
               </button>
             </div>
