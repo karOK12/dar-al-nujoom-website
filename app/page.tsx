@@ -31,7 +31,6 @@ const trendingProducts = [
   { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=150&h=200&fit=crop", shape: "portrait" },
 ];
 
-// 🔴 حالات الدردشة المحدثة لتشمل الانتهاء المؤقت والرسمي
 type ChatStatus = "typing" | "online" | "idle" | "ended";
 
 export default function Home() {
@@ -53,8 +52,53 @@ export default function Home() {
   const [endTime, setEndTime] = useState<Date | null>(null);
 
   // مؤقتات تتبع النشاط
-  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);      // للانتهاء المؤقت (5 دقائق)
-  const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null); // للإغلاق الرسمي (ساعة إضافية)
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 🔴 دالة حفظ الحالة في الذاكرة المحلية
+  const saveStateToStorage = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
+        messages,
+        currentSpeaker,
+        currentAgent,
+        sessionAgents,
+        chatStatus,
+        endTime
+      }));
+    }
+  };
+
+  // 🔴 دالة استرجاع الحالة عند فتح الموقع
+  const loadStateFromStorage = () => {
+    if (typeof window !== 'undefined') {
+      const savedState = localStorage.getItem('dar-alnujum-chat-state');
+      if (savedState) {
+        try {
+          const parsedState = JSON.parse(savedState);
+          setMessages(parsedState.messages || []);
+          setCurrentSpeaker(parsedState.currentSpeaker || "bot");
+          setCurrentAgent(parsedState.currentAgent || null);
+          setSessionAgents(parsedState.sessionAgents || []);
+          setChatStatus(parsedState.chatStatus || "online");
+          setEndTime(parsedState.endTime ? new Date(parsedState.endTime) : null);
+          
+          // إعادة ضبط المؤقتات بناءً على الحالة المسترجعة
+          if (parsedState.chatStatus === "online") {
+            resetActivityTimers();
+          } else if (parsedState.chatStatus === "ended") {
+            // إذا كانت منتهية رسمياً، نوقف المؤقتات
+            if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+            if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+          }
+          return true; // تم استرجاع الحالة بنجاح
+        } catch (e) {
+          console.error("Error loading chat state:", e);
+        }
+      }
+    }
+    return false; // لم توجد حالة محفوظة
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -62,11 +106,11 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [open]);
 
-  // 🔴 عرض الحالة ديناميكياً
+  // عرض الحالة ديناميكياً
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
     if (chatStatus === "online") return "متصل الآن";
-    if (chatStatus === "idle") return "انتهى مؤقتاً"; // الحالة الجديدة
+    if (chatStatus === "idle") return "انتهى مؤقتاً";
     
     if (chatStatus === "ended" && endTime) {
       const diffSeconds = Math.floor((currentTime.getTime() - endTime.getTime()) / 1000);
@@ -79,26 +123,27 @@ export default function Home() {
     return "غير نشط";
   };
 
-  // 🔴 إعادة ضبط المؤقتات عند أي نشاط
+  // إعادة ضبط المؤقتات عند أي نشاط
   const resetActivityTimers = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
-    // العودة لـ "متصل الآن" دائماً عند النشاط
     setChatStatus("online");
+    saveStateToStorage(); // حفظ الحالة فور العودة للنشاط
 
     // المرحلة 1: بعد 5 دقائق يصبح "انتهى مؤقتاً"
     idleTimerRef.current = setTimeout(() => {
       setChatStatus("idle");
+      saveStateToStorage();
     }, 5 * 60 * 1000); 
 
-    // المرحلة 2: بعد ساعة إضافية من السكون التام، إغلاق رسمي
+    // المرحلة 2: بعد ساعة إضافية، إغلاق رسمي
     autoCloseTimerRef.current = setTimeout(() => {
       performAutoClose();
-    }, 65 * 60 * 1000); // 5 دقائق + 60 دقيقة = 65 دقيقة إجمالاً
+    }, 65 * 60 * 1000); 
   };
 
-  // 🔴 الإغلاق الرسمي والعودة للمساعد الذكي
+  // الإغلاق الرسمي والعودة للمساعد الذكي
   const performAutoClose = () => {
     setChatStatus("ended");
     setEndTime(new Date());
@@ -106,13 +151,29 @@ export default function Home() {
     setCurrentAgent(null);
     setSessionAgents([]);
     
-    setMessages((prev) => [...prev, {
+    const closeMsg: Message = {
       id: Date.now().toString(),
       sender: "system",
       text: "⏱️ تم إنهاء المحادثة تلقائياً بسبب عدم النشاط الطويل. يمكنك بدء محادثة جديدة.",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
-    }]);
+    };
+
+    setMessages((prev) => {
+      const newMessages = [...prev, closeMsg];
+      // تحديث التخزين برسالة الإغلاق الجديدة
+      setTimeout(() => {
+         localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
+          messages: newMessages,
+          currentSpeaker: "bot",
+          currentAgent: null,
+          sessionAgents: [],
+          chatStatus: "ended",
+          endTime: new Date().toISOString()
+        }));
+      }, 0);
+      return newMessages;
+    });
   };
 
   useEffect(() => {
@@ -128,29 +189,44 @@ export default function Home() {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
+  //  تأثير التحميل الأولي: استرجاع المحادثة أو بدء جديدة
   useEffect(() => {
     if (open && messages.length === 0) {
-      setChatStatus("typing");
-      setTimeout(() => {
-        setMessages([{
-          id: "welcome-1",
-          sender: "bot",
-          role: "assistant",
-          text: "أهلاً بك في قناة مجلة دار النجوم!  أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
-          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-          status: "read"
-        }]);
-        setChatStatus("online");
-        resetActivityTimers();
-      }, 1000);
+      const hasSavedState = loadStateFromStorage();
+      
+      if (!hasSavedState) {
+        setChatStatus("typing");
+        setTimeout(() => {
+          const welcomeMsg: Message = {
+            id: "welcome-1",
+            sender: "bot",
+            role: "assistant",
+            text: "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
+            time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+            status: "read"
+          };
+          setMessages([welcomeMsg]);
+          setChatStatus("online");
+          resetActivityTimers();
+        }, 1000);
+      }
     }
+    
+    // تنظيف المؤقتات عند إغلاق النافذة (ولكن لا نحذف التخزين)
     return () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
     };
   }, [open]);
 
-  // 🔴 محرك فهم النوايا للتحويل للدعم البشري (المدمج)
+  // حفظ الحالة عند كل تغيير في الرسائل أو المتحدث
+  useEffect(() => {
+    if (messages.length > 0 || currentAgent) {
+      saveStateToStorage();
+    }
+  }, [messages, currentAgent, sessionAgents, currentSpeaker, chatStatus, endTime]);
+
+  // محرك فهم النوايا للتحويل للدعم البشري
   const checkEscalation = (userText: string): boolean => {
     const text = userText
       .toLowerCase()
@@ -221,8 +297,7 @@ export default function Home() {
   };
 
   const sendMessage = async () => {
-    // 🔴 السماح بالإرسال حتى لو كانت الحالة "انتهى مؤقتاً" لإعادتها للعمل
-    if (!text.trim() || (chatStatus === "ended")) return; 
+    if (!text.trim() || chatStatus === "ended") return; 
     
     setChatStatus("typing");
     const userText = text;
@@ -237,16 +312,13 @@ export default function Home() {
       status: "sent"
     }]);
 
-    // إعادة ضبط المؤقتات واستعادة حالة "متصل الآن"
     resetActivityTimers();
 
-    // التحقق من طلب الدعم البشري FIRST
     if (checkEscalation(userText)) {
       performEscalation();
       return;
     }
 
-    // إرسال للذكاء الاصطناعي العام
     try {
       const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: m.role || "user", content: m.text }));
       apiMessages.push({ role: "user", content: userText });
@@ -346,7 +418,7 @@ export default function Home() {
             <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[#0b0f1a] to-transparent z-10 pointer-events-none rounded-l-full"></div>
             <div className="flex whitespace-nowrap animate-seamless-scroll w-max">
               {[...Array(10), ...Array(10)].map((_, i) => (
-                <span key={i} className="mx-8 text-purple-300 text-sm font-semibold flex items-center gap-2">🎬 إعلان حصري: تابعوا أحدث البرامج واللقاءات على قناة مجلة دار النجوم</span>
+                <span key={i} className="mx-8 text-purple-300 text-sm font-semibold flex items-center gap-2"> إعلان حصري: تابعوا أحدث البرامج واللقاءات على قناة مجلة دار النجوم</span>
               ))}
             </div>
           </div>
@@ -459,6 +531,7 @@ export default function Home() {
                 setEndTime(null);
                 setOpen(true);
                 resetActivityTimers();
+                localStorage.removeItem('dar-alnujum-chat-state'); // مسح التخزين عند البدء الجديد
               }}
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"
             >
@@ -467,27 +540,47 @@ export default function Home() {
             </button>
           ) : (
             <div className="flex gap-2 items-end">
-              <textarea 
-                value={text} 
-                placeholder={chatStatus === "idle" ? "المحادثة انتهت مؤقتاً، اكتب للعودة..." : "اكتب رسالتك هنا..."} 
-                disabled={chatStatus === "idle"} // تعطيل الحقل مؤقتاً لمنع الإرسال بالخطأ
-                onChange={(e) => {
-                  setText(e.target.value);
-                  resetActivityTimers(); // إعادة تفعيل الحقل بمجرد الكتابة
-                }} 
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                rows={1}
-                className={`flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed ${chatStatus === "idle" ? "opacity-50 cursor-not-allowed" : "placeholder-gray-500"}`}
-              />
+              {/* 🔴 تحسين منطقة الإدخال للانتهاء المؤقت */}
+              {chatStatus === "idle" ? (
+                <div 
+                  onClick={() => {
+                    resetActivityTimers(); // إعادة التفعيل بمجرد النقر
+                    document.getElementById('chat-input')?.focus();
+                  }}
+                  className="flex-1 bg-[#0b0f1a]/50 border border-dashed border-yellow-500/50 rounded-xl p-3 text-center cursor-pointer hover:bg-[#0b0f1a] hover:border-yellow-500 transition-colors group"
+                >
+                  <p className="text-yellow-400 text-sm font-medium group-hover:text-yellow-300">
+                    ⚡ انقر هنا أو اكتب لإعادة تفعيل المحادثة
+                  </p>
+                </div>
+              ) : (
+                <textarea 
+                  id="chat-input"
+                  value={text} 
+                  placeholder="اكتب رسالتك هنا..." 
+                  onChange={(e) => {
+                    setText(e.target.value);
+                    resetActivityTimers();
+                  }} 
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                  rows={1}
+                  className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed"
+                />
+              )}
+              
               <button 
                 onClick={sendMessage} 
                 disabled={!text.trim() || chatStatus === "typing" || chatStatus === "idle"} 
-                className="bg-purple-600 text-white p-3 rounded-xl text-sm font-bold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed mb-0.5"
+                className={`p-3 rounded-xl text-sm font-bold transition mb-0.5 ${
+                  chatStatus === "idle" 
+                    ? "bg-gray-700 text-gray-500 cursor-not-allowed" 
+                    : "bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                }`}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
               </button>
