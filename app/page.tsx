@@ -33,6 +33,10 @@ const trendingProducts = [
 
 type ChatStatus = "typing" | "online" | "ended";
 
+// ⚠️ مدة الانتظار قبل الإغلاق التلقائي (بالمللي ثانية)
+// 5 دقائق = 300000 | ساعة واحدة = 3600000
+const AUTO_CLOSE_DELAY_MS = 300000; 
+
 export default function Home() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -50,6 +54,8 @@ export default function Home() {
   
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [endTime, setEndTime] = useState<Date | null>(null);
+
+  const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -72,21 +78,39 @@ export default function Home() {
     return "غير نشط";
   };
 
-  // 🔴 دالة الإنهاء اليدوي (بدون مؤقتات تلقائية)
-  const handleManualEndChat = () => {
-    setChatStatus("ended");
-    setEndTime(new Date());
-    setCurrentSpeaker("bot");
-    setCurrentAgent(null);
-    setSessionAgents([]);
+  // 🔴 دالة الإغلاق التلقائي من قبل الموظف/البوت
+  const handleAutoCloseByAgent = () => {
+    setChatStatus("typing"); // إظهار أن النظام يكتب رسالة الوداع
+    
+    setTimeout(() => {
+      setChatStatus("ended");
+      setEndTime(new Date());
+      
+      // إعادة النظام افتراضياً للمساعد الذكي
+      setCurrentSpeaker("bot");
+      setCurrentAgent(null);
+      setSessionAgents([]);
 
-    setMessages((prev) => [...prev, {
-      id: Date.now().toString(),
-      sender: "system",
-      text: "🔒 تم إنهاء المحادثة يدوياً. يمكنك بدء محادثة جديدة في أي وقت.",
-      time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-      status: "read"
-    }]);
+      setMessages((prev) => [...prev, {
+        id: Date.now().toString(),
+        sender: "bot", // البوت هو من ينهي المحادثة ويعود
+        role: "assistant",
+        text: "⏱️ نظراً لعدم وجود نشاط خلال الفترة الماضية، قمت بإنهاء هذه المحادثة تلقائياً. يمكنك بدء محادثة جديدة في أي وقت. نتمنى لك يوماً سعيداً!",
+        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+        status: "read"
+      }]);
+    }, 1500); // تأخير بسيط لمحاكاة الكتابة
+  };
+
+  // 🔴 دالة إعادة ضبط المؤقت التلقائي
+  const resetAutoCloseTimer = () => {
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current);
+    }
+    // بدء المؤقت الجديد
+    autoCloseTimerRef.current = setTimeout(() => {
+      handleAutoCloseByAgent();
+    }, AUTO_CLOSE_DELAY_MS);
   };
 
   useEffect(() => {
@@ -110,22 +134,26 @@ export default function Home() {
           id: "welcome-1",
           sender: "bot",
           role: "assistant",
-          text: "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. يمكنني إخبارك بالتفصيل عن أسعارنا، باقاتنا، ومميزات خدماتنا. كيف يمكنني مساعدتك اليوم؟",
+          text: "أهلاً بك في قناة مجلة دار النجوم!  أنا المساعد الذكي. يمكنني إخبارك بالتفصيل عن أسعارنا، باقاتنا، ومميزات خدماتنا. كيف يمكنني مساعدتك اليوم؟",
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         }]);
         setChatStatus("online");
+        resetAutoCloseTimer(); // بدء المؤقت بعد رسالة الترحيب
       }, 1000);
     }
+    
+    // تنظيف المؤقت عند إغلاق النافذة
+    return () => {
+      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+    };
   }, [open]);
 
-  // 🔴 قاعدة معرفة البوت (يجيب بدقة وتنظيم)
   const getBotKnowledgeResponse = (userText: string): string | null => {
     const lowerText = userText.toLowerCase();
     
-    // 1. الأسئلة المتعلقة بالأسعار والباقات
     if (['سعر', 'كم', 'تكلفة', 'أسعار', 'باقات', 'اشتراك', 'دفع', 'فلوس', 'ثمن', 'قيمة', 'الباقات'].some(k => lowerText.includes(k))) {
-      return `💰 تفاصيل باقاتنا وأسعارها:
+      return ` تفاصيل باقاتنا وأسعارها:
 
 📦 الباقة الأساسية: 100$ / شهرياً
 • وصول كامل للمحتوى بجودة HD
@@ -146,7 +174,6 @@ export default function Home() {
 هل تريد مساعدة في اختيار الباقة المناسبة لك، أم تود التحدث مع ممثل خدمة عملاء للتأكيد؟`;
     }
 
-    // 2. الأسئلة المتعلقة بالمميزات والتفاصيل
     if (['مميزات', 'تفاصيل', 'خدمات', 'ماذا تقدمون', 'كيف', 'معلومات'].some(k => lowerText.includes(k))) {
       return `🌟 نقدم في دار النجوم مجموعة متكاملة من الخدمات:
 1. محتوى إعلامي وترفيهي حصري عالي الجودة.
@@ -156,10 +183,9 @@ export default function Home() {
 يمكنك الاطلاع على التفاصيل الدقيقة لكل خدمة في قسم "من نحن" أو "الخدمات" في الموقع. هل هناك خدمة محددة تود معرفة المزيد عنها؟`;
     }
 
-    return null; // إذا لم يكن السؤال ضمن المعرفة المسبقة، ننتقل للـ API
+    return null;
   };
 
-  // 🔴 كشف طلب التحويل للدعم البشري (كلمات محددة جداً)
   const checkEscalation = (userText: string): boolean => {
     const lowerText = userText.toLowerCase();
     const escalationKeywords = [
@@ -215,7 +241,8 @@ export default function Home() {
         }]);
       }
       setChatStatus("online");
-    }, 3000); // انتظار 3 ثوانٍ فقط لمحاكاة واقعية وسريعة
+      resetAutoCloseTimer(); // إعادة ضبط المؤقت بعد التحويل
+    }, 3000);
   };
 
   const sendMessage = async () => {
@@ -234,13 +261,14 @@ export default function Home() {
       status: "sent"
     }]);
 
-    // 1. التحقق أولاً: هل يطلب الدعم البشري؟
+    // 🔴 إعادة ضبط المؤقت التلقائي عند كل رسالة من المستخدم
+    resetAutoCloseTimer();
+
     if (checkEscalation(userText)) {
       performEscalation();
       return;
     }
 
-    // 2. التحقق ثانياً: هل السؤال ضمن معرفة البوت المسبقة (أسعار، تفاصيل)؟
     const knownResponse = getBotKnowledgeResponse(userText);
     if (knownResponse) {
       setTimeout(() => {
@@ -253,11 +281,11 @@ export default function Home() {
           status: "read"
         }]);
         setChatStatus("online");
+        resetAutoCloseTimer(); // إعادة ضبط المؤقت بعد رد البوت
       }, 1000);
       return;
     }
 
-    // 3. إذا لم يكن أي مما سبق، نستخدم الذكاء الاصطناعي العام للإجابة
     try {
       const apiMessages = messages
         .filter(m => m.sender !== "system")
@@ -282,6 +310,7 @@ export default function Home() {
         status: "read"
       }]);
       setChatStatus("online");
+      resetAutoCloseTimer(); // إعادة ضبط المؤقت بعد رد الـ API
     } catch (error) {
       console.error("Chat Error:", error);
       setMessages((prev) => [...prev, {
@@ -292,6 +321,7 @@ export default function Home() {
         status: "read"
       }]);
       setChatStatus("online");
+      resetAutoCloseTimer();
     }
   };
 
@@ -428,30 +458,17 @@ export default function Home() {
             <h4 className="font-bold text-white text-sm truncate">
               {chatStatus === "ended" ? "المحادثة منتهية" : (sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name)}
             </h4>
-            <div className="flex items-center gap-2">
-              <p className={`text-xs flex items-center gap-1 truncate ${
-                chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : 
-                chatStatus === "ended" ? "text-red-400 font-bold" : "text-gray-400"
-              }`}>
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                  chatStatus === "online" ? "bg-green-400 animate-pulse" : 
-                  chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
-                  chatStatus === "ended" ? "bg-red-400" : "bg-gray-400"
-                }`}></span>
-                <span className="truncate">{getStatusText()}</span>
-              </p>
-              
-              {/* 🔴 زر الإنهاء اليدوي (يظهر فقط عندما تكون المحادثة مفتوحة ومتصلة) */}
-              {chatStatus !== "ended" && (
-                <button 
-                  onClick={handleManualEndChat}
-                  className="text-[10px] bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white px-2 py-0.5 rounded transition border border-red-500/30"
-                  title="إنهاء المحادثة"
-                >
-                  إنهاء
-                </button>
-              )}
-            </div>
+            <p className={`text-xs flex items-center gap-1 truncate ${
+              chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : 
+              chatStatus === "ended" ? "text-red-400 font-bold" : "text-gray-400"
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                chatStatus === "online" ? "bg-green-400 animate-pulse" : 
+                chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
+                chatStatus === "ended" ? "bg-red-400" : "bg-gray-400"
+              }`}></span>
+              <span className="truncate">{getStatusText()}</span>
+            </p>
           </div>
         </div>
 
@@ -467,7 +484,7 @@ export default function Home() {
                 {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
                 <div 
                   className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}
-                  style={{ whiteSpace: 'pre-wrap' }} // 🔴 يضمن ظهور الأسطر الجديدة في رسالة الأسعار بشكل جميل
+                  style={{ whiteSpace: 'pre-wrap' }}
                 >
                   {msg.text}
                 </div>
@@ -499,6 +516,7 @@ export default function Home() {
                 setChatStatus("online");
                 setEndTime(null);
                 setOpen(true);
+                resetAutoCloseTimer();
               }}
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"
             >
