@@ -151,7 +151,7 @@ export default function Home() {
           id: "welcome-1",
           sender: "bot",
           role: "assistant",
-          text: "أهلاً بك في قناة مجلة دار النجوم!  أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
+          text: "أهلاً بك في قناة مجلة دار النجوم! أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
         }]);
@@ -166,14 +166,80 @@ export default function Home() {
     };
   }, [open]);
 
-  // 🔴 دالة كشف التحويل محلياً (تعمل 100% بغض النظر عن الـ API)
+  // 🔴 دالة كشف التحويل - تعمل 100%
   const checkEscalation = (userText: string): boolean => {
     const lowerText = userText.toLowerCase();
     const escalationKeywords = [
       'مدير', 'بشر', 'شكوى', 'تحويل', 'موظف', 'خدمة عملاء', 
-      'دعم فني', 'إنسان', 'حقيقي', 'أريد التحدث', 'اتصل'
+      'دعم فني', 'إنسان', 'حقيقي', 'أريد التحدث', 'اتصل',
+      'تكلم', 'موظف حقيقي', 'شخص'
     ];
     return escalationKeywords.some(keyword => lowerText.includes(keyword));
+  };
+
+  // 🔴 دالة التحويل للموظف - منفصلة ومضمونة
+  const performEscalation = () => {
+    console.log("🔄 بدء عملية التحويل...");
+    console.log("الموظف الحالي:", currentAgent?.name || "لا يوجد");
+    console.log("عدد الموظفين في الجلسة:", sessionAgents.length);
+
+    // عرض رسالة التحويل
+    const transferMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      sender: currentSpeaker,
+      role: "assistant",
+      text: "سيتم تحويلك إلى القسم المختص لدعم عملائنا...",
+      time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+      status: "read"
+    };
+    setMessages((prev) => [...prev, transferMessage]);
+
+    // الانتظار ثم تنفيذ التحويل
+    setTimeout(() => {
+      console.log("⏰ تنفيذ التحويل الآن...");
+      
+      if (sessionAgents.length === 0) {
+        // التحويل الأول: من البوت إلى الموظف الأول
+        console.log("✅ التحويل الأول - من البوت إلى:", supportAgents[0].name);
+        const firstAgent = supportAgents[0];
+        setCurrentAgent(firstAgent);
+        setSessionAgents([firstAgent]);
+        setCurrentSpeaker("agent");
+        
+        const agentWelcome: Message = {
+          id: (Date.now() + 2).toString(),
+          sender: "agent",
+          role: "assistant",
+          text: `أهلاً بك، أنا ${firstAgent.name} (${firstAgent.role}). لقد اطلعت على محادثتك، تفضل كيف يمكنني مساعدتك؟`,
+          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+          status: "read"
+        };
+        setMessages((prev) => [...prev, agentWelcome]);
+      } else {
+        // التحويل الثاني: من الموظف الحالي إلى موظف آخر
+        const currentAgentId = sessionAgents[sessionAgents.length - 1]?.employeeId;
+        const nextAgent = supportAgents.find(a => a.employeeId !== currentAgentId) || supportAgents[1];
+        console.log("✅ التحويل الثاني - إلى:", nextAgent.name);
+        
+        setSessionAgents(prev => [...prev, nextAgent]);
+        setCurrentAgent(nextAgent);
+        
+        const agentWelcome: Message = {
+          id: (Date.now() + 3).toString(),
+          sender: "agent",
+          role: "assistant",
+          text: `مرحباً، أنا ${nextAgent.name} (${nextAgent.role}). زميلي أحال لي حالتك، وأنا هنا لحل مشكلتك بشكل نهائي. تفضل؟`,
+          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+          status: "read"
+        };
+        setMessages((prev) => [...prev, agentWelcome]);
+      }
+      
+      setChatStatus("online");
+      setLastActivityTime(new Date());
+      resetInactivityTimer();
+      console.log("✅ اكتمل التحويل بنجاح!");
+    }, 2000);
   };
 
   const sendMessage = async () => {
@@ -197,63 +263,19 @@ export default function Home() {
     
     setMessages((prev) => [...prev, newUserMsg]);
 
-    // 🔴 التحقق من التحويل محلياً أولاً
+    //  التحقق من التحويل محلياً
     const isEscalationRequest = checkEscalation(userText);
+    console.log("🔍 فحص التحويل:", isEscalationRequest, "للنص:", userText);
 
     if (isEscalationRequest) {
-      // عرض رسالة التحويل المطلوبة
-      setMessages((prev) => [...prev, {
-        id: (Date.now() + 1).toString(),
-        sender: currentSpeaker,
-        role: "assistant",
-        text: "سيتم تحويلك إلى القسم المختص لدعم عملائنا...",
-        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-        status: "read"
-      }]);
-
-      // محاكاة الانتظار ثم التحويل
-      setTimeout(() => {
-        if (currentSpeaker === "bot") {
-          // التحويل الأول: من البوت إلى الموظف الأول
-          const firstAgent = supportAgents[0];
-          setCurrentAgent(firstAgent);
-          setSessionAgents([firstAgent]);
-          setCurrentSpeaker("agent");
-          
-          setMessages((prev) => [...prev, {
-            id: (Date.now() + 2).toString(),
-            sender: "agent",
-            role: "assistant",
-            text: `أهلاً بك، أنا ${firstAgent.name} (${firstAgent.role}). لقد اطلعت على محادثتك، تفضل كيف يمكنني مساعدتك؟`,
-            time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-            status: "read"
-          }]);
-        } else {
-          // التحويل الثاني: من الموظف الأول إلى الثاني
-          const nextAgent = supportAgents.find(a => a.employeeId !== currentAgent?.employeeId) || supportAgents[1];
-          setSessionAgents(prev => [...prev, nextAgent]);
-          setCurrentAgent(nextAgent);
-          
-          setMessages((prev) => [...prev, {
-            id: (Date.now() + 3).toString(),
-            sender: "agent",
-            role: "assistant",
-            text: `مرحباً، أنا ${nextAgent.name} (${nextAgent.role}). زميلي أحال لي حالتك، وأنا هنا لحل مشكلتك بشكل نهائي. تفضل؟`,
-            time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-            status: "read"
-          }]);
-        }
-        setChatStatus("online");
-        setLastActivityTime(new Date());
-        resetInactivityTimer();
-      }, 2000);
-
+      // تنفيذ التحويل مباشرة
+      performEscalation();
     } else {
       // رد عادي عبر الـ API
       try {
         const apiMessages = messages
-          .filter(m => m.sender !== "system" && (m.sender !== "bot" || m.text.includes("أهلاً بك")))
-          .map(m => ({ role: m.role, content: m.text }));
+          .filter(m => m.sender !== "system")
+          .map(m => ({ role: m.role || (m.sender === "user" ? "user" : "assistant"), content: m.text }));
         
         apiMessages.push({ role: "user", content: userText });
 
@@ -333,11 +355,11 @@ export default function Home() {
           </a>
           <div className="search-box flex-1 max-w-md mx-2 hidden md:block">
             <div className="relative">
-              <input type="text" placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
+              <input type="text" placeholder=" ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
             </div>
           </div>
           <div className="actions flex items-center gap-2 md:gap-3 shrink-0">
-            <button className="btn upgrade hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-orange-500/30 transition">ترقية 👑</button>
+            <button className="btn upgrade hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-orange-500/30 transition">ترقية </button>
             <a href="/login" className="btn subscribe px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-purple-500/30 transition">اشتراك</a>
           </div>
         </div>
