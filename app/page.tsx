@@ -31,10 +31,14 @@ const trendingProducts = [
   { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=200&h=300&fit=crop", shape: "portrait" },
 ];
 
-type ChatStatus = "typing" | "online" | "ended";
+// 🔴 الحالات الثلاث للمحادثة
+type ChatStatus = "typing" | "online" | "idle" | "ended";
 
-// ⚠️ مدة الانتظار قبل الإغلاق التلقائي (ساعة واحدة = 3600000 مللي ثانية)
-const AUTO_CLOSE_DELAY_MS = 3600000; 
+// ⚠️ المدة قبل "انتهى مؤقتاً" (5 دقائق = 300000 مللي ثانية)
+const IDLE_DELAY_MS = 300000;
+
+// ⚠️ المدة قبل الإنهاء التلقائي الكامل (ساعة = 3600000 مللي ثانية)
+const AUTO_CLOSE_DELAY_MS = 3600000;
 
 export default function Home() {
   const [open, setOpen] = useState(false);
@@ -48,14 +52,13 @@ export default function Home() {
   
   const [chatStatus, setChatStatus] = useState<ChatStatus>("online");
   
-  const [lastActivityTime, setLastActivityTime] = useState<Date>(new Date());
-  
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
   
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [endTime, setEndTime] = useState<Date | null>(null);
 
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -67,6 +70,7 @@ export default function Home() {
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
     if (chatStatus === "online") return "متصل الآن";
+    if (chatStatus === "idle") return "انتهى مؤقتاً";
     
     if (chatStatus === "ended" && endTime) {
       const diffSeconds = Math.floor((currentTime.getTime() - endTime.getTime()) / 1000);
@@ -79,7 +83,41 @@ export default function Home() {
     return "غير نشط";
   };
 
-  // 🔴 دالة الإغلاق التلقائي من قبل الموظف (بعد سكوت لمدة ساعة)
+  // 🔴 دالة الإنهاء اليدوي من الموظف
+  const handleManualEndChat = () => {
+    if (chatStatus === "ended") return;
+    
+    setChatStatus("ended");
+    setEndTime(new Date());
+    setCurrentSpeaker("bot");
+    setCurrentAgent(null);
+    setSessionAgents([]);
+    
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+
+    setMessages((prev) => [...prev, {
+      id: Date.now().toString(),
+      sender: "bot",
+      role: "assistant",
+      text: "🔒 تم إنهاء المحادثة. يمكنك بدء محادثة جديدة في أي وقت.",
+      time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+      status: "read"
+    }]);
+  };
+
+  // 🔴 المرحلة 2: "انتهى مؤقتاً" (المحادثة مفتوحة لكن بدون نشاط)
+  const handleIdleState = () => {
+    if (chatStatus !== "online") return;
+    setChatStatus("idle");
+    
+    // بدء المرحلة 3: الإنهاء التلقائي الكامل بعد ساعة
+    autoCloseTimerRef.current = setTimeout(() => {
+      handleAutoCloseByAgent();
+    }, AUTO_CLOSE_DELAY_MS - IDLE_DELAY_MS); // الوقت المتبقي
+  };
+
+  // 🔴 المرحلة 3: الإنهاء التلقائي الكامل والعودة للمساعد الذكي
   const handleAutoCloseByAgent = () => {
     setChatStatus("typing");
     
@@ -94,24 +132,24 @@ export default function Home() {
         id: Date.now().toString(),
         sender: "bot",
         role: "assistant",
-        text: "⏱️ نظراً لعدم وجود نشاط خلال الساعات الماضية، قمت بإنهاء هذه المحادثة تلقائياً. يمكنك بدء محادثة جديدة في أي وقت.",
+        text: "⏱️ نظراً لعدم وجود نشاط خلال الفترة الماضية، قمت بإنهاء هذه المحادثة تلقائياً. يمكنك بدء محادثة جديدة في أي وقت.",
         time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
         status: "read"
       }]);
     }, 1500);
   };
 
-  // 🔴 دالة إعادة ضبط المؤقت (يبدأ من آخر نشاط)
-  const resetAutoCloseTimer = () => {
-    setLastActivityTime(new Date());
+  // 🔴 إعادة ضبط جميع المؤقتات عند أي نشاط
+  const resetAllTimers = () => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
     
-    if (autoCloseTimerRef.current) {
-      clearTimeout(autoCloseTimerRef.current);
-    }
+    setChatStatus("online");
     
-    autoCloseTimerRef.current = setTimeout(() => {
-      handleAutoCloseByAgent();
-    }, AUTO_CLOSE_DELAY_MS);
+    // بدء المرحلة 2 بعد 5 دقائق
+    idleTimerRef.current = setTimeout(() => {
+      handleIdleState();
+    }, IDLE_DELAY_MS);
   };
 
   useEffect(() => {
@@ -140,12 +178,12 @@ export default function Home() {
           status: "read"
         }]);
         setChatStatus("online");
-        resetAutoCloseTimer();
+        resetAllTimers();
       }, 1000);
     }
     
-    // تنظيف المؤقت عند إغلاق النافذة
     return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
     };
   }, [open]);
@@ -242,7 +280,7 @@ export default function Home() {
         }]);
       }
       setChatStatus("online");
-      resetAutoCloseTimer(); // 🔴 إعادة ضبط المؤقت بعد التحويل
+      resetAllTimers();
     }, 3000);
   };
 
@@ -260,10 +298,9 @@ export default function Home() {
       text: userText,
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "sent"
-    }));
+    }]);
 
-    // 🔴 إعادة ضبط المؤقت بعد أي نشاط من المستخدم
-    resetAutoCloseTimer();
+    resetAllTimers();
 
     if (checkEscalation(userText)) {
       performEscalation();
@@ -282,7 +319,7 @@ export default function Home() {
           status: "read"
         }]);
         setChatStatus("online");
-        resetAutoCloseTimer(); // 🔴 إعادة ضبط المؤقت بعد رد البوت
+        resetAllTimers();
       }, 1000);
       return;
     }
@@ -311,7 +348,7 @@ export default function Home() {
         status: "read"
       }]);
       setChatStatus("online");
-      resetAutoCloseTimer(); // 🔴 إعادة ضبط المؤقت بعد رد الـ API
+      resetAllTimers();
     } catch (error) {
       console.error("Chat Error:", error);
       setMessages((prev) => [...prev, {
@@ -322,7 +359,7 @@ export default function Home() {
         status: "read"
       }]);
       setChatStatus("online");
-      resetAutoCloseTimer();
+      resetAllTimers();
     }
   };
 
@@ -402,7 +439,7 @@ export default function Home() {
             <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[#0b0f1a] to-transparent z-10 pointer-events-none rounded-l-full"></div>
             <div className="flex whitespace-nowrap animate-seamless-scroll w-max">
               {[...Array(10), ...Array(10)].map((_, i) => (
-                <span key={i} className="mx-8 text-purple-300 text-sm font-semibold flex items-center gap-2">🎬 إعلان حصري: تابعوا أحدث البرامج واللقاءات على قناة مجلة دار النجوم</span>
+                <span key={i} className="mx-8 text-purple-300 text-sm font-semibold flex items-center gap-2"> إعلان حصري: تابعوا أحدث البرامج واللقاءات على قناة مجلة دار النجوم</span>
               ))}
             </div>
           </div>
@@ -459,17 +496,32 @@ export default function Home() {
             <h4 className="font-bold text-white text-sm truncate">
               {chatStatus === "ended" ? "المحادثة منتهية" : (sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name)}
             </h4>
-            <p className={`text-xs flex items-center gap-1 truncate ${
-              chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : 
-              chatStatus === "ended" ? "text-red-400 font-bold" : "text-gray-400"
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                chatStatus === "online" ? "bg-green-400 animate-pulse" : 
-                chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
-                chatStatus === "ended" ? "bg-red-400" : "bg-gray-400"
-              }`}></span>
-              <span className="truncate">{getStatusText()}</span>
-            </p>
+            <div className="flex items-center gap-2">
+              <p className={`text-xs flex items-center gap-1 truncate ${
+                chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : 
+                chatStatus === "idle" ? "text-yellow-400" :
+                chatStatus === "ended" ? "text-red-400 font-bold" : "text-gray-400"
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                  chatStatus === "online" ? "bg-green-400 animate-pulse" : 
+                  chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
+                  chatStatus === "idle" ? "bg-yellow-400" :
+                  chatStatus === "ended" ? "bg-red-400" : "bg-gray-400"
+                }`}></span>
+                <span className="truncate">{getStatusText()}</span>
+              </p>
+              
+              {/* 🔴 زر "إنهاء" مدمج مع "متصل الآن" - يظهر فقط عندما تكون المحادثة نشطة */}
+              {(chatStatus === "online" || chatStatus === "idle") && (
+                <button 
+                  onClick={handleManualEndChat}
+                  className="text-[10px] bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white px-2 py-0.5 rounded transition border border-red-500/30 flex-shrink-0"
+                  title="إنهاء المحادثة"
+                >
+                  إنهاء
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -517,7 +569,7 @@ export default function Home() {
                 setChatStatus("online");
                 setEndTime(null);
                 setOpen(true);
-                resetAutoCloseTimer();
+                resetAllTimers();
               }}
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"
             >
