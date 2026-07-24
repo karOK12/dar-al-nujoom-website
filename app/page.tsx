@@ -19,42 +19,16 @@ interface Agent {
   role: string;
 }
 
-// موظفو المحاكاة المؤقتون
 const supportAgents: Agent[] = [
   { employeeId: "EMP-TEMP-001", name: "خالد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء" },
   { employeeId: "EMP-TEMP-002", name: "نورة", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم" }
 ];
 
-// 🔴 تم تحديث البيانات لتشمل أشكالاً مختلفة (دائرة، مستطيل، مربع، عامودي)
 const trendingProducts = [
-  { 
-    id: 1, 
-    name: "كاميرا تصوير احترافية", 
-    desc: "خصم 25% لفترة محدودة", 
-    img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=150&h=150&fit=crop", 
-    shape: "circle" // دائرة
-  },
-  { 
-    id: 2, 
-    name: "سماعات استوديو", 
-    desc: "عزل ضوضاء فائق الجودة", 
-    img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&h=150&fit=crop", 
-    shape: "rectangle" // مستطيلة أفقية
-  },
-  { 
-    id: 3, 
-    name: "إضاءة Ring Light", 
-    desc: "مثالية لصناع المحتوى", 
-    img: "https://images.unsplash.com/photo-1615469062329-5f23633c1182?w=150&h=150&fit=crop", 
-    shape: "square" // مربعة
-  },
-  { 
-    id: 4, 
-    name: "ميكروفون بث مباشر", 
-    desc: "جودة صوت استثنائية", 
-    img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=150&h=200&fit=crop", 
-    shape: "portrait" // عامودية
-  },
+  { id: 1, name: "كاميرا تصوير احترافية", desc: "خصم 25% لفترة محدودة", img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=150&h=150&fit=crop", shape: "circle" },
+  { id: 2, name: "سماعات استوديو", desc: "عزل ضوضاء فائق الجودة", img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&h=150&fit=crop", shape: "rectangle" },
+  { id: 3, name: "إضاءة Ring Light", desc: "مثالية لصناع المحتوى", img: "https://images.unsplash.com/photo-1615469062329-5f23633c1182?w=150&h=150&fit=crop", shape: "square" },
+  { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=150&h=200&fit=crop", shape: "portrait" },
 ];
 
 type ChatStatus = "typing" | "online" | "warning" | "ended";
@@ -292,26 +266,18 @@ export default function Home() {
     }
   };
 
-  // 🔴 دالة عرض العناصر بحلقة انسيابية مثالية وأشكال متنوعة
   const renderSeamlessItems = () => {
-    // نكرر المصفوفة مرتين فقط لضمان أن العرض 50% تماماً مما يمنع أي تقطيع
     const repeatedProducts = [...trendingProducts, ...trendingProducts];
-    
     return repeatedProducts.map((product, index) => {
-      // تحديد كلاس الشكل بناءً على النوع
       const shapeClass = 
         product.shape === 'circle' ? 'w-16 h-16 rounded-full' :
         product.shape === 'rectangle' ? 'w-20 h-14 rounded-xl' :
         product.shape === 'portrait' ? 'w-14 h-20 rounded-2xl' :
-        'w-16 h-16 rounded-md'; // المربعة
+        'w-16 h-16 rounded-md';
 
       return (
         <div key={`${product.id}-${index}`} className="flex-shrink-0 inline-flex items-center gap-4 mx-4 bg-[#1f2937]/90 backdrop-blur-sm px-4 py-3 border border-gray-700 hover:border-purple-500 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 w-[300px]">
-          <img 
-            src={product.img} 
-            alt={product.name} 
-            className={`object-cover border-2 border-purple-500 shadow-md flex-shrink-0 ${shapeClass}`} 
-          />
+          <img src={product.img} alt={product.name} className={`object-cover border-2 border-purple-500 shadow-md flex-shrink-0 ${shapeClass}`} />
           <div className="flex flex-col text-right flex-1 min-w-0">
             <span className="text-sm md:text-base font-bold text-white leading-tight mb-1 line-clamp-2">{product.name}</span>
             <span className="text-xs md:text-sm text-purple-400 font-medium leading-tight line-clamp-2">{product.desc}</span>
@@ -323,19 +289,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
-      {/* 🔴 تم تحسين الأنيميشن لمنع التقطع وضبط السرعة */}
       <style jsx global>{`
-        @keyframes seamless-scroll {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .animate-seamless-scroll {
-          animation: seamless-scroll 50s linear infinite; /* 50 ثانية لسرعة متوسطة ومريحة */
-          will-change: transform; /* يمنع التقطع ويحسن أداء المتصفح */
-        }
-        .animate-seamless-scroll:hover {
-          animation-play-state: paused;
-        }
+        @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
+        .animate-seamless-scroll:hover { animation-play-state: paused; }
         @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
         .animate-blink { animation: blink 4s infinite; transform-origin: center; }
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
@@ -363,13 +320,10 @@ export default function Home() {
         </div>
       </header>
 
-      {/* 🔴 حاوية شريط الإعلانات المحسنة */}
       <div className="bg-[#111827] border-b border-gray-800 overflow-hidden relative py-3">
         <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-[#111827] to-transparent z-10 pointer-events-none"></div>
         <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-[#111827] to-transparent z-10 pointer-events-none"></div>
-        <div className="flex animate-seamless-scroll w-max">
-          {renderSeamlessItems()}
-        </div>
+        <div className="flex animate-seamless-scroll w-max">{renderSeamlessItems()}</div>
       </div>
 
       <main className="container mx-auto px-4 py-8 flex-1">
@@ -489,6 +443,7 @@ export default function Home() {
           )}
         </div>
 
+        {/* 🔴 منطقة الإدخال المحدثة لدعم الأسطر المتعددة */}
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           {chatStatus === "ended" ? (
             <button 
@@ -505,23 +460,30 @@ export default function Home() {
               بدء محادثة جديدة
             </button>
           ) : (
-            <div className="flex gap-2">
-              <input 
+            <div className="flex gap-2 items-end">
+              <textarea 
                 value={text} 
-                placeholder="اكتب رسالتك هنا..." 
+                placeholder="اكتب رسالتك هنا... (Shift + Enter لسطر جديد)" 
                 onChange={(e) => {
                   setText(e.target.value);
                   resetInactivityTimer();
                 }} 
-                onKeyDown={(e) => e.key === "Enter" && sendMessage()} 
-                className="flex-1 bg-[#0b0f1a] text-white px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500" 
+                onKeyDown={(e) => {
+                  // إرسال الرسالة عند الضغط على Enter فقط (بدون Shift)
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault(); // منع النزول لسطر جديد
+                    sendMessage();
+                  }
+                }}
+                rows={1}
+                className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed"
               />
               <button 
                 onClick={sendMessage} 
                 disabled={!text.trim() || chatStatus === "typing"} 
-                className="bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-purple-600 text-white p-3 rounded-xl text-sm font-bold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed mb-0.5"
               >
-                إرسال
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
               </button>
             </div>
           )}
