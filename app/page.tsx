@@ -25,10 +25,10 @@ const supportAgents: Agent[] = [
 ];
 
 const trendingProducts = [
-  { id: 1, name: "كاميرا تصوير احترافية", desc: "خصم 25% لفترة محدودة", img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=150&h=150&fit=crop", shape: "circle" },
-  { id: 2, name: "سماعات استوديو", desc: "عزل ضوضاء فائق الجودة", img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&h=150&fit=crop", shape: "rectangle" },
-  { id: 3, name: "إضاءة Ring Light", desc: "مثالية لصناع المحتوى", img: "https://images.unsplash.com/photo-1615469062329-5f23633c1182?w=150&h=150&fit=crop", shape: "square" },
-  { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=150&h=200&fit=crop", shape: "portrait" },
+  { id: 1, name: "كاميرا تصوير احترافية", desc: "خصم 25% لفترة محدودة", img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=200&h=200&fit=crop", shape: "circle" },
+  { id: 2, name: "سماعات استوديو", desc: "عزل ضوضاء فائق الجودة", img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=200&fit=crop", shape: "rectangle" },
+  { id: 3, name: "إضاءة Ring Light", desc: "مثالية لصناع المحتوى", img: "https://images.unsplash.com/photo-1615469062329-5f23633c1182?w=200&h=200&fit=crop", shape: "square" },
+  { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=200&h=300&fit=crop", shape: "portrait" },
 ];
 
 type ChatStatus = "typing" | "online" | "warning" | "ended";
@@ -114,7 +114,6 @@ export default function Home() {
   };
 
   const handleCloseByBot = () => {
-    console.log("🔒 إغلاق المحادثة والعودة للمساعد الذكي...");
     setChatStatus("ended");
     setEndTime(new Date());
     setCurrentSpeaker("bot");
@@ -167,7 +166,6 @@ export default function Home() {
     };
   }, [open]);
 
-  // 🔴 دالة كشف التحويل الموسعة والمضمونة
   const checkEscalation = (userText: string): boolean => {
     const lowerText = userText.toLowerCase();
     const escalationKeywords = [
@@ -176,12 +174,10 @@ export default function Home() {
       'تكلم', 'موظف حقيقي', 'شخص', 'ممثل', 'أحد', 'مساعدة بشرية',
       'حولني', 'ابغى', 'احتاج', 'شخصي', 'دعم', 'مسؤول', 'مشرف'
     ];
-    const isEscalating = escalationKeywords.some(keyword => lowerText.includes(keyword));
-    console.log("🔍 فحص التحويل للنص:", `"${userText}"`, "=> النتيجة:", isEscalating);
-    return isEscalating;
+    return escalationKeywords.some(keyword => lowerText.includes(keyword));
   };
 
-  // 🔴 دالة كشف أسئلة الأسعار
+  // 🔴 تنسيق رسالة الأسعار بأسطر واضحة ومرتبة
   const checkPricingQuestion = (userText: string): string | null => {
     const lowerText = userText.toLowerCase();
     const pricingKeywords = ['سعر', 'كم', 'تكلفة', 'أسعار', 'باقات', 'اشتراك', 'دفع', 'فلوس', 'ثمن', 'قيمة'];
@@ -190,37 +186,42 @@ export default function Home() {
       return `💰 أسعار باقاتنا:
 
 📦 الباقة الأساسية: 100$ شهرياً
-- وصول كامل للمحتوى وجود HD
+• وصول كامل للمحتوى وجودة HD
+
 ⭐ الباقة المتقدمة: 200$ شهرياً
-- جودة 4K ودعم فني مباشر 24/7
+• جودة 4K ودعم فني مباشر 24/7
+
 👑 الباقة الاحترافية: 350$ شهرياً
-- بث غير محدود وأولوية في الدعم
+• بث غير محدود وأولوية في الدعم
+
+🎁 عروض خاصة: خصم 25% على الاشتراك السنوي
 
 هل تريد تفاصيل أكثر عن باقة معينة؟`;
     }
     return null;
   };
 
-  // 🔴 دالة التحويل للموظف (محدثة ومضمونة)
+  // 🔴 دالة التحويل مع فترة انتظار واقعية
   const performEscalation = () => {
     console.log("🔄 بدء عملية التحويل...");
-    console.log("عدد الموظفين الحاليين في الجلسة:", sessionAgents.length);
 
+    // 1. إظهار رسالة الانتظار فوراً
     const transferMessage: Message = {
       id: (Date.now() + 1).toString(),
       sender: currentSpeaker,
       role: "assistant",
-      text: "سيتم تحويلك إلى القسم المختص لدعم عملائنا...",
+      text: "يرجى الانتظار، جاري تحويلك إلى قسم خدمة عملائنا المختص...",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     };
     setMessages((prev) => [...prev, transferMessage]);
+    setChatStatus("typing"); // إظهار مؤشر الكتابة أثناء الانتظار
 
+    // 2. الانتظار (15000 ميلي ثانية = 15 ثانية). يمكنك تغييرها إلى 30000 لـ 30 ثانية
     setTimeout(() => {
       console.log("⏰ تنفيذ التحويل الآن...");
       
       if (sessionAgents.length === 0) {
-        console.log("✅ التحويل الأول - من البوت إلى:", supportAgents[0].name);
         const firstAgent = supportAgents[0];
         setCurrentAgent(firstAgent);
         setSessionAgents([firstAgent]);
@@ -238,7 +239,6 @@ export default function Home() {
       } else {
         const currentAgentId = sessionAgents[sessionAgents.length - 1]?.employeeId;
         const nextAgent = supportAgents.find(a => a.employeeId !== currentAgentId) || supportAgents[1];
-        console.log("✅ التحويل الثاني - إلى:", nextAgent.name);
         
         setSessionAgents(prev => [...prev, nextAgent]);
         setCurrentAgent(nextAgent);
@@ -257,14 +257,12 @@ export default function Home() {
       setChatStatus("online");
       setLastActivityTime(new Date());
       resetInactivityTimer();
-      console.log("✅ اكتمل التحويل بنجاح! تحقق من الواجهة.");
-    }, 2000);
+    }, 15000); // ⚠️ غيّر هذا الرقم إلى 30000 إذا أردت الانتظار 30 ثانية بالضبط
   };
 
   const sendMessage = async () => {
     if (!text.trim() || chatStatus === "ended") return;
     
-    console.log("📤 إرسال رسالة:", text);
     setLastActivityTime(new Date());
     resetInactivityTimer();
     setChatStatus("typing");
@@ -283,10 +281,8 @@ export default function Home() {
     
     setMessages((prev) => [...prev, newUserMsg]);
 
-    // 1. التحقق من الأسعار أولاً
     const pricingResponse = checkPricingQuestion(userText);
     if (pricingResponse) {
-      console.log("💰 سؤال أسعار - رد مباشر");
       setTimeout(() => {
         setMessages((prev) => [...prev, {
           id: (Date.now() + 1).toString(),
@@ -303,14 +299,12 @@ export default function Home() {
       return;
     }
 
-    // 2. التحقق من التحويل
     const isEscalationRequest = checkEscalation(userText);
     if (isEscalationRequest) {
       performEscalation();
-      return; // مهم جداً: الخروج هنا لمنع استدعاء الـ API
+      return;
     }
 
-    // 3. الرد العادي عبر الـ API
     try {
       const apiMessages = messages
         .filter(m => m.sender !== "system")
@@ -351,21 +345,22 @@ export default function Home() {
     }
   };
 
+  // 🔴 تكبير وتنسيق أيقونات الإعلانات
   const renderSeamlessItems = () => {
     const repeatedProducts = [...trendingProducts, ...trendingProducts];
     return repeatedProducts.map((product, index) => {
       const shapeClass = 
-        product.shape === 'circle' ? 'w-16 h-16 rounded-full' :
-        product.shape === 'rectangle' ? 'w-20 h-14 rounded-xl' :
-        product.shape === 'portrait' ? 'w-14 h-20 rounded-2xl' :
-        'w-16 h-16 rounded-md';
+        product.shape === 'circle' ? 'w-20 h-20 rounded-full' :       // تكبير الدائرة
+        product.shape === 'rectangle' ? 'w-28 h-20 rounded-xl' :      // تكبير المستطيل
+        product.shape === 'portrait' ? 'w-20 h-28 rounded-2xl' :      // تكبير العامودي
+        'w-20 h-20 rounded-xl';                                       // تكبير المربع
 
       return (
-        <div key={`${product.id}-${index}`} className="flex-shrink-0 inline-flex items-center gap-4 mx-4 bg-[#1f2937]/90 backdrop-blur-sm px-4 py-3 border border-gray-700 hover:border-purple-500 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 w-[300px]">
+        <div key={`${product.id}-${index}`} className="flex-shrink-0 inline-flex items-center gap-4 mx-4 bg-[#1f2937]/90 backdrop-blur-sm px-5 py-4 border border-gray-700 hover:border-purple-500 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 w-[380px]">
           <img src={product.img} alt={product.name} className={`object-cover border-2 border-purple-500 shadow-md flex-shrink-0 ${shapeClass}`} />
           <div className="flex flex-col text-right flex-1 min-w-0">
-            <span className="text-sm md:text-base font-bold text-white leading-tight mb-1 line-clamp-2">{product.name}</span>
-            <span className="text-xs md:text-sm text-purple-400 font-medium leading-tight line-clamp-2">{product.desc}</span>
+            <span className="text-base md:text-lg font-bold text-white leading-tight mb-2 line-clamp-2">{product.name}</span>
+            <span className="text-sm md:text-base text-purple-400 font-medium leading-tight line-clamp-2">{product.desc}</span>
           </div>
         </div>
       );
@@ -378,6 +373,16 @@ export default function Home() {
         @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
         .animate-seamless-scroll:hover { animation-play-state: paused; }
+        
+        /* 🔴 حركة ظهور أيقونة الدردشة من اليمين */
+        @keyframes slide-in-right {
+          0% { transform: translateX(100px); opacity: 0; }
+          100% { transform: translateX(0); opacity: 1; }
+        }
+        .animate-slide-in-right {
+          animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
         @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
         .animate-blink { animation: blink 4s infinite; transform-origin: center; }
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
@@ -405,9 +410,9 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="bg-[#111827] border-b border-gray-800 overflow-hidden relative py-3">
-        <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-[#111827] to-transparent z-10 pointer-events-none"></div>
-        <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-[#111827] to-transparent z-10 pointer-events-none"></div>
+      <div className="bg-[#111827] border-b border-gray-800 overflow-hidden relative py-4">
+        <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-[#111827] to-transparent z-10 pointer-events-none"></div>
+        <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-[#111827] to-transparent z-10 pointer-events-none"></div>
         <div className="flex animate-seamless-scroll w-max">{renderSeamlessItems()}</div>
       </div>
 
@@ -427,10 +432,16 @@ export default function Home() {
         </section>
       </main>
 
-      <div ref={chatButtonRef} onClick={() => {
-        setOpen(!open);
-        if (!open) resetInactivityTimer();
-      }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10" title="مركز المساعدة والدعم">
+      {/* 🔴 أيقونة الدردشة مع حركة الظهور من اليمين */}
+      <div 
+        ref={chatButtonRef} 
+        onClick={() => {
+          setOpen(!open);
+          if (!open) resetInactivityTimer();
+        }} 
+        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" 
+        title="مركز المساعدة والدعم"
+      >
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-blink"><circle cx="10" cy="14" r="5" fill="white" /><circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
           <g className="animate-blink"><circle cx="22" cy="14" r="5" fill="white" /><circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
@@ -505,7 +516,11 @@ export default function Home() {
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
                 {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent && chatStatus !== "ended" ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
-                <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
+                {/* 🔴 إضافة whiteSpace: 'pre-wrap' لضمان ظهور الأسطر الجديدة في رسالة الأسعار بشكل جميل */}
+                <div 
+                  className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}
+                  style={{ whiteSpace: 'pre-wrap' }}
+                >
                   {msg.text}
                 </div>
                 <span className="text-[10px] text-gray-500 mt-1 px-1 flex items-center gap-1">
