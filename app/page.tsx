@@ -87,17 +87,16 @@ export default function Home() {
           if (parsedState.chatStatus === "online") {
             resetActivityTimers();
           } else if (parsedState.chatStatus === "ended") {
-            // إذا كانت منتهية رسمياً، نوقف المؤقتات
             if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
             if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
           }
-          return true; // تم استرجاع الحالة بنجاح
+          return true; 
         } catch (e) {
           console.error("Error loading chat state:", e);
         }
       }
     }
-    return false; // لم توجد حالة محفوظة
+    return false; 
   };
 
   useEffect(() => {
@@ -129,7 +128,7 @@ export default function Home() {
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
     setChatStatus("online");
-    saveStateToStorage(); // حفظ الحالة فور العودة للنشاط
+    saveStateToStorage(); 
 
     // المرحلة 1: بعد 5 دقائق يصبح "انتهى مؤقتاً"
     idleTimerRef.current = setTimeout(() => {
@@ -161,7 +160,6 @@ export default function Home() {
 
     setMessages((prev) => {
       const newMessages = [...prev, closeMsg];
-      // تحديث التخزين برسالة الإغلاق الجديدة
       setTimeout(() => {
          localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
           messages: newMessages,
@@ -212,7 +210,6 @@ export default function Home() {
       }
     }
     
-    // تنظيف المؤقتات عند إغلاق النافذة (ولكن لا نحذف التخزين)
     return () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
@@ -374,10 +371,20 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
+      {/* 🔴 تم إضافة حركة ظهور الأيقونة من اليمين هنا */}
       <style jsx global>{`
         @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
         .animate-seamless-scroll:hover { animation-play-state: paused; }
+        
+        @keyframes slide-in-right { 
+          0% { transform: translateX(100px); opacity: 0; } 
+          100% { transform: translateX(0); opacity: 1; } 
+        }
+        .animate-slide-in-right { 
+          animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
+        }
+
         @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
         .animate-blink { animation: blink 4s infinite; transform-origin: center; }
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
@@ -427,10 +434,11 @@ export default function Home() {
         </section>
       </main>
 
+      {/* 🔴 تمت إضافة كلاس animate-slide-in-right هنا لإعادة الحركة */}
       <div ref={chatButtonRef} onClick={() => {
         setOpen(!open);
         if (!open) resetActivityTimers();
-      }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10" title="مركز المساعدة والدعم">
+      }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة والدعم">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-blink"><circle cx="10" cy="14" r="5" fill="white" /><circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
           <g className="animate-blink"><circle cx="22" cy="14" r="5" fill="white" /><circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
@@ -531,7 +539,7 @@ export default function Home() {
                 setEndTime(null);
                 setOpen(true);
                 resetActivityTimers();
-                localStorage.removeItem('dar-alnujum-chat-state'); // مسح التخزين عند البدء الجديد
+                localStorage.removeItem('dar-alnujum-chat-state'); 
               }}
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"
             >
@@ -544,7 +552,7 @@ export default function Home() {
               {chatStatus === "idle" ? (
                 <div 
                   onClick={() => {
-                    resetActivityTimers(); // إعادة التفعيل بمجرد النقر
+                    resetActivityTimers(); 
                     document.getElementById('chat-input')?.focus();
                   }}
                   className="flex-1 bg-[#0b0f1a]/50 border border-dashed border-yellow-500/50 rounded-xl p-3 text-center cursor-pointer hover:bg-[#0b0f1a] hover:border-yellow-500 transition-colors group"
