@@ -113,14 +113,10 @@ export default function Home() {
     }, 120000);
   };
 
-  // 🔴 الإغلاق التلقائي مع العودة الكاملة للمساعد الذكي
   const handleCloseByBot = () => {
-    console.log(" إغلاق المحادثة والعودة للمساعد الذكي...");
-    
+    console.log("🔒 إغلاق المحادثة والعودة للمساعد الذكي...");
     setChatStatus("ended");
     setEndTime(new Date());
-    
-    // إعادة كل شيء للمساعد الذكي
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
@@ -129,7 +125,7 @@ export default function Home() {
       id: Date.now().toString(),
       sender: "bot",
       role: "assistant",
-      text: " نظراً لعدم وجود نشاط، قمت بإنهاء هذه المحادثة تلقائياً. يمكنك بدء محادثة جديدة في أي وقت.",
+      text: "🔒 نظراً لعدم وجود نشاط، قمت بإنهاء هذه المحادثة تلقائياً. يمكنك بدء محادثة جديدة في أي وقت.",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     }]);
@@ -171,57 +167,44 @@ export default function Home() {
     };
   }, [open]);
 
-  // 🔴 دالة كشف التحويل
+  // 🔴 دالة كشف التحويل الموسعة والمضمونة
   const checkEscalation = (userText: string): boolean => {
     const lowerText = userText.toLowerCase();
     const escalationKeywords = [
       'مدير', 'بشر', 'شكوى', 'تحويل', 'موظف', 'خدمة عملاء', 
       'دعم فني', 'إنسان', 'حقيقي', 'أريد التحدث', 'اتصل',
-      'تكلم', 'موظف حقيقي', 'شخص'
+      'تكلم', 'موظف حقيقي', 'شخص', 'ممثل', 'أحد', 'مساعدة بشرية',
+      'حولني', 'ابغى', 'احتاج', 'شخصي', 'دعم', 'مسؤول', 'مشرف'
     ];
-    return escalationKeywords.some(keyword => lowerText.includes(keyword));
+    const isEscalating = escalationKeywords.some(keyword => lowerText.includes(keyword));
+    console.log("🔍 فحص التحويل للنص:", `"${userText}"`, "=> النتيجة:", isEscalating);
+    return isEscalating;
   };
 
-  // 🔴 دالة كشف أسئلة الأسعار - ترد مباشرة
+  // 🔴 دالة كشف أسئلة الأسعار
   const checkPricingQuestion = (userText: string): string | null => {
     const lowerText = userText.toLowerCase();
     const pricingKeywords = ['سعر', 'كم', 'تكلفة', 'أسعار', 'باقات', 'اشتراك', 'دفع', 'فلوس', 'ثمن', 'قيمة'];
     
-    const isPricingQuestion = pricingKeywords.some(keyword => lowerText.includes(keyword));
-    
-    if (isPricingQuestion) {
+    if (pricingKeywords.some(keyword => lowerText.includes(keyword))) {
       return `💰 أسعار باقاتنا:
 
 📦 الباقة الأساسية: 100$ شهرياً
-- وصول كامل للمحتوى
-- جودة HD
-- دعم فني عبر البريد
-
+- وصول كامل للمحتوى وجود HD
 ⭐ الباقة المتقدمة: 200$ شهرياً
-- كل ميزات الباقة الأساسية
-- جودة 4K
-- دعم فني مباشر 24/7
-- محتوى حصري إضافي
-
+- جودة 4K ودعم فني مباشر 24/7
 👑 الباقة الاحترافية: 350$ شهرياً
-- كل ميزات الباقة المتقدمة
-- بث مباشر غير محدود
-- أولوية في الدعم
-- محتوى VIP حصري
-
-🎁 عروض خاصة:
-- خصم 25% على الاشتراك السنوي
-- خصم 15% للطلاب
+- بث غير محدود وأولوية في الدعم
 
 هل تريد تفاصيل أكثر عن باقة معينة؟`;
     }
-    
     return null;
   };
 
-  // 🔴 دالة التحويل للموظف
+  // 🔴 دالة التحويل للموظف (محدثة ومضمونة)
   const performEscalation = () => {
-    console.log(" بدء عملية التحويل...");
+    console.log("🔄 بدء عملية التحويل...");
+    console.log("عدد الموظفين الحاليين في الجلسة:", sessionAgents.length);
 
     const transferMessage: Message = {
       id: (Date.now() + 1).toString(),
@@ -274,13 +257,14 @@ export default function Home() {
       setChatStatus("online");
       setLastActivityTime(new Date());
       resetInactivityTimer();
-      console.log("✅ اكتمل التحويل بنجاح!");
+      console.log("✅ اكتمل التحويل بنجاح! تحقق من الواجهة.");
     }, 2000);
   };
 
   const sendMessage = async () => {
     if (!text.trim() || chatStatus === "ended") return;
     
+    console.log("📤 إرسال رسالة:", text);
     setLastActivityTime(new Date());
     resetInactivityTimer();
     setChatStatus("typing");
@@ -299,20 +283,19 @@ export default function Home() {
     
     setMessages((prev) => [...prev, newUserMsg]);
 
-    // 🔴 التحقق من أسئلة الأسعار أولاً
+    // 1. التحقق من الأسعار أولاً
     const pricingResponse = checkPricingQuestion(userText);
     if (pricingResponse) {
       console.log("💰 سؤال أسعار - رد مباشر");
       setTimeout(() => {
-        const aiMsg: Message = {
+        setMessages((prev) => [...prev, {
           id: (Date.now() + 1).toString(),
           sender: currentSpeaker,
           role: "assistant",
           text: pricingResponse,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
           status: "read"
-        };
-        setMessages((prev) => [...prev, aiMsg]);
+        }]);
         setChatStatus("online");
         setLastActivityTime(new Date());
         resetInactivityTimer();
@@ -320,53 +303,51 @@ export default function Home() {
       return;
     }
 
-    // التحقق من التحويل
+    // 2. التحقق من التحويل
     const isEscalationRequest = checkEscalation(userText);
-    console.log("🔍 فحص التحويل:", isEscalationRequest);
-
     if (isEscalationRequest) {
       performEscalation();
-    } else {
-      // رد عادي عبر الـ API
-      try {
-        const apiMessages = messages
-          .filter(m => m.sender !== "system")
-          .map(m => ({ role: m.role || (m.sender === "user" ? "user" : "assistant"), content: m.text }));
-        
-        apiMessages.push({ role: "user", content: userText });
+      return; // مهم جداً: الخروج هنا لمنع استدعاء الـ API
+    }
 
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: apiMessages })
-        });
+    // 3. الرد العادي عبر الـ API
+    try {
+      const apiMessages = messages
+        .filter(m => m.sender !== "system")
+        .map(m => ({ role: m.role || (m.sender === "user" ? "user" : "assistant"), content: m.text }));
+      
+      apiMessages.push({ role: "user", content: userText });
 
-        const data = await response.json();
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: apiMessages })
+      });
 
-        const aiMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          sender: currentSpeaker,
-          role: "assistant",
-          text: data.text || "عذراً، لم أتمكن من الرد حالياً.",
-          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-          status: "read"
-        };
-        setMessages((prev) => [...prev, aiMsg]);
-        setChatStatus("online");
-        setLastActivityTime(new Date());
-        resetInactivityTimer();
-      } catch (error) {
-        console.error("Chat Error:", error);
-        setMessages((prev) => [...prev, {
-          id: Date.now().toString(),
-          sender: "system",
-          text: "عذراً، حدث خطأ في الاتصال. يرجى المحاولة مرة أخرى.",
-          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-          status: "read"
-        }]);
-        setChatStatus("online");
-        resetInactivityTimer();
-      }
+      const data = await response.json();
+
+      setMessages((prev) => [...prev, {
+        id: (Date.now() + 1).toString(),
+        sender: currentSpeaker,
+        role: "assistant",
+        text: data.text || "عذراً، لم أتمكن من الرد حالياً.",
+        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+        status: "read"
+      }]);
+      setChatStatus("online");
+      setLastActivityTime(new Date());
+      resetInactivityTimer();
+    } catch (error) {
+      console.error("Chat Error:", error);
+      setMessages((prev) => [...prev, {
+        id: Date.now().toString(),
+        sender: "system",
+        text: "عذراً، حدث خطأ في الاتصال. يرجى المحاولة مرة أخرى.",
+        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+        status: "read"
+      }]);
+      setChatStatus("online");
+      resetInactivityTimer();
     }
   };
 
