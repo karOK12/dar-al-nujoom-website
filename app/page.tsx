@@ -72,28 +72,24 @@ export default function Home() {
     return "انتهى"; 
   };
 
-const resetActivityTimers = () => {
-  if (statusTimerRef.current) {
-    clearTimeout(statusTimerRef.current);
-  }
+  // 🔴 إعادة ضبط المؤقتات عند كل نشاط من المستخدم
+  const resetActivityTimers = () => {
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
-  if (autoCloseTimerRef.current) {
-    clearTimeout(autoCloseTimerRef.current);
-  }
+    // 1. إرجاع الحالة إلى "متصل الآن" فوراً عند رد المستخدم
+    setChatStatus("online");
 
-  // عند أي رسالة يرجع متصل
-  setChatStatus("online");
+    // 2. بعد 5 دقائق من عدم رد المستخدم، تتغير الكلمة إلى "انتهى" (المحادثة تبقى مفتوحة)
+    statusTimerRef.current = setTimeout(() => {
+      setChatStatus("ended");
+    }, 5 * 60 * 1000); 
 
-  // بعد 5 دقائق يصبح "انتهى"
-  statusTimerRef.current = setTimeout(() => {
-    setChatStatus("ended");
-  }, 5 * 60 * 1000);
-
-  // بعد 15 دقيقة تغلق المحادثة
-  autoCloseTimerRef.current = setTimeout(() => {
-    performAutoClose();
-  }, 15 * 60 * 1000);
-};
+    // 3. بعد 15 دقيقة من عدم النشاط، يتم إغلاق المحادثة تماماً والعودة للمساعد الذكي
+    autoCloseTimerRef.current = setTimeout(() => {
+      performAutoClose();
+    }, 15 * 60 * 1000);
+  };
 
   // 🔴 دالة الإغلاق التلقائي والعودة للمساعد الذكي
   const performAutoClose = () => {
@@ -105,7 +101,7 @@ const resetActivityTimers = () => {
     setMessages((prev) => [...prev, {
       id: Date.now().toString(),
       sender: "system",
-      text: "⏱️ تم إنهاء المحادثة تلقائياً بسبب عدم النشاط. يمكنك بدء محادثة جديدة.",
+      text: "️ تم إنهاء المحادثة تلقائياً بسبب عدم النشاط. يمكنك بدء محادثة جديدة.",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     }]);
@@ -171,61 +167,33 @@ const resetActivityTimers = () => {
 
     return null;
   };
-// 🔴 محرك فهم النوايا للتحويل للدعم البشري
-const checkEscalation = (userText: string): boolean => {
-  // توحيد النص ليسهل اكتشاف العبارات
-  const text = userText
-    .toLowerCase()
-    .replace(/[أإآ]/g, "ا")
-    .replace(/ة/g, "ه")
-    .replace(/ى/g, "ي")
-    .replace(/[^\u0600-\u06FFa-z0-9\s]/g, "");
 
-  const keywords = [
-    "دعم",
-    "الدعم",
-    "دعم فني",
-    "الدعم الفني",
-    "خدمة العملاء",
-    "خدمه العملاء",
-    "دعم العملاء",
-    "موظف",
-    "موظفه",
-    "شخص",
-    "انسان",
-    "بشري",
-    "ممثل",
-    "مدير",
-    "اداره",
-    "الاداره",
-    "حولني",
-    "تحويل",
-    "اتواصل",
-    "التواصل",
-    "اكلم",
-    "كلم",
-    "اتصل",
-    "احتاج دعم",
-    "احتاج موظف",
-    "اريد موظف",
-    "اريد الدعم",
-    "اريد شخص",
-    "اريد انسان",
-    "اكو موظف",
-    "ابغى موظف",
-    "ابي موظف",
-    "ما اريد روبوت",
-    "لا اريد روبوت",
-    "مساعده بشريه",
-    "رد بشري",
-    "التحدث مع موظف",
-    "اكلم الدعم",
-    "اكلم موظف",
-    "حولني للدعم"
-  ];
+  // 🔴 محرك فهم النوايا للتحويل للدعم البشري (الأولوية القصوى ويشمل جمل كاملة)
+  const checkEscalation = (userText: string): boolean => {
+    const lowerText = userText.toLowerCase();
+    
+    // المجموعة أ: عبارات وجمل كاملة تدل بوضوح على طلب التواصل مع الدعم
+    const fullPhrases = [
+      'أتواصل مع الدعم', 'التواصل مع فريق', 'التواصل مع فريق الدعم',
+      'أريد التواصل', 'اريد اتواصل', 'يمكنني التواصل', 'اقدر اتواصل',
+      'من قبل موظف', 'من قبل الدعم', 'من قبل شخص',
+      'أريد التحدث مع', 'اكلم شخص', 'احد يرد علي',
+      'افهم التفاصيل من قبل', 'تفاصيل من موظف', 'شرح من شخص',
+      'مساعدة بشرية', 'دعم بشري'
+    ];
 
-  return keywords.some(keyword => text.includes(keyword));
-};
+    // المجموعة ب: كلمات الطلب المباشر للبشر
+    const directKeywords = [
+      'حولني', 'تحويل', 'موظف', 'بشر', 'خدمة عملاء', 'دعم فني', 'مدير', 
+      'اتصل', 'شخص', 'ممثل', 'إنسان', 'حقيقي', 'ابغى موظف', 'احتاج دعم', 
+      'كلموني', 'رد بشري', 'مشكلة كبيرة', 'لا افهم', 'دعم العملاء'
+    ];
+
+    // التحقق من العبارات الكاملة أولاً (لأنها أدق)، ثم الكلمات المفردة
+    return [...fullPhrases, ...directKeywords].some(keyword => 
+      lowerText.includes(keyword)
+    );
+  };
 
   const performEscalation = () => {
     setChatStatus("typing");
@@ -271,7 +239,7 @@ const checkEscalation = (userText: string): boolean => {
   };
 
   const sendMessage = async () => {
-    if (!text.trim() || chatStatus === "ended") return;
+    if (!text.trim()) return; // السماح بالإرسال حتى لو كانت الحالة ended (لإعادة الاتصال)
     
     setChatStatus("typing");
     const userText = text;
@@ -289,13 +257,13 @@ const checkEscalation = (userText: string): boolean => {
     // 🔴 أهم سطر: إعادة ضبط المؤقتات عند إرسال المستخدم لأي رسالة
     resetActivityTimers();
 
-    // ⚠️ الخطوة 1: التحقق من طلب الدعم البشري FIRST (الأولوية القصوى)
+    // ️ الخطوة 1: التحقق من طلب الدعم البشري FIRST (الأولوية القصوى)
     if (checkEscalation(userText)) {
       performEscalation();
       return; // إيقاف التنفيذ هنا وعدم الذهاب للأسعار أو المعلومات
     }
 
-    // ⚠️ الخطوة 2: التحقق من الأسئلة العامة والأسعار SECOND
+    // ️ الخطوة 2: التحقق من الأسئلة العامة والأسعار SECOND
     const knownResponse = getBotKnowledgeResponse(userText);
     if (knownResponse) {
       setTimeout(() => {
@@ -312,7 +280,7 @@ const checkEscalation = (userText: string): boolean => {
       return;
     }
 
-    // ⚠️ الخطوة 3: الذكاء الاصطناعي العام LAST
+    // ️ الخطوة 3: الذكاء الاصطناعي العام LAST
     try {
       const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: m.role || "user", content: m.text }));
       apiMessages.push({ role: "user", content: userText });
@@ -361,6 +329,25 @@ const checkEscalation = (userText: string): boolean => {
     });
   };
 
+  // 🔴 دالة عرض شريط الإعلانات النصي المتحرك
+  const renderTextMarquee = () => {
+    const marqueeTexts = [
+      "🎬 إعلان حصري: تابعوا أحدث البرامج واللقاءات على قناة مجلة دار النجوم",
+      "⭐ عروض خاصة: خصم 25% على جميع الباقات لفترة محدودة",
+      "🔥 جديد: محتوى VIP حصري للمشتركين في الباقة الاحترافية",
+      "📢 لا تفوتوا: بث مباشر للحفلات والفعاليات القادمة"
+    ];
+    
+    // تكرار النصوص لضمان حركة انسيابية مستمرة
+    const repeatedTexts = [...marqueeTexts, ...marqueeTexts, ...marqueeTexts];
+    
+    return repeatedTexts.map((textItem, index) => (
+      <span key={index} className="mx-8 text-purple-300 text-sm font-semibold whitespace-nowrap flex items-center gap-2">
+        {textItem}
+      </span>
+    ));
+  };
+
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
       <style jsx global>{`
@@ -387,10 +374,20 @@ const checkEscalation = (userText: string): boolean => {
         </div>
       </header>
 
+      {/* 🔴 شريط الإعلانات بالأيقونات */}
       <div className="bg-[#111827] border-b border-gray-800 overflow-hidden relative py-4">
         <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-[#111827] to-transparent z-10 pointer-events-none"></div>
         <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-[#111827] to-transparent z-10 pointer-events-none"></div>
         <div className="flex animate-seamless-scroll w-max">{renderSeamlessItems()}</div>
+      </div>
+
+      {/* 🔴 شريط الإعلانات النصي المتحرك (تمت إضافته هنا) */}
+      <div className="bg-[#0b0f1a] border-b border-gray-800 overflow-hidden relative py-2.5">
+        <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-[#0b0f1a] to-transparent z-10 pointer-events-none"></div>
+        <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-[#0b0f1a] to-transparent z-10 pointer-events-none"></div>
+        <div className="flex animate-seamless-scroll w-max">
+          {renderTextMarquee()}
+        </div>
       </div>
 
       <main className="container mx-auto px-4 py-8 flex-1">
@@ -438,11 +435,28 @@ const checkEscalation = (userText: string): boolean => {
               {(chatStatus === "ended" && messages.some(m => m.sender === "system" && m.text.includes("تم إنهاء"))) ? "المحادثة منتهية" : (sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name)}
             </h4>
             
-            {/* 🔴 هنا يتم دمج الحالة: تظهر "متصل الآن" أو "انتهى" في نفس المكان بدون زر إضافي */}
-            <p className={`text-xs flex items-center gap-1 truncate ${chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : "text-red-400 font-bold"}`}>
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${chatStatus === "online" ? "bg-green-400 animate-pulse" : chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : "bg-red-400"}`}></span>
-              <span className="truncate">{getStatusText()}</span>
-            </p>
+            <div className="flex items-center gap-2">
+              {/* 🔴 هنا يتم دمج الحالة: تظهر "متصل الآن" أو "انتهى" في نفس المكان بدون زر إضافي */}
+              <p className={`text-xs flex items-center gap-1 truncate ${chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : "text-red-400 font-bold"}`}>
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${chatStatus === "online" ? "bg-green-400 animate-pulse" : chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : "bg-red-400"}`}></span>
+                <span className="truncate">{getStatusText()}</span>
+              </p>
+              
+              {/* 🔴 زر "إنهاء" مؤقت: يظهر فقط عندما تكون الحالة "انتهى" بسبب عدم النشاط */}
+              {chatStatus === "ended" && !messages.some(m => m.sender === "system" && m.text.includes("تم إنهاء")) && (
+                <button 
+                  onClick={() => {
+                    setMessages([]);
+                    setChatStatus("online");
+                    resetActivityTimers();
+                  }}
+                  className="text-[10px] bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white px-2 py-0.5 rounded transition border border-red-500/30 flex-shrink-0"
+                  title="إنهاء المحادثة نهائياً"
+                >
+                  إنهاء
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
