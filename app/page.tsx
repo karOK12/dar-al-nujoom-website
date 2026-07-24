@@ -31,7 +31,6 @@ const trendingProducts = [
   { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=200&h=300&fit=crop", shape: "portrait" },
 ];
 
-// 🔴 الحالة الآن إما متصل أو انتهى (لدمج الكلمة)
 type ChatStatus = "typing" | "online" | "ended";
 
 export default function Home() {
@@ -49,7 +48,7 @@ export default function Home() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
 
-  // مؤقتات تتبع نشاط المستخدم
+  // مؤقتات تتبع نشاط المستخدم للإغلاق التلقائي
   const statusTimerRef = useRef<NodeJS.Timeout | null>(null);
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -66,11 +65,11 @@ export default function Home() {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
-  // 🔴 دالة عرض الحالة (مدمجة: إما متصل الآن أو انتهى)
+  // 🔴 دالة عرض الحالة المدمجة (متصل الآن / انتهى)
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
     if (chatStatus === "online") return "متصل الآن";
-    return "انتهى"; // عندما يتأخر المستخدم، تتغير الكلمة نفسها إلى "انتهى"
+    return "انتهى"; 
   };
 
   // 🔴 إعادة ضبط المؤقتات عند كل نشاط من المستخدم
@@ -82,19 +81,17 @@ export default function Home() {
     setChatStatus("online");
 
     // 2. بعد 5 دقائق من عدم رد المستخدم، تتغير الكلمة إلى "انتهى" (المحادثة تبقى مفتوحة)
-    // يمكنك تغيير 5 * 60 * 1000 إلى 60 * 60 * 1000 لجعلها ساعة
     statusTimerRef.current = setTimeout(() => {
       setChatStatus("ended");
     }, 5 * 60 * 1000); 
 
     // 3. بعد 15 دقيقة من عدم النشاط، يتم إغلاق المحادثة تماماً والعودة للمساعد الذكي
-    // يمكنك تغيير 15 * 60 * 1000 إلى 2 * 60 * 60 * 1000 لساعتين
     autoCloseTimerRef.current = setTimeout(() => {
       performAutoClose();
     }, 15 * 60 * 1000);
   };
 
-  // 🔴 دالة الإغلاق التلقائي والعودة للمساعد الذكي
+  //  دالة الإغلاق التلقائي والعودة للمساعد الذكي
   const performAutoClose = () => {
     setChatStatus("ended");
     setCurrentSpeaker("bot");
@@ -127,13 +124,13 @@ export default function Home() {
       }, 1000);
     }
     
-    // تنظيف المؤقتات عند إغلاق النافذة
     return () => {
       if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
       if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
     };
   }, [open]);
 
+  // 🔴 قاعدة معرفة البوت الدقيقة للأسعار والتفاصيل
   const getBotKnowledgeResponse = (userText: string): string | null => {
     const lowerText = userText.toLowerCase();
     if (['سعر', 'كم', 'تكلفة', 'أسعار', 'باقات', 'اشتراك', 'دفع', 'فلوس', 'ثمن', 'قيمة'].some(k => lowerText.includes(k))) {
@@ -153,9 +150,10 @@ export default function Home() {
     return null;
   };
 
+  //  كشف دقيق لطلب الدعم البشري فقط
   const checkEscalation = (userText: string): boolean => {
     const lowerText = userText.toLowerCase();
-    return ['مدير', 'بشر', 'شكوى', 'تحويل', 'موظف', 'خدمة عملاء', 'دعم فني', 'حقيقي', 'أريد التحدث'].some(k => lowerText.includes(k));
+    return ['حولني', 'تحويل', 'موظف', 'بشر', 'دعم فني', 'خدمة عملاء', 'مدير', 'شكوى'].some(k => lowerText.includes(k));
   };
 
   const performEscalation = () => {
@@ -217,14 +215,16 @@ export default function Home() {
       status: "sent"
     }]);
 
-    // 🔴 أهم سطر: إعادة ضبط المؤقتات عند إرسال المستخدم لأي رسالة
+    //  أهم سطر: إعادة ضبط المؤقتات عند إرسال المستخدم لأي رسالة
     resetActivityTimers();
 
+    // 1. التحقق أولاً: هل يطلب الدعم البشري بكلمات محددة؟
     if (checkEscalation(userText)) {
       performEscalation();
       return;
     }
 
+    // 2. التحقق ثانياً: هل السؤال ضمن معرفة البوت المسبقة (أسعار، تفاصيل)؟
     const knownResponse = getBotKnowledgeResponse(userText);
     if (knownResponse) {
       setTimeout(() => {
@@ -241,6 +241,7 @@ export default function Home() {
       return;
     }
 
+    // 3. إذا لم يكن أي مما سبق، نستخدم الذكاء الاصطناعي العام للإجابة على باقي الأسئلة
     try {
       const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: m.role || "user", content: m.text }));
       apiMessages.push({ role: "user", content: userText });
