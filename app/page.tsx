@@ -72,24 +72,28 @@ export default function Home() {
     return "انتهى"; 
   };
 
-  // 🔴 إعادة ضبط المؤقتات عند كل نشاط من المستخدم
-  const resetActivityTimers = () => {
-    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
-    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+const resetActivityTimers = () => {
+  if (statusTimerRef.current) {
+    clearTimeout(statusTimerRef.current);
+  }
 
-    // 1. إرجاع الحالة إلى "متصل الآن" فوراً عند رد المستخدم
-    setChatStatus("online");
+  if (autoCloseTimerRef.current) {
+    clearTimeout(autoCloseTimerRef.current);
+  }
 
-    // 2. بعد 5 دقائق من عدم رد المستخدم، تتغير الكلمة إلى "انتهى" (المحادثة تبقى مفتوحة)
-    statusTimerRef.current = setTimeout(() => {
-      setChatStatus("ended");
-    }, 5 * 60 * 1000); 
+  // عند أي رسالة يرجع متصل
+  setChatStatus("online");
 
-    // 3. بعد 15 دقيقة من عدم النشاط، يتم إغلاق المحادثة تماماً والعودة للمساعد الذكي
-    autoCloseTimerRef.current = setTimeout(() => {
-      performAutoClose();
-    }, 15 * 60 * 1000);
-  };
+  // بعد 5 دقائق يصبح "انتهى"
+  statusTimerRef.current = setTimeout(() => {
+    setChatStatus("ended");
+  }, 5 * 60 * 1000);
+
+  // بعد 15 دقيقة تغلق المحادثة
+  autoCloseTimerRef.current = setTimeout(() => {
+    performAutoClose();
+  }, 15 * 60 * 1000);
+};
 
   // 🔴 دالة الإغلاق التلقائي والعودة للمساعد الذكي
   const performAutoClose = () => {
