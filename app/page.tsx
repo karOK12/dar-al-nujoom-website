@@ -76,10 +76,6 @@ export default function Home() {
           
           const initialStatus = (parsedState.chatStatus === "ended" || parsedState.chatStatus === "idle") ? "online" : (parsedState.chatStatus || "online");
           setChatStatus(initialStatus);
-          
-          if (initialStatus === "online") {
-            resetActivityTimers();
-          }
           return true; 
         } catch (e) { console.error("Error loading chat state:", e); }
       }
@@ -95,39 +91,63 @@ export default function Home() {
     return "غير نشط";
   };
 
-  // 🔴 المنطق الأساسي للمؤقتات (محدث لدقيقة واحدة)
-  const resetActivityTimers = () => {
+  // 🔴 الحل الجذري: استخدام useEffect لمراقبة تغيير المتحدث فعلياً
+  // هذا يضمن أن المؤقتات تبدأ فقط عندما يتحول النظام فعلياً إلى "agent"
+  useEffect(() => {
+    // تنظيف أي مؤقتات سابقة عند تغيير المتحدث
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
-    // إذا كان المتحدث هو المساعد الذكي، نبقيه متصلاً دائماً بدون مؤقتات إغلاق
+    // إذا كان المساعد الذكي، نضمن أن الحالة "online" ولا نضع مؤقتات إغلاق
     if (currentSpeaker === "bot") {
       setChatStatus("online");
       saveStateToStorage();
       return;
     }
 
-    // إذا كان المتحدث هو موظف بشري، نطبق مؤقتات عدم النشاط
+    // إذا كان موظف بشري، نبدأ المؤقتات فوراً وبشكل مضمون
     setChatStatus("online");
     saveStateToStorage();
 
-    // ⏱️ بعد 60 ثانية (دقيقة واحدة) من عدم النشاط: يظهر "انتهى مؤقتاً"
+    // ⏱️ بعد 60 ثانية (دقيقة واحدة): يظهر "انتهى مؤقتاً"
     idleTimerRef.current = setTimeout(() => {
       setChatStatus("idle");
       saveStateToStorage();
-    }, 60 * 1000); // 60 * 1000 مللي ثانية = 1 دقيقة
+    }, 60 * 1000);
 
-    // ⏱️ بعد 120 ثانية (دقيقتين) من عدم النشاط: يُغلق جلسة الموظف ويعود للمساعد الذكي
-    // (ملاحظة: إذا كنت تريد الإغلاق بعد دقيقة واحدة تماماً من البداية، غيّر 120 إلى 60)
+    // ⏱️ بعد 120 ثانية (دقيقتين): يُغلق جلسة الموظف ويعود للمساعد
     autoCloseTimerRef.current = setTimeout(() => {
       performAgentAutoClose();
-    }, 120 * 1000); // 120 * 1000 مللي ثانية = 2 دقيقة
+    }, 120 * 1000);
+
+  }, [currentSpeaker]); // هذا السطر هو المفتاح: يعمل فقط عند تغير currentSpeaker فعلياً
+
+  // دالة إعادة الضبط عند نشاط المستخدم (تعمل فقط إذا كان الموظف هو المتحدث الحالي)
+  const resetActivityTimers = () => {
+    if (currentSpeaker === "agent") {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+
+      setChatStatus("online");
+      saveStateToStorage();
+
+      idleTimerRef.current = setTimeout(() => {
+        setChatStatus("idle");
+        saveStateToStorage();
+      }, 60 * 1000);
+
+      autoCloseTimerRef.current = setTimeout(() => {
+        performAgentAutoClose();
+      }, 120 * 1000);
+    } else {
+      setChatStatus("online");
+      saveStateToStorage();
+    }
   };
 
-  // 🔴 دالة الإغلاق التلقائي لجلسة الموظف والعودة للمساعد الذكي
   const performAgentAutoClose = () => {
     setChatStatus("ended");
-    setCurrentSpeaker("bot");
+    setCurrentSpeaker("bot"); // هذا التغيير سيطلق الـ useEffect بالأعلى لتنظيف المؤقتات
     setCurrentAgent(null);
     setSessionAgents([]);
     
@@ -173,7 +193,6 @@ export default function Home() {
           };
           setMessages([welcomeMsg]);
           setChatStatus("online");
-          resetActivityTimers();
         }, 1000);
       }
     }
@@ -243,7 +262,7 @@ export default function Home() {
         if (!sessionAgents.find(a => a.employeeId === assignedAgent!.employeeId)) {
           setSessionAgents(prev => [...prev, assignedAgent!]);
         }
-        setCurrentSpeaker("agent");
+        setCurrentSpeaker("agent"); // <-- هذا التغيير هو ما سيطلق الـ useEffect ويبدأ المؤقتات بدقة
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
           text: `أهلاً بك، أنا ${assignedAgent.name} (${assignedAgent.role}). لقد اطلعت على طلبك، تفضل كيف يمكنني مساعدتك؟`,
@@ -256,9 +275,6 @@ export default function Home() {
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
         }]);
       }
-      
-      // بدء مؤقتات عدم النشاط الخاصة بالموظف
-      resetActivityTimers();
     }, 2500);
 
     return true;
@@ -267,7 +283,6 @@ export default function Home() {
   const sendMessage = async () => {
     if (!text.trim()) return; 
     
-    // إذا كانت المحادثة منتهية، إعادة تشغيلها كمحادثة جديدة مع المساعد الذكي
     if (chatStatus === "ended") {
       setChatStatus("online");
       setCurrentSpeaker("bot");
@@ -285,13 +300,11 @@ export default function Home() {
       status: "sent"
     }]);
 
-    // إعادة ضبط المؤقتات عند أي نشاط من المستخدم (يعيد الحالة إلى "متصل الآن" فوراً)
+    // إعادة ضبط المؤقتات عند أي نشاط من المستخدم
     resetActivityTimers();
 
-    // التحقق من التحويل للموظف
     if (checkAndPerformEscalation(userText)) return;
 
-    // الرد عبر المساعد الذكي (API)
     try {
       const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: m.role || "user", content: m.text }));
       apiMessages.push({ role: "user", content: userText });
