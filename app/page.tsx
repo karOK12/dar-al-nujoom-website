@@ -79,9 +79,10 @@ export default function Home() {
           setChatStatus(parsedState.chatStatus || "online");
           setEndTime(parsedState.endTime ? new Date(parsedState.endTime) : null);
           
-          // إذا كانت الحالة online أو idle وكان هناك موظف، نضبط المؤقتات
-          if ((parsedState.chatStatus === "online" || parsedState.chatStatus === "idle") && parsedState.currentSpeaker === "agent") {
-            resetActivityTimers();
+          if (parsedState.chatStatus === "online") resetActivityTimers();
+          else if (parsedState.chatStatus === "ended") {
+            if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+            if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
           }
           return true; 
         } catch (e) { console.error("Error loading chat state:", e); }
@@ -112,14 +113,24 @@ export default function Home() {
     return "غير نشط";
   };
 
-  // دالة إنهاء المحادثة مع الموظف (تنهي وتعود للمساعد الذكي)
-  const performAutoClose = () => {
+  const resetActivityTimers = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
-    // فقط إذا كان هناك موظف (وليس بوت)
-    if (currentSpeaker !== "agent") return;
+    setChatStatus("online");
+    saveStateToStorage(); 
 
+    idleTimerRef.current = setTimeout(() => {
+      setChatStatus("idle");
+      saveStateToStorage();
+    }, 25 * 60 * 1000); 
+
+    autoCloseTimerRef.current = setTimeout(() => {
+      performAutoClose();
+    }, 85 * 60 * 1000); 
+  };
+
+  const performAutoClose = () => {
     setChatStatus("ended");
     setEndTime(new Date());
     setCurrentSpeaker("bot");
@@ -129,7 +140,7 @@ export default function Home() {
     const closeMsg: Message = {
       id: Date.now().toString(),
       sender: "system",
-      text: "⚠️ تم إنهاء المحادثة تلقائياً بسبب عدم النشاط. يمكنك بدء محادثة جديدة مع المساعد الذكي.",
+      text: "⚠️ تم إنهاء المحادثة تلقائياً بسبب عدم النشاط الطويل. يمكنك بدء محادثة جديدة.",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     };
@@ -137,49 +148,13 @@ export default function Home() {
     setMessages((prev) => {
       const newMessages = [...prev, closeMsg];
       setTimeout(() => {
-        localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-          messages: newMessages,
-          currentSpeaker: "bot",
-          currentAgent: null,
-          sessionAgents: [],
-          chatStatus: "online", // العودة إلى online للبوت
-          endTime: null
+         localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
+          messages: newMessages, currentSpeaker: "bot", currentAgent: null,
+          sessionAgents: [], chatStatus: "ended", endTime: new Date().toISOString()
         }));
       }, 0);
       return newMessages;
     });
-  };
-
-  // دالة إعادة ضبط المؤقتات (خاصة بالموظف فقط)
-  const resetActivityTimers = () => {
-    // مسح المؤقتات القديمة
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-
-    // المؤقتات تعمل فقط مع الموظف (وليست مع البوت)
-    if (currentSpeaker !== "agent") return;
-
-    // تحديث الحالة إلى متصل (إذا كانت المحادثة غير منتهية)
-    if (chatStatus !== "ended") {
-      setChatStatus("online");
-      saveStateToStorage();
-    }
-
-    // المؤقت الأول: بعد 20 ثانية من عدم النشاط → حالة "انتهى مؤقتاً" (idle)
-    idleTimerRef.current = setTimeout(() => {
-      // التأكد أننا لا زلنا مع موظف والحالة ليست ended أو typing
-      if (currentSpeaker === "agent" && chatStatus !== "ended" && chatStatus !== "typing") {
-        setChatStatus("idle");
-        saveStateToStorage();
-      }
-    }, 20 * 1000); // 20 ثانية
-
-    // المؤقت الثاني: بعد 10 دقائق من عدم النشاط (حتى لو كان idle) → إنهاء المحادثة (ended)
-    autoCloseTimerRef.current = setTimeout(() => {
-      if (currentSpeaker === "agent" && chatStatus !== "ended") {
-        performAutoClose();
-      }
-    }, 10 * 60 * 1000); // 10 دقائق
   };
 
   useEffect(() => {
@@ -209,7 +184,7 @@ export default function Home() {
           };
           setMessages([welcomeMsg]);
           setChatStatus("online");
-          // لا نستدعي resetActivityTimers لأن currentSpeaker = "bot"
+          resetActivityTimers();
         }, 1000);
       }
     }
@@ -230,33 +205,19 @@ export default function Home() {
       .replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
 
     const explicitKeywords = [
-      "حولني لموظف",
-      "حولني لشخص",
-      "حولني للدعم",
-      "اتواصل مع الدعم",
-      "اتواصل مع فريق الدعم",
-      "التواصل مع الدعم",
-      "التواصل مع فريق الدعم",
-      "اقدر اتواصل",
-      "هل اقدر اتواصل",
-      "اريد التواصل",
-      "اريد اتواصل",
-      "ممكن اتواصل",
-      "اكلم الدعم",
-      "اكلم شخص",
-      "اكلم موظف",
-      "احد يرد علي",
-      "رد بشري",
-      "دعم بشري",
-      "مساعده بشريه",
-      "مو روبوت",
-      "ما اريد روبوت"
+      "حولني لموظف", "حولني لشخص", "حولني لاحد", "تحويل لموظف",
+      "ابي موظف", "ابي شخص حقيقي", "ابي انسان", "ابغى موظف", "ابغى شخص",
+      "اريد موظف", "اريد شخص حقيقي", "اريد انسان", "احتاج موظف", "احتاج شخص",
+      "كلمني موظف", "اتكلم ويا موظف", "احجي ويا موظف", "اكلم شخص", "اكلم دعم",
+      "ما اريد روبوت", "مو روبوت", "لا اريد روبوت", "رد بشري",
+      "دعم بشري", "مساعدة بشرية", "شخص حقيقي يرد", "انسان يرد",
+      "تواصل مع موظف", "ممكن اكلم موظف"
     ];
 
     return explicitKeywords.some(k => t.includes(k));
   };
 
-  // 🔴 2. ما هو القسم المطلوب؟
+  // 🔴 2. ما هو القسم المطلوب؟ (يتم استدعاؤها فقط إذا كان يريد بشراً)
   const detectDepartment = (userText: string): 'support' | 'ads' | 'technical' => {
     const text = userText.toLowerCase();
     const adKeywords = ["إعلان", "اعلان", "ترويج", "سبونسر", "بانر", "فيديو ترويجي", "اسعار الاعلان", "حجز اعلان"];
@@ -267,9 +228,9 @@ export default function Home() {
     return 'support'; 
   };
 
-  // 🔴 3. محرك التحويل الرئيسي
+  // 🔴 3. محرك التحويل الرئيسي (يعمل فقط عند طلب صريح)
   const checkAndPerformEscalation = (userText: string): boolean => {
-    if (!wantsHumanContact(userText)) return false;
+    if (!wantsHumanContact(userText)) return false; // إذا لم يطلب بشراً صراحة، لا تحول أبداً
     
     setChatStatus("typing");
     const targetDept = detectDepartment(userText);
@@ -310,8 +271,8 @@ export default function Home() {
       }
       
       setChatStatus("online");
-      resetActivityTimers(); // نبدأ المؤقتات بعد التحويل إلى موظف
-    }, 100);
+      resetActivityTimers();
+    }, 2500);
 
     return true;
   };
@@ -329,11 +290,9 @@ export default function Home() {
       status: "sent"
     }]);
 
-    // إذا كنا في محادثة مع موظف، نضبط المؤقتات (تعيد الحالة إلى online)
-    if (currentSpeaker === "agent") {
-      resetActivityTimers();
-    }
+    resetActivityTimers();
 
+    // 🔴 التحقق من التحويل: إذا لم يطلب بشراً صراحة، سيمر هذا الشرط ويذهب للـ API
     if (checkAndPerformEscalation(userText)) return;
 
     try {
@@ -352,10 +311,6 @@ export default function Home() {
         time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
       }]);
       setChatStatus("online");
-      // إذا كنا مع موظف، نضبط المؤقتات
-      if (currentSpeaker === "agent") {
-        resetActivityTimers();
-      }
     } catch (error) {
       setMessages((prev) => [...prev, {
         id: Date.now().toString(), sender: "system",
@@ -445,17 +400,7 @@ export default function Home() {
         </section>
       </main>
 
-      <div ref={chatButtonRef} onClick={() => { 
-        setOpen(!open); 
-        if (!open && currentSpeaker === "agent" && chatStatus !== "ended") {
-          resetActivityTimers();
-        }
-        // عند إغلاق الشات والمحادثة مع موظف، ننهي المحادثة
-        if (open && currentSpeaker === "agent" && chatStatus !== "ended") {
-          performAutoClose();
-          setOpen(false);
-        }
-      }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة والدعم">
+      <div ref={chatButtonRef} onClick={() => { setOpen(!open); if (!open) resetActivityTimers(); }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة والدعم">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-blink"><circle cx="10" cy="14" r="5" fill="white" /><circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
           <g className="animate-blink"><circle cx="22" cy="14" r="5" fill="white" /><circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
@@ -543,52 +488,22 @@ export default function Home() {
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           {chatStatus === "ended" ? (
             <button onClick={() => {
-                setMessages([]); 
-                setChatStatus("online"); 
-                setEndTime(null); 
-                setOpen(true);
-                setCurrentSpeaker("bot");
-                setCurrentAgent(null);
-                setSessionAgents([]);
-                if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-                if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-                localStorage.removeItem('dar-alnujum-chat-state');
-                setChatStatus("typing");
-                setTimeout(() => {
-                  const welcomeMsg: Message = {
-                    id: "welcome-new", sender: "bot", role: "assistant",
-                    text: "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
-                    time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-                    status: "read"
-                  };
-                  setMessages([welcomeMsg]);
-                  setChatStatus("online");
-                }, 500);
-              }} 
-              className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
+                setMessages([]); setChatStatus("online"); setEndTime(null); setOpen(true);
+                resetActivityTimers(); localStorage.removeItem('dar-alnujum-chat-state'); 
+              }} className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" /><path d="M3 3v9h9" /></svg>
               بدء محادثة جديدة
             </button>
           ) : (
             <div className="flex gap-2 items-end">
               {chatStatus === "idle" ? (
-                <div onClick={() => { 
-                    if (currentSpeaker === "agent") {
-                      resetActivityTimers();
-                    }
-                    document.getElementById('chat-input')?.focus(); 
-                  }}
+                <div onClick={() => { resetActivityTimers(); document.getElementById('chat-input')?.focus(); }}
                   className="flex-1 bg-[#0b0f1a]/50 border border-dashed border-yellow-500/50 rounded-xl p-3 text-center cursor-pointer hover:bg-[#0b0f1a] hover:border-yellow-500 transition-colors group">
                   <p className="text-yellow-400 text-sm font-medium group-hover:text-yellow-300">⚡ انقر هنا أو اكتب لإعادة تفعيل المحادثة</p>
                 </div>
               ) : (
                 <textarea id="chat-input" value={text} placeholder="اكتب رسالتك هنا..." 
-                  onChange={(e) => { 
-                    setText(e.target.value); 
-                    if (currentSpeaker === "agent") {
-                      resetActivityTimers();
-                    }
-                  }} 
+                  onChange={(e) => { setText(e.target.value); resetActivityTimers(); }} 
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   rows={1} className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed" />
               )}
