@@ -286,7 +286,7 @@ export default function Home() {
       
       setChatStatus("online");
       resetActivityTimers();
-    }, 2500);
+    },100);
 
     return true;
   };
