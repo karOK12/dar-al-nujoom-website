@@ -109,11 +109,11 @@ export default function Home() {
     setChatStatus("online");
     saveStateToStorage();
 
-    // ⏱️ بعد 10 ثوانٍ من عدم النشاط: تظهر "انتهى" (لكن الحقل يبقى مفتوحاً)
+    // ⏱️ بعد 15 ثانية من عدم النشاط: تظهر "انتهى" (لكن الحقل يبقى مفتوحاً)
     idleTimerRef.current = setTimeout(() => {
       setChatStatus("idle");
       saveStateToStorage();
-    }, 10 * 1000);
+    }, 15 * 1000);
 
     // ⏱️ بعد 20 ثانية من عدم النشاط: يُغلق الجلسة ويعود للمساعد الذكي
     autoCloseTimerRef.current = setTimeout(() => {
@@ -133,7 +133,7 @@ export default function Home() {
       idleTimerRef.current = setTimeout(() => {
         setChatStatus("idle");
         saveStateToStorage();
-      }, 10 * 1000);
+      }, 15 * 1000);
 
       autoCloseTimerRef.current = setTimeout(() => {
         performAgentAutoClose();
