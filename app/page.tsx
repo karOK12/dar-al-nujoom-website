@@ -120,15 +120,14 @@ export default function Home() {
     setChatStatus("online");
     saveStateToStorage(); 
 
-    idleTimerRef.current = setTimeout(() => {
-      setChatStatus("idle");
-      saveStateToStorage();
-    }, 25 * 60 * 1000); 
+ idleTimerRef.current = setTimeout(() => {
+  setChatStatus("idle");
+  saveStateToStorage();
+}, 10 * 1000); // 10 ثوانٍ
 
     autoCloseTimerRef.current = setTimeout(() => {
-      performAutoClose();
-    }, 85 * 60 * 1000); 
-  };
+  performAutoClose();
+}, 20 * 1000); // 20 ثانية
 
   const performAutoClose = () => {
     setChatStatus("online");
