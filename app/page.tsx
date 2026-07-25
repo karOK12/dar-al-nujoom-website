@@ -9,7 +9,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 type Sender = "user" | "bot" | "agent" | "system";
 type AgentStatus = "online" | "away" | "offline";
 type Department = 'support' | 'ads' | 'technical';
-type ChatStatus = "typing" | "online";
+// تمت إضافة "ended" كحالة ثالثة في آلة الحالة
+type ChatStatus = "typing" | "online" | "ended";
 
 interface Message {
   id: string;
@@ -32,10 +33,11 @@ interface Agent {
 }
 
 // ============================================================
-// CONSTANTS
+// CONSTANTS (آلة الحالة الزمنية)
 // ============================================================
 
-const AGENT_TIMEOUT_MINUTES = 30; // مدة عدم النشاط قبل الإنهاء التلقائي
+const AGENT_IDLE_TO_ENDED_SECONDS = 40; // للاختبار: الانتقال إلى حالة Ended بعد 40 ثانية
+const AGENT_ENDED_TO_BOT_MINUTES = 30;  // الإغلاق النهائي والعودة للـ Bot بعد 30 دقيقة من حالة Ended
 
 const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
@@ -99,12 +101,15 @@ export default function Home() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
 
-  // Refs لمنع Stale Closures
+  // Refs لمنع Stale Closures في آلة الحالة
   const currentSpeakerRef = useRef(currentSpeaker);
-  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const chatStatusRef = useRef(chatStatus);
+  const idleToEndedTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const endedToBotTimerRef = useRef<NodeJS.Timeout | null>(null);
   const messagesRef = useRef(messages);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
+  useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   // ============================================================
@@ -127,7 +132,6 @@ export default function Home() {
       if (!saved) return false;
       const parsed = JSON.parse(saved);
       
-      // تحميل الرسائل فقط، وإعادة تعيين الجلسة إلى Bot دائماً عند التحميل لمنع التعليق
       setMessages(parsed.messages || []);
       setCurrentSpeaker("bot");
       setCurrentAgent(null);
@@ -139,27 +143,58 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // 🔴 CORE FUNCTION: END AGENT SESSION (المطلوب برمجياً)
+  // STATE MACHINE: TIMER MANAGEMENT
+  // ============================================================
+
+  const clearAllTimers = useCallback(() => {
+    if (idleToEndedTimerRef.current) {
+      clearTimeout(idleToEndedTimerRef.current);
+      idleToEndedTimerRef.current = null;
+    }
+    if (endedToBotTimerRef.current) {
+      clearTimeout(endedToBotTimerRef.current);
+      endedToBotTimerRef.current = null;
+    }
+  }, []);
+
+  const resetActivityTimers = useCallback(() => {
+    clearAllTimers();
+    
+    // آلة الحالة تعمل فقط إذا كان المتحدث الحالي هو الموظف
+    if (currentSpeakerRef.current === "agent") {
+      // إذا كانت الحالة "ended"، فإن أي نشاط يعيد فتح الجلسة فوراً
+      if (chatStatusRef.current === "ended") {
+        setChatStatus("online");
+      }
+      
+      // المرحلة 1: الانتقال إلى حالة Ended بعد 40 ثانية من عدم النشاط
+      idleToEndedTimerRef.current = setTimeout(() => {
+        setChatStatus("ended");
+        
+        // المرحلة 2: بدء عد تنازلي للإغلاق النهائي والعودة للـ Bot بعد 30 دقيقة
+        endedToBotTimerRef.current = setTimeout(() => {
+          endAgentSession("timeout");
+        }, AGENT_ENDED_TO_BOT_MINUTES * 60 * 1000);
+        
+      }, AGENT_IDLE_TO_ENDED_SECONDS * 1000);
+    }
+  }, [clearAllTimers]);
+
+  // ============================================================
+  // STATE MACHINE: TRANSITIONS
   // ============================================================
 
   const endAgentSession = useCallback((reason: "manual" | "timeout" = "timeout") => {
-    // 1. إيقاف المؤقت فوراً لمنع التنفيذ المزدوج
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current);
-      inactivityTimerRef.current = null;
-    }
-
-    // 2. تحديد نص رسالة النظام بناءً على السبب
+    clearAllTimers();
+    
     const reasonText = reason === "manual" 
       ? "تم إنهاء جلسة الدعم من قبل الموظف. يمكنك متابعة المحادثة مع المساعد الذكي."
-      : "انتهت جلسة الدعم بسبب عدم وجود نشاط. يمكنك متابعة المحادثة مع المساعد الذكي.";
+      : "تم إغلاق جلسة الدعم نهائياً بسبب عدم النشاط الطويل. المساعد الذكي متاح الآن.";
 
     const endMessage = createMessage("system", reasonText);
 
-    // 3. تحديث الحالة (إضافة الرسالة أولاً، ثم تصفير متغيرات الجلسة)
     setMessages(prev => {
       const newMessages = [...prev, endMessage];
-      // حفظ الحالة الجديدة فوراً بعد تحديث الرسائل
       setTimeout(() => {
         if (typeof window !== 'undefined') {
           localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
@@ -175,26 +210,13 @@ export default function Home() {
       return newMessages;
     });
 
+    // الانتقال النهائي إلى حالة Bot
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
     setIsQueued(false);
     setChatStatus("online");
-  }, []);
-
-  // ============================================================
-  // AGENT SESSION MANAGEMENT
-  // ============================================================
-
-  const resetInactivityTimer = useCallback(() => {
-    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-
-    if (currentSpeakerRef.current === "agent") {
-      inactivityTimerRef.current = setTimeout(() => {
-        endAgentSession("timeout");
-      }, AGENT_TIMEOUT_MINUTES * 60 * 1000);
-    }
-  }, [endAgentSession]);
+  }, [clearAllTimers]);
 
   const startAgentSession = useCallback((agent: Agent) => {
     setCurrentAgent(agent);
@@ -206,8 +228,9 @@ export default function Home() {
     setMessages(prev => [...prev, welcomeMsg]);
     setChatStatus("online");
     
-    resetInactivityTimer();
-  }, [resetInactivityTimer]);
+    // بدء آلة الحالة الزمنية للموظف
+    resetActivityTimers();
+  }, [resetActivityTimers]);
 
   const checkAndPerformEscalation = useCallback((userText: string): boolean => {
     if (!wantsHumanContact(userText) || currentSpeaker !== "bot") return false;
@@ -226,7 +249,6 @@ export default function Home() {
         setIsQueued(true);
         setMessages(prev => [...prev, createMessage("system", `جميع موظفي ${deptNames[targetDept]} مشغولون. سيتم تحويلك عند توفر موظف.`)]);
         setChatStatus("online");
-        // محاكاة: بعد 5 ثواني يصبح موظف متاح
         setTimeout(() => {
           const agent = findAvailableAgent(targetDept) || SUPPORT_AGENTS[0];
           startAgentSession(agent);
@@ -238,7 +260,7 @@ export default function Home() {
   }, [currentSpeaker, startAgentSession]);
 
   // ============================================================
-  // SEND MESSAGE
+  // MESSAGE HANDLING
   // ============================================================
 
   const sendMessage = useCallback(async () => {
@@ -247,19 +269,18 @@ export default function Home() {
 
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
-    resetInactivityTimer();
+    
+    // أي نشاط من المستخدم يعيد ضبط آلة الحالة (يفتح الجلسة إذا كانت ended، أو يصفر المؤقت إذا كانت online)
+    resetActivityTimers();
 
-    // 1. التحقق من التحويل
     if (checkAndPerformEscalation(trimmedText)) return;
 
-    // 2. 🔴 حاجز الحماية المطلق: منع استدعاء AI API أثناء جلسة الموظف
+    // حاجز الحماية المطلق: منع استدعاء AI API أثناء جلسة الموظف (سواء online أو ended)
     if (currentSpeaker === "agent") {
-      // هنا يتم إرسال الرسالة للخادم (WebSocket) ليصل للموظف الحقيقي
-      // لا يوجد استدعاء لـ fetch('/api/chat')
       return; 
     }
 
-    // 3. منطق المساعد الذكي (Bot فقط)
+    // منطق المساعد الذكي (Bot فقط)
     setChatStatus("typing");
     try {
       const apiMessages = messagesRef.current.filter(m => m.sender !== "system").map(m => ({ role: m.role || "user", content: m.text }));
@@ -278,7 +299,7 @@ export default function Home() {
     } finally {
       setChatStatus("online");
     }
-  }, [text, currentSpeaker, resetInactivityTimer, checkAndPerformEscalation]);
+  }, [text, currentSpeaker, resetActivityTimers, checkAndPerformEscalation]);
 
   // ============================================================
   // EFFECTS
@@ -287,8 +308,8 @@ export default function Home() {
   useEffect(() => { saveStateToStorage(); }, [saveStateToStorage]);
 
   useEffect(() => {
-    return () => { if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current); };
-  }, []);
+    return () => { clearAllTimers(); };
+  }, [clearAllTimers]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -316,20 +337,26 @@ export default function Home() {
   }, [open, messages.length, loadStateFromStorage]);
 
   // ============================================================
-  // RENDER
+  // RENDER HELPERS
   // ============================================================
 
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
+    if (chatStatus === "ended") return "انتهت المحادثة (أرسل رسالة لإعادة الفتح)";
     if (isQueued) return "في قائمة الانتظار...";
     return "متصل الآن";
   };
 
   const getStatusColor = () => {
     if (chatStatus === "typing") return "bg-yellow-400 animate-pulse";
+    if (chatStatus === "ended") return "bg-gray-500"; // لون رمادي يدل على الانتهاء مع بقاء النشاط ممكناً
     if (isQueued) return "bg-orange-400 animate-pulse";
     return "bg-green-400 animate-pulse";
   };
+
+  // ============================================================
+  // JSX
+  // ============================================================
 
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
@@ -345,7 +372,6 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
-      {/* HEADER */}
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
         <div className="w-full px-2 md:px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-2 md:gap-4">
           <a href="/" className="flex items-center gap-2 md:gap-3 shrink-0">
@@ -362,7 +388,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* MAIN CONTENT */}
       <main className="container mx-auto px-4 py-8 flex-1">
         <section className="text-center mb-12">
           <h1 className="text-4xl md:text-6xl font-black mb-4 leading-tight">مرحبًا بكم في <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span></h1>
@@ -370,7 +395,6 @@ export default function Home() {
         </section>
       </main>
 
-      {/* CHAT BUTTON */}
       <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-blink"><circle cx="10" cy="14" r="5" fill="white" /><circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
@@ -379,10 +403,7 @@ export default function Home() {
         </svg>
       </div>
 
-      {/* CHAT WINDOW */}
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
-        
-        {/* Chat Header */}
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
             {sessionAgents.length === 0 ? (
@@ -402,14 +423,12 @@ export default function Home() {
           </div>
           <div className="flex-1 min-w-0">
             <h4 className="font-bold text-white text-sm truncate">{sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name}</h4>
-            <p className="text-xs flex items-center gap-1 truncate text-green-400">
+            <p className="text-xs flex items-center gap-1 truncate">
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor()}`}></span>
               <span className="truncate">{getStatusText()}</span>
             </p>
           </div>
           
-          {/* 🔴 زر محاكاة لإنهاء الجلسة من قبل الموظف (للاختبار) */}
-          {/* في الإنتاج الحقيقي، هذا الزر يكون في لوحة تحكم الموظف (Agent Dashboard) ويستدعي endAgentSession("manual") */}
           {currentSpeaker === "agent" && (
             <button 
               onClick={() => endAgentSession("manual")}
@@ -421,7 +440,6 @@ export default function Home() {
           )}
         </div>
 
-        {/* Messages Area */}
         <div className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50">
           {messages.map((msg) => {
             if (msg.sender === "system") {
@@ -453,7 +471,6 @@ export default function Home() {
           )}
         </div>
 
-        {/* Input Area */}
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           <div className="flex gap-2 items-end">
             <textarea
@@ -465,14 +482,17 @@ export default function Home() {
               rows={1}
               className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed"
             />
-            <button onClick={sendMessage} disabled={!text.trim() || chatStatus === "typing"} className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            <button 
+              onClick={sendMessage} 
+              disabled={!text.trim() || chatStatus === "typing"} 
+              className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
             </button>
           </div>
         </div>
       </div>
 
-      {/* FOOTER */}
       <footer className="bg-[#0b0f1a] border-t border-gray-800 text-gray-400 mt-auto py-8">
         <div className="container mx-auto px-4 text-center text-xs">جميع الحقوق محفوظة © قناة مجلة دار النجوم 2026</div>
       </footer>
