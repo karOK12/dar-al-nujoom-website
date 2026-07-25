@@ -21,7 +21,6 @@ interface Agent {
   department: 'support' | 'ads' | 'technical';
 }
 
-// فريق الدعم بأقسامه المتعددة
 const supportAgents: Agent[] = [
   { employeeId: "EMP-TEMP-001", name: "خالد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support' },
   { employeeId: "EMP-TEMP-002", name: "نورة", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical' },
@@ -86,59 +85,59 @@ export default function Home() {
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
     if (chatStatus === "online") return "متصل الآن";
-    if (chatStatus === "idle") return "انتهى مؤقتاً (بانتظار الرد)";
+    if (chatStatus === "idle") return "انتهى";
     if (chatStatus === "ended") return "عاد المساعد الذكي";
     return "غير نشط";
   };
 
-  // 🔴 الحل الجذري: استخدام useEffect لمراقبة تغيير المتحدث فعلياً
-  // هذا يضمن أن المؤقتات تبدأ فقط عندما يتحول النظام فعلياً إلى "agent"
-  useEffect(() => {
-    // تنظيف أي مؤقتات سابقة عند تغيير المتحدث
+  const clearTimers = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+  };
 
-    // إذا كان المساعد الذكي، نضمن أن الحالة "online" ولا نضع مؤقتات إغلاق
+  // 🔴 المراقب الذكي: يعمل فقط عند تغيير المتحدث
+  useEffect(() => {
+    clearTimers();
+
     if (currentSpeaker === "bot") {
       setChatStatus("online");
       saveStateToStorage();
       return;
     }
 
-    // إذا كان موظف بشري، نبدأ المؤقتات فوراً وبشكل مضمون
+    // إذا كان المتحدث هو موظف بشري، نبدأ المؤقتات
     setChatStatus("online");
     saveStateToStorage();
 
-    // ⏱️ بعد 60 ثانية (دقيقة واحدة): يظهر "انتهى مؤقتاً"
+    // ⏱️ بعد 10 ثوانٍ من عدم النشاط: تظهر "انتهى" (لكن الحقل يبقى مفتوحاً)
     idleTimerRef.current = setTimeout(() => {
       setChatStatus("idle");
       saveStateToStorage();
-    }, 60 * 1000);
+    }, 10 * 1000);
 
-    // ⏱️ بعد 120 ثانية (دقيقتين): يُغلق جلسة الموظف ويعود للمساعد
+    // ⏱️ بعد 20 ثانية من عدم النشاط: يُغلق الجلسة ويعود للمساعد الذكي
     autoCloseTimerRef.current = setTimeout(() => {
       performAgentAutoClose();
-    }, 120 * 1000);
+    }, 20 * 1000);
 
-  }, [currentSpeaker]); // هذا السطر هو المفتاح: يعمل فقط عند تغير currentSpeaker فعلياً
+  }, [currentSpeaker]);
 
-  // دالة إعادة الضبط عند نشاط المستخدم (تعمل فقط إذا كان الموظف هو المتحدث الحالي)
+  // 🔴 دالة إعادة الضبط عند أي نشاط من المستخدم
   const resetActivityTimers = () => {
     if (currentSpeaker === "agent") {
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-
-      setChatStatus("online");
+      clearTimers();
+      setChatStatus("online"); // العودة فوراً لـ "متصل الآن"
       saveStateToStorage();
 
+      // إعادة تشغيل المؤقتات من الصفر
       idleTimerRef.current = setTimeout(() => {
         setChatStatus("idle");
         saveStateToStorage();
-      }, 60 * 1000);
+      }, 10 * 1000);
 
       autoCloseTimerRef.current = setTimeout(() => {
         performAgentAutoClose();
-      }, 120 * 1000);
+      }, 20 * 1000);
     } else {
       setChatStatus("online");
       saveStateToStorage();
@@ -147,14 +146,14 @@ export default function Home() {
 
   const performAgentAutoClose = () => {
     setChatStatus("ended");
-    setCurrentSpeaker("bot"); // هذا التغيير سيطلق الـ useEffect بالأعلى لتنظيف المؤقتات
+    setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
     
     const closeMsg: Message = {
       id: Date.now().toString(),
       sender: "system",
-      text: "⚠️ تم إنهاء جلسة الدعم البشري بسبب عدم النشاط. عاد المساعد الذكي لخدمتك. كيف يمكنني مساعدتك؟",
+      text: "⚠️ تم إنهاء جلسة الدعم البشري بسبب عدم النشاط. عاد المساعد الذكي لخدمتك.",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     };
@@ -196,17 +195,13 @@ export default function Home() {
         }, 1000);
       }
     }
-    return () => {
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-    };
+    return () => clearTimers();
   }, [open]);
 
   useEffect(() => {
     if (messages.length > 0 || currentAgent) saveStateToStorage();
   }, [messages, currentAgent, sessionAgents, currentSpeaker, chatStatus]);
 
-  // 🔴 1. هل يريد المستخدم بشراً صراحة؟
   const wantsHumanContact = (text: string): boolean => {
     const t = text.toLowerCase()
       .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
@@ -219,11 +214,9 @@ export default function Home() {
       "اكلم شخص", "اكلم موظف", "احد يرد علي", "رد بشري",
       "دعم بشري", "مساعده بشريه", "مو روبوت", "ما اريد روبوت"
     ];
-
     return explicitKeywords.some(k => t.includes(k));
   };
 
-  // 🔴 2. ما هو القسم المطلوب؟
   const detectDepartment = (userText: string): 'support' | 'ads' | 'technical' => {
     const text = userText.toLowerCase();
     const adKeywords = ["إعلان", "اعلان", "ترويج", "سبونسر", "بانر", "فيديو ترويجي", "اسعار الاعلان", "حجز اعلان"];
@@ -234,7 +227,6 @@ export default function Home() {
     return 'support'; 
   };
 
-  // 🔴 3. محرك التحويل الرئيسي
   const checkAndPerformEscalation = (userText: string): boolean => {
     if (!wantsHumanContact(userText)) return false; 
     
@@ -262,16 +254,16 @@ export default function Home() {
         if (!sessionAgents.find(a => a.employeeId === assignedAgent!.employeeId)) {
           setSessionAgents(prev => [...prev, assignedAgent!]);
         }
-        setCurrentSpeaker("agent"); // <-- هذا التغيير هو ما سيطلق الـ useEffect ويبدأ المؤقتات بدقة
+        setCurrentSpeaker("agent");
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
-          text: `أهلاً بك، أنا ${assignedAgent.name} (${assignedAgent.role}). لقد اطلعت على طلبك، تفضل كيف يمكنني مساعدتك؟`,
+          text: `أهلاً بك، أنا ${assignedAgent.name} (${assignedAgent.role}). تفضل كيف يمكنني مساعدتك؟`,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
         }]);
       } else {
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
-          text: `أنا هنا بالفعل! ${currentAgent.name} (${currentAgent.role}) جاهز لمساعدتك. تفضل بطرح طلبك.`,
+          text: `أنا هنا بالفعل! ${currentAgent.name} (${currentAgent.role}) جاهز لمساعدتك.`,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
         }]);
       }
@@ -300,7 +292,6 @@ export default function Home() {
       status: "sent"
     }]);
 
-    // إعادة ضبط المؤقتات عند أي نشاط من المستخدم
     resetActivityTimers();
 
     if (checkAndPerformEscalation(userText)) return;
@@ -408,7 +399,7 @@ export default function Home() {
         </section>
       </main>
 
-      <div ref={chatButtonRef} onClick={() => { setOpen(!open); if (!open) resetActivityTimers(); }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة والدعم">
+      <div ref={chatButtonRef} onClick={() => { setOpen(!open); }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة والدعم">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-blink"><circle cx="10" cy="14" r="5" fill="white" /><circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
           <g className="animate-blink"><circle cx="22" cy="14" r="5" fill="white" /><circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
@@ -430,9 +421,7 @@ export default function Home() {
                     <circle cx="12" cy="4" r="1.5" fill="white"/>
                   </svg>
                 </div>
-                <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] ${
-                  chatStatus === "online" ? "bg-green-500" : chatStatus === "typing" ? "bg-yellow-500 animate-pulse" : "bg-gray-500"
-                }`}></span>
+                <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] bg-green-500"></span>
               </div>
             ) : (
               <div className="flex -space-x-3 rtl:space-x-reverse">
@@ -451,12 +440,12 @@ export default function Home() {
             <p className={`text-xs flex items-center gap-1 truncate ${
               chatStatus === "online" ? "text-green-400" : 
               chatStatus === "typing" ? "text-yellow-400" : 
-              chatStatus === "idle" ? "text-orange-400" : "text-gray-400"
+              chatStatus === "idle" ? "text-gray-500" : "text-gray-400"
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                 chatStatus === "online" ? "bg-green-400 animate-pulse" : 
                 chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
-                chatStatus === "idle" ? "bg-orange-400" : "bg-gray-400"
+                chatStatus === "idle" ? "bg-gray-500" : "bg-green-400"
               }`}></span>
               <span className="truncate">{getStatusText()}</span>
             </p>
@@ -495,38 +484,27 @@ export default function Home() {
           )}
         </div>
 
+        {/* 🔴 الحقل مفتوح دائماً في جميع الحالات */}
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
-          {chatStatus === "ended" ? (
-            <button onClick={() => {
-                setChatStatus("online");
-                setCurrentSpeaker("bot");
-                setCurrentAgent(null);
-                setSessionAgents([]);
-                resetActivityTimers();
-              }} className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" /><path d="M3 3v9h9" /></svg>
-              العودة للمساعد الذكي
+          <div className="flex gap-2 items-end">
+            <textarea 
+              id="chat-input" 
+              value={text} 
+              placeholder="اكتب رسالتك هنا..." 
+              onChange={(e) => { setText(e.target.value); resetActivityTimers(); }} 
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              rows={1} 
+              className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed" 
+            />
+            
+            <button 
+              onClick={sendMessage} 
+              disabled={!text.trim() || chatStatus === "typing"} 
+              className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
             </button>
-          ) : (
-            <div className="flex gap-2 items-end">
-              {chatStatus === "idle" ? (
-                <div onClick={() => { resetActivityTimers(); document.getElementById('chat-input')?.focus(); }}
-                  className="flex-1 bg-[#0b0f1a]/50 border border-dashed border-orange-500/50 rounded-xl p-3 text-center cursor-pointer hover:bg-[#0b0f1a] hover:border-orange-500 transition-colors group">
-                  <p className="text-orange-400 text-sm font-medium group-hover:text-orange-300">⚡ انقر هنا أو اكتب رسالة لإعادة تفعيل الاتصال</p>
-                </div>
-              ) : (
-                <textarea id="chat-input" value={text} placeholder="اكتب رسالتك هنا..." 
-                  onChange={(e) => { setText(e.target.value); resetActivityTimers(); }} 
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                  rows={1} className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed" />
-              )}
-              
-              <button onClick={sendMessage} disabled={!text.trim() || chatStatus === "typing"} 
-                className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
-              </button>
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
