@@ -120,39 +120,52 @@ export default function Home() {
     }
   };
 
-  // 🔴 الحذف النهائي والصارم لجلسة الموظف والعودة للمساعد الذكي
+  // 🔴 الحذف الشامل والكامل للمحادثة والعودة للمساعد الذكي
   const performAgentAutoClose = () => {
-    // 1. حذف جميع رسائل الموظف (Agent) من السجل الحالي نهائياً
-    const cleanedMessages = messages.filter(msg => msg.sender !== "agent");
-
-    // 2. إضافة رسالة نظام بسيطة توضح العودة للمساعد (بدون أي عداد أو تهديد)
-    const closeMsg: Message = {
-      id: Date.now().toString(),
-      sender: "system",
-      text: "تم إنهاء جلسة الدعم البشري تلقائياً لعدم النشاط. المساعد الذكي متاح الآن لمساعدتك.",
-      time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-      status: "read"
-    };
-
-    const finalMessages = [...cleanedMessages, closeMsg];
-
-    // 3. تحديث الحالة فوراً في الواجهة
-    setMessages(finalMessages);
+    // 1. تصفير المحادثة بالكامل (حذف جميع الرسائل: المستخدم، المساعد، والموظف)
+    const emptyMessages: Message[] = [];
+    
+    // 2. إعادة تعيين جميع حالات المتغيرات إلى وضع المساعد الذكي النظيف
+    setMessages(emptyMessages);
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
     setChatStatus("online");
 
-    // 4. الكتابة الفورية والنهائية في LocalStorage لضمان عدم عودة الرسائل القديمة عند التحديث
+    // 3. الحذف الفوري والنهائي من LocalStorage لضمان عدم عودة أي محادثة قديمة عند تحديث الصفحة
     if (typeof window !== 'undefined') {
       localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-        messages: finalMessages,
+        messages: emptyMessages,
         currentSpeaker: "bot",
         currentAgent: null,
         sessionAgents: [],
         chatStatus: "online"
       }));
     }
+
+    // 4. بدء جلسة جديدة تماماً مع رسالة ترحيب من المساعد الذكي بعد نصف ثانية
+    setTimeout(() => {
+      const freshWelcomeMsg: Message = {
+        id: "welcome-fresh-" + Date.now(),
+        sender: "bot",
+        role: "assistant",
+        text: "أهلاً بك مجدداً! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
+        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+        status: "read"
+      };
+      
+      setMessages([freshWelcomeMsg]);
+      
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
+          messages: [freshWelcomeMsg],
+          currentSpeaker: "bot",
+          currentAgent: null,
+          sessionAgents: [],
+          chatStatus: "online"
+        }));
+      }
+    }, 500);
   };
 
   // تشغيل المؤقتات فقط عند تحول المتحدث إلى "agent"
@@ -275,9 +288,8 @@ export default function Home() {
   const sendMessage = async () => {
     if (!text.trim()) return; 
     
-    // إذا كان هناك أي حالة سابقة، الكتابة تعيد إحياء المساعد الذكي فوراً بشكل نظيف
+    // إجراء احترازي: ضمان أن أي رسالة بعد إغلاق الجلسة تذهب للمساعد الذكي
     if (currentSpeaker !== "bot") {
-      // هذا السطر احترازي لضمان أن أي رسالة بعد إغلاق الجلسة تذهب للمساعد
       setCurrentSpeaker("bot");
       setCurrentAgent(null);
       setSessionAgents([]);
