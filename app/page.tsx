@@ -56,6 +56,7 @@ export default function Home() {
   const [endTime, setEndTime] = useState<Date | null>(null);
 
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const saveStateToStorage = () => {
     if (typeof window !== 'undefined') {
@@ -78,7 +79,9 @@ export default function Home() {
           setChatStatus(parsedState.chatStatus || "online");
           setEndTime(parsedState.endTime ? new Date(parsedState.endTime) : null);
           
-          if (parsedState.chatStatus === "online") resetActivityTimers();
+          if (parsedState.chatStatus === "online" || parsedState.chatStatus === "idle") {
+            resetActivityTimers();
+          }
           return true; 
         } catch (e) { console.error("Error loading chat state:", e); }
       }
@@ -108,9 +111,10 @@ export default function Home() {
     return "غير نشط";
   };
 
-  // دالة إنهاء المحادثة تلقائياً (أو عند إغلاق الشات)
+  // دالة إنهاء المحادثة تلقائياً (بعد 10 دقائق من عدم النشاط)
   const performAutoClose = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
     setChatStatus("ended");
     setEndTime(new Date());
@@ -121,7 +125,7 @@ export default function Home() {
     const closeMsg: Message = {
       id: Date.now().toString(),
       sender: "system",
-      text: "⚠️ تم إنهاء المحادثة. يمكنك بدء محادثة جديدة مع المساعد الذكي.",
+      text: "⚠️ تم إنهاء المحادثة تلقائياً بسبب عدم النشاط الطويل. يمكنك بدء محادثة جديدة.",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     };
@@ -144,19 +148,31 @@ export default function Home() {
 
   // دالة إعادة ضبط المؤقتات (تُستدعى عند أي نشاط)
   const resetActivityTimers = () => {
+    // مسح المؤقتات القديمة
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
-    // نطبق المؤقتات فقط أثناء محادثة مع موظف (وليس مع البوت)
-    if (currentSpeaker !== "agent") return;
-
-    setChatStatus("online");
-    saveStateToStorage();
-
-    // المؤقت: بعد 20 ثانية من عدم النشاط → حالة "انتهى مؤقتاً"
-    idleTimerRef.current = setTimeout(() => {
-      setChatStatus("idle");
+    // تحديث الحالة إلى متصل (إذا كانت المحادثة غير منتهية)
+    if (chatStatus !== "ended") {
+      setChatStatus("online");
       saveStateToStorage();
+    }
+
+    // نبدأ المؤقتات في جميع الحالات (سواء مع بوت أو موظف)
+    // المؤقت الأول: بعد 20 ثانية من عدم النشاط → حالة "انتهى مؤقتاً"
+    idleTimerRef.current = setTimeout(() => {
+      if (chatStatus !== "ended" && chatStatus !== "typing") {
+        setChatStatus("idle");
+        saveStateToStorage();
+      }
     }, 20 * 1000); // 20 ثانية
+
+    // المؤقت الثاني: بعد 10 دقائق من عدم النشاط → إنهاء المحادثة
+    autoCloseTimerRef.current = setTimeout(() => {
+      if (chatStatus !== "ended") {
+        performAutoClose();
+      }
+    }, 10 * 60 * 1000); // 10 دقائق
   };
 
   useEffect(() => {
@@ -186,11 +202,13 @@ export default function Home() {
           };
           setMessages([welcomeMsg]);
           setChatStatus("online");
+          resetActivityTimers();
         }, 1000);
       }
     }
     return () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
     };
   }, [open]);
 
@@ -414,13 +432,14 @@ export default function Home() {
         </section>
       </main>
 
-      <div ref={chatButtonRef} onClick={() => {
+      <div ref={chatButtonRef} onClick={() => { 
+        setOpen(!open); 
+        if (!open && chatStatus !== "ended") {
+          resetActivityTimers();
+        }
         if (open && currentSpeaker === "agent" && chatStatus !== "ended") {
-          performAutoClose(); // إنهاء المحادثة عند إغلاق الشات
+          performAutoClose();
           setOpen(false);
-        } else {
-          setOpen(!open);
-          if (!open) resetActivityTimers(); // عند الفتح، إعادة ضبط المؤقتات
         }
       }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة والدعم">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -518,6 +537,7 @@ export default function Home() {
                 setCurrentAgent(null);
                 setSessionAgents([]);
                 if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+                if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
                 localStorage.removeItem('dar-alnujum-chat-state');
                 setChatStatus("typing");
                 setTimeout(() => {
@@ -529,6 +549,7 @@ export default function Home() {
                   };
                   setMessages([welcomeMsg]);
                   setChatStatus("online");
+                  resetActivityTimers();
                 }, 500);
               }} 
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
