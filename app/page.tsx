@@ -45,17 +45,22 @@ export default function Home() {
   const [currentSpeaker, setCurrentSpeaker] = useState<"bot" | "agent">("bot");
   const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
   const [sessionAgents, setSessionAgents] = useState<Agent[]>([]);
-  
   const [chatStatus, setChatStatus] = useState<ChatStatus>("online");
   
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
   
-  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Refs لمنع مشكلة Stale Closure في المؤقتات
+  const currentSpeakerRef = useRef(currentSpeaker);
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ⏱️ إعدادات الوقت: مدة عدم النشاط لإنهاء جلسة الموظف (بالدقائق)
-  // يمكنك تغيير هذا الرقم إلى 60 لساعة، أو أي مدة تريدها
-  const AGENT_IDLE_TIMEOUT_MINUTES = 30; 
+  // ⏱️ مدة عدم النشاط لإنهاء جلسة الموظف (بالدقائق) - قابلة للتعديل
+  const AGENT_TIMEOUT_MINUTES = 30; 
+
+  // تحديث الـ Ref كلما تغيرت الحالة
+  useEffect(() => {
+    currentSpeakerRef.current = currentSpeaker;
+  }, [currentSpeaker]);
 
   const saveStateToStorage = () => {
     if (typeof window !== 'undefined') {
@@ -71,11 +76,11 @@ export default function Home() {
       if (savedState) {
         try {
           const parsedState = JSON.parse(savedState);
+          setMessages(parsedState.messages || []);
           
-          // تنظيف أمني: ضمان أن أي حالة محملة تعود للمساعد الذكي بشكل افتراضي آمن
+          // ضمان العودة الآمنة للمساعد الذكي عند التحميل لمنع جلسات عالقة
           const safeSpeaker = parsedState.currentSpeaker === "agent" ? "bot" : (parsedState.currentSpeaker || "bot");
           
-          setMessages(parsedState.messages || []);
           setCurrentSpeaker(safeSpeaker);
           setCurrentAgent(safeSpeaker === "bot" ? null : (parsedState.currentAgent || null));
           setSessionAgents(safeSpeaker === "bot" ? [] : (parsedState.sessionAgents || []));
@@ -92,92 +97,174 @@ export default function Home() {
     return "متصل الآن";
   };
 
-  const clearTimers = () => {
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = null;
+  // 🔴 إدارة المؤقت الصامت لإنهاء جلسة الموظف
+  const resetInactivityTimer = () => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+
+    // المؤقت يعمل فقط إذا كانت الجلسة الحالية للموظف
+    if (currentSpeakerRef.current === "agent") {
+      inactivityTimerRef.current = setTimeout(() => {
+        // إنهاء صامت: تغيير المتحدث للمساعد الذكي بدون أي رسائل تحذير أو حذف للمحادثات
+        setCurrentSpeaker("bot");
+        setCurrentAgent(null);
+        setSessionAgents([]);
+        setChatStatus("online");
+        saveStateToStorage();
+      }, AGENT_TIMEOUT_MINUTES * 60 * 1000);
     }
   };
 
-  // 🔴 بدء المؤقت الصامت لجلسة الدعم البشري
-  const startAgentTimers = () => {
-    clearTimers();
-    
-    // مؤقت واحد فقط، لا يوجد عد تنازلي أو تحذير
-    idleTimerRef.current = setTimeout(() => {
-      performAgentAutoClose();
-    }, AGENT_IDLE_TIMEOUT_MINUTES * 60 * 1000);
+  // 🔴 منطق التعرف على نية التواصل البشري (مرن وشامل)
+  const wantsHumanContact = (inputText: string): boolean => {
+    // تطبيع النص: إزالة التشكيل، توحيد الألف والياء والتاء المربوطة لتجنب أخطاء المطابقة
+    const normalizedText = inputText
+      .normalize("NFKD").replace(/[\u064B-\u065F]/g, "") // إزالة التشكيل
+      .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
+      .replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ") // إبقاء الحروف والأرقام فقط
+      .replace(/\s+/g, " ").trim().toLowerCase();
+
+    const humanContactKeywords = [
+      "حولني", "تحويل", "اتواصل", "اكلم", "كلم", "اتصل", "اتحدث", "احجي",
+      "موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء",
+      "دعم", "فني", "فريق الدعم", "روبوت", "مو روبوت", "ليس روبوت"
+    ];
+
+    // التحقق من وجود أي كلمة مفتاحية في النص المطبع
+    return humanContactKeywords.some(keyword => normalizedText.includes(keyword));
   };
 
-  // 🔴 إعادة ضبط المؤقت عند أي نشاط من المستخدم
-  const resetActivityTimers = () => {
-    if (currentSpeaker === "agent") {
-      // إذا كان المستخدم يكتب، نلغي المؤقت القديم ونبدأ الـ 30 دقيقة من جديد
-      startAgentTimers(); 
-    } else {
-      clearTimers();
-      setChatStatus("online");
-    }
+  const detectDepartment = (userText: string): 'support' | 'ads' | 'technical' => {
+    const text = userText.toLowerCase();
+    if (["اعلان", "ترويج", "سبونسر", "بانر", "فيديو", "اسعار"].some(k => text.includes(k))) return 'ads';
+    if (["مشكلة", "خطأ", "لا يعمل", "تعطل", "فشل", "بطئ", "معلق", "دخول", "كلمة مرور", "فني"].some(k => text.includes(k))) return 'technical';
+    return 'support'; 
   };
 
-  // 🔴 الحذف الشامل والكامل للمحادثة والعودة للمساعد الذكي
-  const performAgentAutoClose = () => {
-    // 1. تصفير المحادثة بالكامل (حذف جميع الرسائل: المستخدم، المساعد، والموظف)
-    const emptyMessages: Message[] = [];
-    
-    // 2. إعادة تعيين جميع حالات المتغيرات إلى وضع المساعد الذكي النظيف
-    setMessages(emptyMessages);
-    setCurrentSpeaker("bot");
-    setCurrentAgent(null);
-    setSessionAgents([]);
-    setChatStatus("online");
+  // 🔴 محرك التحويل إلى الموظف
+  const checkAndPerformEscalation = (userText: string): boolean => {
+    // إذا كان المستخدم يطلب موظفاً وهو يتحدث حالياً مع البوت
+    if (wantsHumanContact(userText) && currentSpeaker === "bot") {
+      setChatStatus("typing"); // إظهار مؤشر الكتابة مرة واحدة
+      
+      const targetDept = detectDepartment(userText);
+      const transferMsg = targetDept === 'ads' 
+        ? "يرجى الانتظار، جاري تحويلك إلى قسم الإعلانات والترويج..." 
+        : targetDept === 'technical' 
+          ? "يرجى الانتظار، جاري تحويلك إلى الدعم الفني المتخصص..."
+          : "يرجى الانتظار، جاري تحويلك إلى قسم خدمة العملاء المختص...";
 
-    // 3. الحذف الفوري والنهائي من LocalStorage لضمان عدم عودة أي محادثة قديمة عند تحديث الصفحة
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-        messages: emptyMessages,
-        currentSpeaker: "bot",
-        currentAgent: null,
-        sessionAgents: [],
-        chatStatus: "online"
-      }));
-    }
-
-    // 4. بدء جلسة جديدة تماماً مع رسالة ترحيب من المساعد الذكي بعد نصف ثانية
-    setTimeout(() => {
-      const freshWelcomeMsg: Message = {
-        id: "welcome-fresh-" + Date.now(),
-        sender: "bot",
+      // رسالة التحويل
+      setMessages((prev) => [...prev, {
+        id: (Date.now() + 1).toString(), 
+        sender: "bot", 
         role: "assistant",
-        text: "أهلاً بك مجدداً! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
+        text: transferMsg, 
         time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
         status: "read"
-      };
-      
-      setMessages([freshWelcomeMsg]);
-      
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-          messages: [freshWelcomeMsg],
-          currentSpeaker: "bot",
-          currentAgent: null,
-          sessionAgents: [],
-          chatStatus: "online"
-        }));
-      }
-    }, 500);
+      }]);
+
+      // محاكاة وقت التحويل
+      setTimeout(() => {
+        const assignedAgent = supportAgents.find(a => a.department === targetDept) || supportAgents[0];
+        
+        setCurrentAgent(assignedAgent);
+        setSessionAgents([assignedAgent]);
+        setCurrentSpeaker("agent"); // تغيير المتحدث يمنع استدعاء API مستقبلاً
+        
+        // رسالة ترحيب الموظف (هنا يتم إيقاف مؤشر الكتابة تلقائياً)
+        setMessages((prev) => [...prev, {
+          id: (Date.now() + 2).toString(), 
+          sender: "agent", 
+          role: "assistant",
+          text: `أهلاً بك، أنا ${assignedAgent.name} (${assignedAgent.role}). تفضل، كيف يمكنني مساعدتك؟`,
+          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), 
+          status: "read"
+        }]);
+        
+        setChatStatus("online"); // إيقاف مؤشر الكتابة نهائياً
+        resetInactivityTimer(); // بدء مؤقت عدم النشاط الصامت
+      }, 1500);
+
+      return true;
+    }
+    return false;
   };
 
-  // تشغيل المؤقتات فقط عند تحول المتحدث إلى "agent"
-  useEffect(() => {
+  const sendMessage = async () => {
+    if (!text.trim()) return; 
+    
+    const userText = text;
+    setText("");
+
+    // 1. إضافة رسالة المستخدم فوراً
+    setMessages((prev) => [...prev, {
+      id: Date.now().toString(), 
+      sender: "user", 
+      role: "user",
+      text: userText, 
+      time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+      status: "sent"
+    }]);
+
+    // 2. إعادة ضبط مؤقت عدم النشاط
+    resetInactivityTimer();
+
+    // 3. التحقق من طلب التحويل للموظف
+    if (checkAndPerformEscalation(userText)) return;
+
+    // 4. حاجز الحماية: إذا كان المتحدث هو الموظف، لا تقم باستدعاء API المساعد الذكي
     if (currentSpeaker === "agent") {
-      startAgentTimers();
-    } else {
-      clearTimers();
+      // في التطبيق الحقيقي، هنا يتم إرسال الرسالة عبر WebSocket للخادم ليصل للموظف
+      // في هذا الواجهة، نتوقف هنا وننتظر رد الموظف (أو نترك الرسالة ظاهرة للمستخدم كمرسلة)
+      return; 
+    }
+
+    // 5. منطق المساعد الذكي (يتم تنفيذه فقط إذا كان currentSpeaker === 'bot')
+    setChatStatus("typing");
+    try {
+      const apiMessages = messages
+        .filter(m => m.sender !== "system") // عدم إرسال رسائل النظام للـ API لتوفير التوكنز
+        .map(m => ({ role: m.role || "user", content: m.text }));
+      
+      apiMessages.push({ role: "user", content: userText });
+
+      const response = await fetch('/api/chat', {
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: apiMessages })
+      });
+
+      const data = await response.json();
+      
+      setMessages((prev) => [...prev, {
+        id: (Date.now() + 1).toString(), 
+        sender: "bot", 
+        role: "assistant",
+        text: data.text || "عذراً، لم أتمكن من الرد حالياً.",
+        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), 
+        status: "read"
+      }]);
+    } catch (error) {
+      setMessages((prev) => [...prev, {
+        id: Date.now().toString(), 
+        sender: "system",
+        text: "عذراً، حدث خطأ في الاتصال بالخادم.",
+        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), 
+        status: "read"
+      }]);
+    } finally {
       setChatStatus("online");
     }
-    return () => clearTimers();
-  }, [currentSpeaker]);
+  };
+
+  // تنظيف المؤقتات عند إغلاق المكون
+  useEffect(() => {
+    return () => {
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -198,13 +285,12 @@ export default function Home() {
       if (!hasSavedState) {
         setChatStatus("typing");
         setTimeout(() => {
-          const welcomeMsg: Message = {
+          setMessages([{
             id: "welcome-1", sender: "bot", role: "assistant",
             text: "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
             time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
             status: "read"
-          };
-          setMessages([welcomeMsg]);
+          }]);
           setChatStatus("online");
         }, 1000);
       }
@@ -212,129 +298,8 @@ export default function Home() {
   }, [open]);
 
   useEffect(() => {
-    if (messages.length > 0 || currentAgent) saveStateToStorage();
+    saveStateToStorage();
   }, [messages, currentAgent, sessionAgents, currentSpeaker, chatStatus]);
-
-  const wantsHumanContact = (text: string): boolean => {
-    const t = text.toLowerCase()
-      .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
-      .replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-
-    const explicitKeywords = [
-      "حولني لموظف", "حولني لشخص", "حولني للدعم", "اتواصل مع الدعم",
-      "اتواصل مع فريق الدعم", "التواصل مع الدعم", "اقدر اتواصل",
-      "اريد التواصل", "اريد اتواصل", "ممكن اتواصل", "اكلم الدعم",
-      "اكلم شخص", "اكلم موظف", "احد يرد علي", "رد بشري",
-      "دعم بشري", "مساعده بشريه", "مو روبوت", "ما اريد روبوت"
-    ];
-    return explicitKeywords.some(k => t.includes(k));
-  };
-
-  const detectDepartment = (userText: string): 'support' | 'ads' | 'technical' => {
-    const text = userText.toLowerCase();
-    const adKeywords = ["إعلان", "اعلان", "ترويج", "سبونسر", "بانر", "فيديو ترويجي", "اسعار الاعلان", "حجز اعلان"];
-    const techKeywords = ["مشكلة تقنية", "خطأ", "لا يعمل", "تعطل", "فشل", "بطئ", "معلق", "لا افتح", "تسجيل دخول", "كلمة مرور", "دعم فني"];
-    
-    if (adKeywords.some(k => text.includes(k))) return 'ads';
-    if (techKeywords.some(k => text.includes(k))) return 'technical';
-    return 'support'; 
-  };
-
-  const checkAndPerformEscalation = (userText: string): boolean => {
-    if (!wantsHumanContact(userText)) return false; 
-    
-    setChatStatus("typing");
-    const targetDept = detectDepartment(userText);
-    
-    let transferMsg = "يرجى الانتظار، جاري تحويلك إلى قسم خدمة العملاء المختص...";
-    if (targetDept === 'ads') transferMsg = "يرجى الانتظار، جاري تحويلك إلى قسم الإعلانات والترويج...";
-    if (targetDept === 'technical') transferMsg = "يرجى الانتظار، جاري تحويلك إلى الدعم الفني المتخصص...";
-
-    setMessages((prev) => [...prev, {
-      id: (Date.now() + 1).toString(), sender: currentSpeaker, role: "assistant",
-      text: transferMsg, time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-      status: "read"
-    }]);
-
-    setTimeout(() => {
-      let assignedAgent = supportAgents.find(a => a.department === targetDept);
-      if (!assignedAgent) assignedAgent = supportAgents[0]; 
-      
-      const isSameDept = currentAgent?.department === targetDept;
-      
-      if (!isSameDept || !currentAgent) {
-        setCurrentAgent(assignedAgent);
-        if (!sessionAgents.find(a => a.employeeId === assignedAgent!.employeeId)) {
-          setSessionAgents(prev => [...prev, assignedAgent!]);
-        }
-        setCurrentSpeaker("agent"); // هذا السطر هو ما يشغل المؤقت الصامت
-        setMessages((prev) => [...prev, {
-          id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
-          text: `أهلاً بك، أنا ${assignedAgent.name} (${assignedAgent.role}). تفضل كيف يمكنني مساعدتك؟`,
-          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
-        }]);
-      } else {
-        setMessages((prev) => [...prev, {
-          id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
-          text: `أنا هنا بالفعل! ${currentAgent.name} (${currentAgent.role}) جاهز لمساعدتك.`,
-          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
-        }]);
-      }
-    }, 2500);
-
-    return true;
-  };
-
-  const sendMessage = async () => {
-    if (!text.trim()) return; 
-    
-    // إجراء احترازي: ضمان أن أي رسالة بعد إغلاق الجلسة تذهب للمساعد الذكي
-    if (currentSpeaker !== "bot") {
-      setCurrentSpeaker("bot");
-      setCurrentAgent(null);
-      setSessionAgents([]);
-    }
-
-    setChatStatus("typing");
-    const userText = text;
-    setText("");
-
-    setMessages((prev) => [...prev, {
-      id: Date.now().toString(), sender: "user", role: "user",
-      text: userText, time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-      status: "sent"
-    }]);
-
-    // إعادة ضبط المؤقتات (إذا كان موظفاً، يعيد الـ 30 دقيقة من جديد)
-    resetActivityTimers();
-
-    if (checkAndPerformEscalation(userText)) return;
-
-    try {
-      const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: m.role || "user", content: m.text }));
-      apiMessages.push({ role: "user", content: userText });
-
-      const response = await fetch('/api/chat', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages })
-      });
-
-      const data = await response.json();
-      setMessages((prev) => [...prev, {
-        id: (Date.now() + 1).toString(), sender: "bot", role: "assistant",
-        text: data.text || "عذراً، لم أتمكن من الرد حالياً.",
-        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
-      }]);
-      setChatStatus("online");
-    } catch (error) {
-      setMessages((prev) => [...prev, {
-        id: Date.now().toString(), sender: "system",
-        text: "عذراً، حدث خطأ في الاتصال بالخادم.",
-        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
-      }]);
-      setChatStatus("online");
-    }
-  };
 
   const renderSeamlessItems = () => {
     const repeatedProducts = [...trendingProducts, ...trendingProducts];
@@ -413,7 +378,7 @@ export default function Home() {
         </section>
       </main>
 
-      <div ref={chatButtonRef} onClick={() => { setOpen(!open); }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة والدعم">
+      <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة والدعم">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-blink"><circle cx="10" cy="14" r="5" fill="white" /><circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
           <g className="animate-blink"><circle cx="22" cy="14" r="5" fill="white" /><circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
@@ -452,7 +417,7 @@ export default function Home() {
               {sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name}
             </h4>
             <p className="text-xs flex items-center gap-1 truncate text-green-400">
-              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-green-400 animate-pulse"></span>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : "bg-green-400 animate-pulse"}`}></span>
               <span className="truncate">{getStatusText()}</span>
             </p>
           </div>
@@ -490,19 +455,17 @@ export default function Home() {
           )}
         </div>
 
-        {/* 🔴 الحقل مفتوح دائماً في جميع الحالات بدون أي تعطيل */}
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           <div className="flex gap-2 items-end">
             <textarea 
               id="chat-input" 
               value={text} 
               placeholder="اكتب رسالتك هنا..." 
-              onChange={(e) => { setText(e.target.value); resetActivityTimers(); }} 
+              onChange={(e) => { setText(e.target.value); }} 
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               rows={1} 
               className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed" 
             />
-            
             <button 
               onClick={sendMessage} 
               disabled={!text.trim() || chatStatus === "typing"} 
