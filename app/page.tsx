@@ -74,7 +74,6 @@ export default function Home() {
           setCurrentAgent(parsedState.currentAgent || null);
           setSessionAgents(parsedState.sessionAgents || []);
           
-          // إذا كان محملاً كـ ended أو idle، نعيد ضبطه ليبدأ كمساعد ذكي متصل
           const initialStatus = (parsedState.chatStatus === "ended" || parsedState.chatStatus === "idle") ? "online" : (parsedState.chatStatus || "online");
           setChatStatus(initialStatus);
           
@@ -96,7 +95,7 @@ export default function Home() {
     return "غير نشط";
   };
 
-  // 🔴 المنطق الأساسي للمؤقتات (يعمل فقط عند وجود موظف بشري)
+  // 🔴 المنطق الأساسي للمؤقتات (محدث لدقيقة واحدة)
   const resetActivityTimers = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
@@ -112,16 +111,17 @@ export default function Home() {
     setChatStatus("online");
     saveStateToStorage();
 
-    // ⏱️ بعد 10 ثواني من عدم النشاط: يظهر "انتهى مؤقتاً"
+    // ⏱️ بعد 60 ثانية (دقيقة واحدة) من عدم النشاط: يظهر "انتهى مؤقتاً"
     idleTimerRef.current = setTimeout(() => {
       setChatStatus("idle");
       saveStateToStorage();
-    }, 10 * 1000); 
+    }, 60 * 1000); // 60 * 1000 مللي ثانية = 1 دقيقة
 
-    // ⏱️ بعد 20 ثانية من عدم النشاط: يُغلق جلسة الموظف ويعود للمساعد الذكي
+    // ⏱️ بعد 120 ثانية (دقيقتين) من عدم النشاط: يُغلق جلسة الموظف ويعود للمساعد الذكي
+    // (ملاحظة: إذا كنت تريد الإغلاق بعد دقيقة واحدة تماماً من البداية، غيّر 120 إلى 60)
     autoCloseTimerRef.current = setTimeout(() => {
       performAgentAutoClose();
-    }, 20 * 1000); 
+    }, 120 * 1000); // 120 * 1000 مللي ثانية = 2 دقيقة
   };
 
   // 🔴 دالة الإغلاق التلقائي لجلسة الموظف والعودة للمساعد الذكي
