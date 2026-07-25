@@ -34,7 +34,7 @@ const trendingProducts = [
   { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=150&h=200&fit=crop", shape: "portrait" },
 ];
 
-type ChatStatus = "typing" | "online" | "idle" | "warning" | "ended";
+type ChatStatus = "typing" | "online" | "warning" | "ended";
 
 export default function Home() {
   const [open, setOpen] = useState(false);
@@ -52,8 +52,12 @@ export default function Home() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
   
-  const elapsedTimeRef = useRef(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ⏱️ إعدادات الوقت (يمكنك تعديلها من هنا)
+  const IDLE_LIMIT_SECONDS = 60; // مدة الانتظار قبل بدء التحذير (60 ثانية)
+  const COUNTDOWN_LIMIT_SECONDS = 50; // مدة العد التنازلي للإنهاء (50 ثانية)
 
   const saveStateToStorage = () => {
     if (typeof window !== 'undefined') {
@@ -69,13 +73,16 @@ export default function Home() {
       if (savedState) {
         try {
           const parsedState = JSON.parse(savedState);
-          setMessages(parsedState.messages || []);
-          setCurrentSpeaker(parsedState.currentSpeaker || "bot");
-          setCurrentAgent(parsedState.currentAgent || null);
-          setSessionAgents(parsedState.sessionAgents || []);
           
-          const initialStatus = (parsedState.chatStatus === "ended" || parsedState.chatStatus === "idle" || parsedState.chatStatus === "warning") ? "online" : (parsedState.chatStatus || "online");
-          setChatStatus(initialStatus);
+          // تنظيف أمني: إذا كان المحمل هو agent، نعيده لـ bot لضمان عدم بقاء جلسات عالقة
+          const safeSpeaker = parsedState.currentSpeaker === "agent" ? "bot" : (parsedState.currentSpeaker || "bot");
+          const safeStatus = (parsedState.chatStatus === "warning" || parsedState.chatStatus === "ended") ? "online" : (parsedState.chatStatus || "online");
+
+          setMessages(parsedState.messages || []);
+          setCurrentSpeaker(safeSpeaker);
+          setCurrentAgent(safeSpeaker === "bot" ? null : (parsedState.currentAgent || null));
+          setSessionAgents(safeSpeaker === "bot" ? [] : (parsedState.sessionAgents || []));
+          setChatStatus(safeStatus);
           return true; 
         } catch (e) { console.error("Error loading chat state:", e); }
       }
@@ -86,78 +93,92 @@ export default function Home() {
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
     if (chatStatus === "online") return "متصل الآن";
-    if (chatStatus === "idle") return "انتهى (بانتظار ردك)";
-    if (chatStatus === "warning") return `سيتم إغلاق المحادثة بعد ${countdownSeconds} ثانية`;
+    if (chatStatus === "warning") return `سيتم إنهاء جلسة الدعم خلال ${countdownSeconds} ثانية بسبب عدم وجود أي رد منك.`;
     if (chatStatus === "ended") return "عاد المساعد الذكي";
     return "غير نشط";
   };
 
   const clearTimers = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
     }
   };
 
-  // 🔴 المنطق الزمني المتقدم والمضمون (60s متصل + 60s انتظار + 50s تحذير)
+  // 🔴 بدء مؤقتات جلسة الدعم البشري
   const startAgentTimers = () => {
     clearTimers();
-    elapsedTimeRef.current = 0;
     setChatStatus("online");
-    setCountdownSeconds(50);
 
-    intervalRef.current = setInterval(() => {
-      elapsedTimeRef.current += 1;
-      const elapsed = elapsedTimeRef.current;
+    // المرحلة 1: انتظار النشاط لمدة محددة (60 ثانية افتراضياً)
+    idleTimerRef.current = setTimeout(() => {
+      // المرحلة 2: بدء العد التنازلي للتحذير
+      setChatStatus("warning");
+      setCountdownSeconds(COUNTDOWN_LIMIT_SECONDS);
 
-      if (elapsed <= 60) {
-        // المرحلة 1: أول 60 ثانية - متصل الآن
-        setChatStatus("online");
-      } else if (elapsed <= 120) {
-        // المرحلة 2: من 60 إلى 120 ثانية - انتهى (بانتظار ردك) - مدة انتظار طويلة
-        setChatStatus("idle");
-      } else if (elapsed <= 170) {
-        // المرحلة 3: من 120 إلى 170 ثانية - تحذير العد التنازلي (50 ثانية)
-        setChatStatus("warning");
-        const remaining = 170 - elapsed;
-        setCountdownSeconds(remaining);
-      } else {
-        // المرحلة 4: بعد 170 ثانية - إغلاق المحادثة رسمياً
-        clearTimers();
-        performAgentAutoClose();
-      }
-    }, 1000);
+      countdownTimerRef.current = setInterval(() => {
+        setCountdownSeconds((prev) => {
+          if (prev <= 1) {
+            clearTimers();
+            performAgentAutoClose(); // المرحلة 3: الإنهاء النهائي
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+    }, IDLE_LIMIT_SECONDS * 1000);
   };
 
-  // 🔴 إعادة ضبط المؤقت عند أي نشاط من المستخدم (يلغي كل شيء ويعيد العد من الصفر)
+  // 🔴 إعادة ضبط المؤقتات عند أي نشاط من المستخدم
   const resetActivityTimers = () => {
     if (currentSpeaker === "agent") {
-      startAgentTimers(); 
+      startAgentTimers(); // يلغي التحذير والعد، ويعيد البدء من الـ 60 ثانية
     } else {
       clearTimers();
       setChatStatus("online");
     }
   };
 
+  // 🔴 الحذف النهائي والصارم لجلسة الموظف
   const performAgentAutoClose = () => {
-    setChatStatus("ended");
-    setCurrentSpeaker("bot");
-    setCurrentAgent(null);
-    setSessionAgents([]);
-    
+    // 1. حذف جميع رسائل الموظف (Agent) من السجل الحالي نهائياً
+    const cleanedMessages = messages.filter(msg => msg.sender !== "agent");
+
+    // 2. إضافة رسالة النظام الخاصة بالإنهاء
     const closeMsg: Message = {
       id: Date.now().toString(),
       sender: "system",
-      text: "⚠️ تم إغلاق جلسة الدعم البشري تلقائياً بسبب عدم النشاط. عاد المساعد الذكي لخدمتك.",
+      text: "⚠️ تم إنهاء جلسة الدعم البشري بسبب عدم وجود أي رد من المستخدم، وتمت إعادتك إلى المساعد الذكي.",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     };
 
-    setMessages((prev) => {
-      const newMessages = [...prev, closeMsg];
-      setTimeout(() => saveStateToStorage(), 0);
-      return newMessages;
-    });
+    const finalMessages = [...cleanedMessages, closeMsg];
+
+    // 3. تحديث الحالة فوراً في الواجهة
+    setMessages(finalMessages);
+    setCurrentSpeaker("bot");
+    setCurrentAgent(null);
+    setSessionAgents([]);
+    setChatStatus("online"); // العودة للمساعد الذكي وهو متصل
+
+    // 4. الكتابة الفورية والنهائية في LocalStorage لضمان عدم عودة الرسائل القديمة عند التحديث
+    setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
+          messages: finalMessages,
+          currentSpeaker: "bot",
+          currentAgent: null,
+          sessionAgents: [],
+          chatStatus: "online"
+        }));
+      }
+    }, 0);
   };
 
   // تشغيل المؤقتات فقط عند تحول المتحدث إلى "agent"
@@ -259,7 +280,7 @@ export default function Home() {
         if (!sessionAgents.find(a => a.employeeId === assignedAgent!.employeeId)) {
           setSessionAgents(prev => [...prev, assignedAgent!]);
         }
-        setCurrentSpeaker("agent"); // هذا السطر يشغل المؤقتات المتقدمة
+        setCurrentSpeaker("agent"); // هذا السطر هو ما يشغل مؤقتات الحذف والتنازل
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
           text: `أهلاً بك، أنا ${assignedAgent.name} (${assignedAgent.role}). تفضل كيف يمكنني مساعدتك؟`,
@@ -280,7 +301,7 @@ export default function Home() {
   const sendMessage = async () => {
     if (!text.trim()) return; 
     
-    // إذا كانت منتهية، الكتابة تعيد إحياء المساعد الذكي فوراً
+    // إذا كانت منتهية، الكتابة تعيد إحياء المساعد الذكي فوراً بشكل نظيف
     if (chatStatus === "ended") {
       setChatStatus("online");
       setCurrentSpeaker("bot");
@@ -298,7 +319,7 @@ export default function Home() {
       status: "sent"
     }]);
 
-    // إعادة ضبط المؤقتات (يعيد الحالة إلى "متصل الآن" ويبدأ الـ 60 ثانية من جديد)
+    // إعادة ضبط المؤقتات (يلغي العد التنازلي فوراً ويعيد الـ 60 ثانية من جديد)
     resetActivityTimers();
 
     if (checkAndPerformEscalation(userText)) return;
@@ -447,13 +468,11 @@ export default function Home() {
             <p className={`text-xs flex items-center gap-1 truncate ${
               chatStatus === "online" ? "text-green-400" : 
               chatStatus === "typing" ? "text-yellow-400" : 
-              chatStatus === "idle" ? "text-gray-400" :
               chatStatus === "warning" ? "text-red-400 font-bold" : "text-gray-400"
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                 chatStatus === "online" ? "bg-green-400 animate-pulse" : 
                 chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
-                chatStatus === "idle" ? "bg-gray-400" :
                 chatStatus === "warning" ? "bg-red-400 animate-pulse" : "bg-green-400"
               }`}></span>
               <span className="truncate">{getStatusText()}</span>
