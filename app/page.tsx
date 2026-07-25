@@ -113,27 +113,15 @@ export default function Home() {
     return "غير نشط";
   };
 
-  const resetActivityTimers = () => {
+  // دالة إنهاء المحادثة تلقائياً
+  const performAutoClose = () => {
+    // إلغاء أي مؤقتات قائمة
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
-    if (currentSpeaker !== "agent") return;
-
-    setChatStatus("online");
-    saveStateToStorage(); 
-
- idleTimerRef.current = setTimeout(() => {
-  setChatStatus("idle");
-  saveStateToStorage();
-}, 10 * 1000); // 10 ثوانٍ
-
-    autoCloseTimerRef.current = setTimeout(() => {
-  performAutoClose();
-}, 20 * 1000); // 20 ثانية
-
-  const performAutoClose = () => {
-    setChatStatus("online");
-    setEndTime(null);
+    // تحديث الحالة إلى "منتهية"
+    setChatStatus("ended");
+    setEndTime(new Date());
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
@@ -148,14 +136,44 @@ export default function Home() {
 
     setMessages((prev) => {
       const newMessages = [...prev, closeMsg];
+      // حفظ الحالة في التخزين المحلي
       setTimeout(() => {
-         localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-          messages: newMessages, currentSpeaker: "bot", currentAgent: null,
-          sessionAgents: [], chatStatus: "ended", endTime: new Date().toISOString()
+        localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
+          messages: newMessages,
+          currentSpeaker: "bot",
+          currentAgent: null,
+          sessionAgents: [],
+          chatStatus: "ended",
+          endTime: new Date().toISOString()
         }));
       }, 0);
       return newMessages;
     });
+  };
+
+  // دالة إعادة ضبط المؤقتات (تُستدعى عند أي نشاط)
+  const resetActivityTimers = () => {
+    // مسح المؤقتات القديمة
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+
+    // نطبق المؤقتات فقط أثناء محادثة مع موظف (وليس مع البوت)
+    if (currentSpeaker !== "agent") return;
+
+    // تحديث الحالة إلى "متصل" وإلغاء حالة "انتهى مؤقتاً"
+    setChatStatus("online");
+    saveStateToStorage();
+
+    // المؤقت الأول: بعد 10 ثوانٍ من عدم النشاط → حالة "انتهى مؤقتاً"
+    idleTimerRef.current = setTimeout(() => {
+      setChatStatus("idle");
+      saveStateToStorage();
+    }, 10 * 1000); // 10 ثوانٍ
+
+    // المؤقت الثاني: بعد 10 دقائق من عدم النشاط (حتى لو كان في حالة idle) → إنهاء المحادثة
+    autoCloseTimerRef.current = setTimeout(() => {
+      performAutoClose();
+    }, 10 * 60 * 1000); // 10 دقائق (تم التعديل من 20 ثانية)
   };
 
   useEffect(() => {
@@ -185,7 +203,7 @@ export default function Home() {
           };
           setMessages([welcomeMsg]);
           setChatStatus("online");
-          resetActivityTimers();
+          // لا نستدعي resetActivityTimers هنا لأن currentSpeaker = "bot"
         }, 1000);
       }
     }
@@ -205,30 +223,29 @@ export default function Home() {
       .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
       .replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
 
-   const explicitKeywords = [
-  "حولني لموظف",
-  "حولني لشخص",
-  "حولني للدعم",
-
-  "اتواصل مع الدعم",
-  "اتواصل مع فريق الدعم",
-  "التواصل مع الدعم",
-  "التواصل مع فريق الدعم",
-  "اقدر اتواصل",
-  "هل اقدر اتواصل",
-  "اريد التواصل",
-  "اريد اتواصل",
-  "ممكن اتواصل",
-  "اكلم الدعم",
-  "اكلم شخص",
-  "اكلم موظف",
-  "احد يرد علي",
-  "رد بشري",
-  "دعم بشري",
-  "مساعده بشريه",
-  "مو روبوت",
-  "ما اريد روبوت"
-];
+    const explicitKeywords = [
+      "حولني لموظف",
+      "حولني لشخص",
+      "حولني للدعم",
+      "اتواصل مع الدعم",
+      "اتواصل مع فريق الدعم",
+      "التواصل مع الدعم",
+      "التواصل مع فريق الدعم",
+      "اقدر اتواصل",
+      "هل اقدر اتواصل",
+      "اريد التواصل",
+      "اريد اتواصل",
+      "ممكن اتواصل",
+      "اكلم الدعم",
+      "اكلم شخص",
+      "اكلم موظف",
+      "احد يرد علي",
+      "رد بشري",
+      "دعم بشري",
+      "مساعده بشريه",
+      "مو روبوت",
+      "ما اريد روبوت"
+    ];
 
     return explicitKeywords.some(k => t.includes(k));
   };
@@ -287,8 +304,8 @@ export default function Home() {
       }
       
       setChatStatus("online");
-      resetActivityTimers();
-    },100);
+      resetActivityTimers(); // نبدأ المؤقتات بعد تحويل إلى موظف
+    }, 100);
 
     return true;
   };
@@ -306,6 +323,7 @@ export default function Home() {
       status: "sent"
     }]);
 
+    // إعادة ضبط المؤقتات عند إرسال رسالة (نشاط المستخدم)
     resetActivityTimers();
 
     // 🔴 التحقق من التحويل: إذا لم يطلب بشراً صراحة، سيمر هذا الشرط ويذهب للـ API
@@ -327,6 +345,8 @@ export default function Home() {
         time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
       }]);
       setChatStatus("online");
+      // إعادة ضبط المؤقتات بعد استلام الرد
+      resetActivityTimers();
     } catch (error) {
       setMessages((prev) => [...prev, {
         id: Date.now().toString(), sender: "system",
@@ -504,22 +524,51 @@ export default function Home() {
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           {chatStatus === "ended" ? (
             <button onClick={() => {
-                setMessages([]); setChatStatus("online"); setEndTime(null); setOpen(true);
-                resetActivityTimers(); localStorage.removeItem('dar-alnujum-chat-state'); 
-              }} className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
+                setMessages([]); 
+                setChatStatus("online"); 
+                setEndTime(null); 
+                setOpen(true);
+                setCurrentSpeaker("bot");
+                setCurrentAgent(null);
+                setSessionAgents([]);
+                // إلغاء أي مؤقتات
+                if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+                if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+                localStorage.removeItem('dar-alnujum-chat-state');
+                // إعادة الترحيب
+                setChatStatus("typing");
+                setTimeout(() => {
+                  const welcomeMsg: Message = {
+                    id: "welcome-new", sender: "bot", role: "assistant",
+                    text: "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
+                    time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+                    status: "read"
+                  };
+                  setMessages([welcomeMsg]);
+                  setChatStatus("online");
+                }, 500);
+              }} 
+              className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" /><path d="M3 3v9h9" /></svg>
               بدء محادثة جديدة
             </button>
           ) : (
             <div className="flex gap-2 items-end">
               {chatStatus === "idle" ? (
-                <div onClick={() => { resetActivityTimers(); document.getElementById('chat-input')?.focus(); }}
+                <div onClick={() => { 
+                    resetActivityTimers(); 
+                    document.getElementById('chat-input')?.focus(); 
+                  }}
                   className="flex-1 bg-[#0b0f1a]/50 border border-dashed border-yellow-500/50 rounded-xl p-3 text-center cursor-pointer hover:bg-[#0b0f1a] hover:border-yellow-500 transition-colors group">
                   <p className="text-yellow-400 text-sm font-medium group-hover:text-yellow-300">⚡ انقر هنا أو اكتب لإعادة تفعيل المحادثة</p>
                 </div>
               ) : (
                 <textarea id="chat-input" value={text} placeholder="اكتب رسالتك هنا..." 
-                  onChange={(e) => { setText(e.target.value); resetActivityTimers(); }} 
+                  onChange={(e) => { 
+                    setText(e.target.value); 
+                    // إعادة ضبط المؤقتات عند الكتابة (نشاط)
+                    if (chatStatus !== "ended") resetActivityTimers();
+                  }} 
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   rows={1} className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed" />
               )}
