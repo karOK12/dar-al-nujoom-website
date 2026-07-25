@@ -59,60 +59,39 @@ const normalizeArabicText = (text: string): string => {
   return text.normalize("NFKD").replace(/[\u064B-\u065F]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
 };
 
-// 🔴 التعديل 1: إزالة الكلمات العامة ("اريد"، "ممكن"، "احتاج"، إلخ) والاعتماد على عبارات صريحة وكلمات الأقسام فقط
+// 🔴 التصحيح الجذري: فحص طلب الموظف فقط، بدون كلمات الأقسام العامة
 const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
   
-  // عبارات صريحة تطلب موظفاً أو بشراً
+  // عبارات صريحة تطلب بشراً أو موظفاً فقط
   const humanRequestPhrases = [
-    "اريد موظف",
-    "حولني للدعم",
-    "اريد التحدث مع شخص",
-    "اريد خدمة العملاء",
-    "اريد مسؤول الاعلانات",
-    "اريد الدعم الفني",
-    "حولني",
-    "اكلم موظف",
-    "اتحدث مع موظف",
-    "خدمة العملاء",
-    "دعم فني",
-    "اتواصل مع الدعم",
-    "اريد شخص حقيقي",
-    "اكلم شخص",
-    "مو روبوت",
-    "ليس روبوت",
-    "مساعدة بشرية",
-    "مساعده بشريه",
-    "فريق الدعم",
-    "موظف",
-    "شخص حقيقي"
+    "اريد موظف", "حولني للدعم", "اريد التحدث مع شخص", "اريد خدمة العملاء",
+    "اريد مسؤول الاعلانات", "اريد الدعم الفني", "حولني", "اكلم موظف",
+    "اتحدث مع موظف", "خدمة العملاء", "دعم فني", "اتواصل مع الدعم",
+    "اريد شخص حقيقي", "اكلم شخص", "مو روبوت", "ليس روبوت",
+    "مساعدة بشرية", "مساعده بشريه", "فريق الدعم", "موظف", "شخص حقيقي",
+    "تحويل", "اتصل", "احجي"
   ];
 
-  // كلمات تدل على مشكلة تقنية أو استفسار إعلاني يتطلب تدخلاً بشرياً (حسب الطلب)
-  const departmentKeywords = [
-    "مشكلة", "خطأ", "لا يعمل", "تعطل", "فشل", "بطئ", "معلق", "دخول", "كلمة مرور",
-    "اعلان", "اعلانات", "ترويج", "سبونسر", "بانر", "فيديو ترويجي", "اسعار الاعلان"
-  ];
-
-  return humanRequestPhrases.some(phrase => normalized.includes(phrase)) || 
-         departmentKeywords.some(keyword => normalized.includes(keyword));
+  // العودة بـ true فقط إذا وجدنا طلباً صريحاً لموظف
+  return humanRequestPhrases.some(phrase => normalized.includes(phrase));
 };
 
-// 🔴 التعديل 2: توجيه دقيق للأقسام بناءً على الكلمات المفتاحية
+// 🔴 التوجيه الذكي: يعمل فقط AFTER التأكد من أن المستخدم طلب موظفاً
 const detectDepartment = (userText: string): Department => {
   const text = userText.toLowerCase();
   
-  // 1. قسم الإعلانات
+  // إذا طلب موظفاً وذكر كلمات الإعلان، يذهب لقسم الإعلانات
   if (["اعلان", "اعلانات", "ترويج", "سبونسر", "بانر", "فيديو", "اسعار"].some(k => text.includes(k))) {
     return 'ads';
   }
   
-  // 2. قسم الدعم الفني
+  // إذا طلب موظفاً وذكر كلمات مشكلة تقنية، يذهب للدعم الفني
   if (["مشكلة", "خطأ", "لا يعمل", "تعطل", "فشل", "بطئ", "معلق", "دخول", "كلمة مرور", "دعم فني", "تقني"].some(k => text.includes(k))) {
     return 'technical';
   }
   
-  // 3. خدمة العملاء (الافتراضي لباقي طلبات الموظفين)
+  // الافتراضي: خدمة العملاء
   return 'support';
 };
 
@@ -206,13 +185,16 @@ export default function Home() {
     clearAllTimers();
     
     if (currentSpeakerRef.current === "agent") {
+      // إذا كانت الحالة ended، فإن كتابة المستخدم تعيد فتح الجلسة مع نفس الموظف فوراً
       if (chatStatusRef.current === "ended") {
         setChatStatus("online");
       }
       
+      // المرحلة 1: الانتقال إلى حالة ended بعد 40 ثانية من عدم النشاط
       idleToEndedTimerRef.current = setTimeout(() => {
         setChatStatus("ended");
         
+        // المرحلة 2: الإغلاق النهائي والعودة للـ bot بعد 30 دقيقة من حالة ended
         endedToBotTimerRef.current = setTimeout(() => {
           endAgentSession();
         }, ENDED_TO_BOT_MINUTES * 60 * 1000);
@@ -231,6 +213,7 @@ export default function Home() {
       const newMessages = [...prev, endMessage];
       setTimeout(() => {
         if (typeof window !== 'undefined') {
+          // حفظ الحالة نظيفة: المساعد الذكي فقط، بدون بيانات الموظف
           localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
             messages: newMessages,
             currentSpeaker: "bot",
@@ -265,6 +248,7 @@ export default function Home() {
   }, [resetActivityTimers]);
 
   const checkAndPerformEscalation = useCallback((userText: string): boolean => {
+    // التحويل يحدث فقط إذا طلب المستخدم ذلك صراحةً وكان يتحدث مع البوت
     if (!wantsHumanContact(userText) || currentSpeaker !== "bot") return false;
 
     setChatStatus("typing");
@@ -300,12 +284,15 @@ export default function Home() {
     
     resetActivityTimers();
 
+    // 1. التحقق من طلب التحويل (لن يحدث إلا إذا كانت العبارات صريحة)
     if (checkAndPerformEscalation(trimmedText)) return;
 
+    // 2. حاجز الحماية: إذا كان المتحدث هو الموظف، لا تستدعِ الـ API
     if (currentSpeaker === "agent") {
-      return; // حاجز الحماية: لا استدعاء للـ API أثناء وجود الموظف
+      return; 
     }
 
+    // 3. منطق المساعد الذكي (يجيب على كل شيء بما في ذلك أسعار الإعلانات)
     setChatStatus("typing");
     try {
       const apiMessages = messagesRef.current.filter(m => m.sender !== "system").map(m => ({ role: m.role || "user", content: m.text }));
