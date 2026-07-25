@@ -113,21 +113,27 @@ export default function Home() {
     return "غير نشط";
   };
 
-  const resetActivityTimers = () => {
+const resetActivityTimers = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
     setChatStatus("online");
     saveStateToStorage(); 
 
+    // ⏱️ 1. مدة الخمول (مثال: 5 دقائق)
+    // إذا لم يكتب المستخدم شيئاً خلال هذه المدة، تتحول الحالة إلى "انتهى مؤقتاً"
+    const IDLE_MINUTES = 5; 
     idleTimerRef.current = setTimeout(() => {
       setChatStatus("idle");
       saveStateToStorage();
-    }, 25 * 60 * 1000); 
+    }, IDLE_MINUTES * 60 * 1000); 
 
+    // ⏱️ 2. مدة الإغلاق التلقائي (مثال: 10 دقائق)
+    // إذا لم يكتب المستخدم شيئاً خلال هذه المدة، تُغلق المحادثة تماماً
+    const AUTO_CLOSE_MINUTES = 10;
     autoCloseTimerRef.current = setTimeout(() => {
       performAutoClose();
-    }, 85 * 60 * 1000); 
+    }, AUTO_CLOSE_MINUTES * 60 * 1000); 
   };
 
   const performAutoClose = () => {
