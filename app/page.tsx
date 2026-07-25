@@ -79,7 +79,8 @@ export default function Home() {
           setChatStatus(parsedState.chatStatus || "online");
           setEndTime(parsedState.endTime ? new Date(parsedState.endTime) : null);
           
-          if (parsedState.chatStatus === "online" || parsedState.chatStatus === "idle") {
+          // إذا كانت الحالة online أو idle وكان هناك موظف، نضبط المؤقتات
+          if ((parsedState.chatStatus === "online" || parsedState.chatStatus === "idle") && parsedState.currentSpeaker === "agent") {
             resetActivityTimers();
           }
           return true; 
@@ -116,7 +117,7 @@ export default function Home() {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
-    // 🔴 فقط إذا كان هناك موظف (وليس بوت)
+    // فقط إذا كان هناك موظف (وليس بوت)
     if (currentSpeaker !== "agent") return;
 
     setChatStatus("ended");
@@ -141,21 +142,21 @@ export default function Home() {
           currentSpeaker: "bot",
           currentAgent: null,
           sessionAgents: [],
-          chatStatus: "ended",
-          endTime: new Date().toISOString()
+          chatStatus: "online", // العودة إلى online للبوت
+          endTime: null
         }));
       }, 0);
       return newMessages;
     });
   };
 
-  // 🔴 دالة إعادة ضبط المؤقتات (خاصة بالموظف فقط)
+  // دالة إعادة ضبط المؤقتات (خاصة بالموظف فقط)
   const resetActivityTimers = () => {
     // مسح المؤقتات القديمة
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
-    // 🔴 المؤقتات تعمل فقط مع الموظف (وليست مع البوت)
+    // المؤقتات تعمل فقط مع الموظف (وليست مع البوت)
     if (currentSpeaker !== "agent") return;
 
     // تحديث الحالة إلى متصل (إذا كانت المحادثة غير منتهية)
@@ -166,7 +167,8 @@ export default function Home() {
 
     // المؤقت الأول: بعد 20 ثانية من عدم النشاط → حالة "انتهى مؤقتاً" (idle)
     idleTimerRef.current = setTimeout(() => {
-      if (chatStatus !== "ended" && chatStatus !== "typing" && currentSpeaker === "agent") {
+      // التأكد أننا لا زلنا مع موظف والحالة ليست ended أو typing
+      if (currentSpeaker === "agent" && chatStatus !== "ended" && chatStatus !== "typing") {
         setChatStatus("idle");
         saveStateToStorage();
       }
@@ -174,7 +176,7 @@ export default function Home() {
 
     // المؤقت الثاني: بعد 10 دقائق من عدم النشاط (حتى لو كان idle) → إنهاء المحادثة (ended)
     autoCloseTimerRef.current = setTimeout(() => {
-      if (chatStatus !== "ended" && currentSpeaker === "agent") {
+      if (currentSpeaker === "agent" && chatStatus !== "ended") {
         performAutoClose();
       }
     }, 10 * 60 * 1000); // 10 دقائق
@@ -207,7 +209,7 @@ export default function Home() {
           };
           setMessages([welcomeMsg]);
           setChatStatus("online");
-          // 🔴 لا نستدعي resetActivityTimers لأن currentSpeaker = "bot"
+          // لا نستدعي resetActivityTimers لأن currentSpeaker = "bot"
         }, 1000);
       }
     }
@@ -308,7 +310,7 @@ export default function Home() {
       }
       
       setChatStatus("online");
-      resetActivityTimers(); // 🔴 نبدأ المؤقتات بعد التحويل إلى موظف
+      resetActivityTimers(); // نبدأ المؤقتات بعد التحويل إلى موظف
     }, 100);
 
     return true;
@@ -327,7 +329,7 @@ export default function Home() {
       status: "sent"
     }]);
 
-    // 🔴 إذا كنا في محادثة مع موظف، نضبط المؤقتات
+    // إذا كنا في محادثة مع موظف، نضبط المؤقتات (تعيد الحالة إلى online)
     if (currentSpeaker === "agent") {
       resetActivityTimers();
     }
@@ -350,7 +352,7 @@ export default function Home() {
         time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
       }]);
       setChatStatus("online");
-      // 🔴 إذا كنا مع موظف، نضبط المؤقتات
+      // إذا كنا مع موظف، نضبط المؤقتات
       if (currentSpeaker === "agent") {
         resetActivityTimers();
       }
