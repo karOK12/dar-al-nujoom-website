@@ -111,10 +111,13 @@ export default function Home() {
     return "غير نشط";
   };
 
-  // دالة إنهاء المحادثة تلقائياً (بعد 10 دقائق من عدم النشاط)
+  // دالة إنهاء المحادثة تلقائياً (تنهي المحادثة وتعود للمساعد الذكي)
   const performAutoClose = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+
+    // فقط إذا كان هناك موظف (وليس بوت)
+    if (currentSpeaker !== "agent") return;
 
     setChatStatus("ended");
     setEndTime(new Date());
@@ -125,7 +128,7 @@ export default function Home() {
     const closeMsg: Message = {
       id: Date.now().toString(),
       sender: "system",
-      text: "⚠️ تم إنهاء المحادثة تلقائياً بسبب عدم النشاط الطويل. يمكنك بدء محادثة جديدة.",
+      text: "⚠️ تم إنهاء المحادثة تلقائياً بسبب عدم النشاط. يمكنك بدء محادثة جديدة مع المساعد الذكي.",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     };
@@ -152,24 +155,26 @@ export default function Home() {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
+    // ONLY for agent, NOT for bot
+    if (currentSpeaker !== "agent") return;
+
     // تحديث الحالة إلى متصل (إذا كانت المحادثة غير منتهية)
     if (chatStatus !== "ended") {
       setChatStatus("online");
       saveStateToStorage();
     }
 
-    // نبدأ المؤقتات في جميع الحالات (سواء مع بوت أو موظف)
-    // المؤقت الأول: بعد 20 ثانية من عدم النشاط → حالة "انتهى مؤقتاً"
+    // المؤقت الأول: بعد 20 ثانية من عدم النشاط → حالة "انتهى مؤقتاً" (idle)
     idleTimerRef.current = setTimeout(() => {
-      if (chatStatus !== "ended" && chatStatus !== "typing") {
+      if (chatStatus !== "ended" && chatStatus !== "typing" && currentSpeaker === "agent") {
         setChatStatus("idle");
         saveStateToStorage();
       }
     }, 20 * 1000); // 20 ثانية
 
-    // المؤقت الثاني: بعد 10 دقائق من عدم النشاط → إنهاء المحادثة
+    // المؤقت الثاني: بعد 10 دقائق من عدم النشاط (حتى لو كان idle) → إنهاء المحادثة (ended)
     autoCloseTimerRef.current = setTimeout(() => {
-      if (chatStatus !== "ended") {
+      if (chatStatus !== "ended" && currentSpeaker === "agent") {
         performAutoClose();
       }
     }, 10 * 60 * 1000); // 10 دقائق
@@ -202,7 +207,7 @@ export default function Home() {
           };
           setMessages([welcomeMsg]);
           setChatStatus("online");
-          resetActivityTimers();
+          // لا نستدعي resetActivityTimers لأن currentSpeaker = "bot"
         }, 1000);
       }
     }
@@ -303,7 +308,7 @@ export default function Home() {
       }
       
       setChatStatus("online");
-      resetActivityTimers();
+      resetActivityTimers(); // نبدأ المؤقتات بعد التحويل إلى موظف
     }, 100);
 
     return true;
@@ -322,7 +327,10 @@ export default function Home() {
       status: "sent"
     }]);
 
-    resetActivityTimers();
+    // إذا كنا في محادثة مع موظف، نضبط المؤقتات
+    if (currentSpeaker === "agent") {
+      resetActivityTimers();
+    }
 
     if (checkAndPerformEscalation(userText)) return;
 
@@ -342,7 +350,10 @@ export default function Home() {
         time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
       }]);
       setChatStatus("online");
-      resetActivityTimers();
+      // إذا كنا مع موظف، نضبط المؤقتات
+      if (currentSpeaker === "agent") {
+        resetActivityTimers();
+      }
     } catch (error) {
       setMessages((prev) => [...prev, {
         id: Date.now().toString(), sender: "system",
@@ -434,9 +445,10 @@ export default function Home() {
 
       <div ref={chatButtonRef} onClick={() => { 
         setOpen(!open); 
-        if (!open && chatStatus !== "ended") {
+        if (!open && currentSpeaker === "agent" && chatStatus !== "ended") {
           resetActivityTimers();
         }
+        // عند إغلاق الشات والمحادثة مع موظف، ننهي المحادثة
         if (open && currentSpeaker === "agent" && chatStatus !== "ended") {
           performAutoClose();
           setOpen(false);
@@ -549,7 +561,6 @@ export default function Home() {
                   };
                   setMessages([welcomeMsg]);
                   setChatStatus("online");
-                  resetActivityTimers();
                 }, 500);
               }} 
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
@@ -560,7 +571,9 @@ export default function Home() {
             <div className="flex gap-2 items-end">
               {chatStatus === "idle" ? (
                 <div onClick={() => { 
-                    resetActivityTimers(); 
+                    if (currentSpeaker === "agent") {
+                      resetActivityTimers();
+                    }
                     document.getElementById('chat-input')?.focus(); 
                   }}
                   className="flex-1 bg-[#0b0f1a]/50 border border-dashed border-yellow-500/50 rounded-xl p-3 text-center cursor-pointer hover:bg-[#0b0f1a] hover:border-yellow-500 transition-colors group">
@@ -570,7 +583,9 @@ export default function Home() {
                 <textarea id="chat-input" value={text} placeholder="اكتب رسالتك هنا..." 
                   onChange={(e) => { 
                     setText(e.target.value); 
-                    resetActivityTimers();
+                    if (currentSpeaker === "agent") {
+                      resetActivityTimers();
+                    }
                   }} 
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   rows={1} className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed" />
