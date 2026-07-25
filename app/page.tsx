@@ -117,6 +117,8 @@ export default function Home() {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
+    if (currentSpeaker !== "agent") return;
+
     setChatStatus("online");
     saveStateToStorage(); 
 
