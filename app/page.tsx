@@ -34,7 +34,7 @@ const trendingProducts = [
   { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=150&h=200&fit=crop", shape: "portrait" },
 ];
 
-type ChatStatus = "typing" | "online" | "warning" | "ended";
+type ChatStatus = "typing" | "online";
 
 export default function Home() {
   const [open, setOpen] = useState(false);
@@ -47,17 +47,15 @@ export default function Home() {
   const [sessionAgents, setSessionAgents] = useState<Agent[]>([]);
   
   const [chatStatus, setChatStatus] = useState<ChatStatus>("online");
-  const [countdownSeconds, setCountdownSeconds] = useState(50);
   
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
   
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ⏱️ إعدادات الوقت (يمكنك تعديلها من هنا)
-  const IDLE_LIMIT_SECONDS = 60; // مدة الانتظار قبل بدء التحذير (60 ثانية)
-  const COUNTDOWN_LIMIT_SECONDS = 50; // مدة العد التنازلي للإنهاء (50 ثانية)
+  // ⏱️ إعدادات الوقت: مدة عدم النشاط لإنهاء جلسة الموظف (بالدقائق)
+  // يمكنك تغيير هذا الرقم إلى 60 لساعة، أو أي مدة تريدها
+  const AGENT_IDLE_TIMEOUT_MINUTES = 30; 
 
   const saveStateToStorage = () => {
     if (typeof window !== 'undefined') {
@@ -74,15 +72,14 @@ export default function Home() {
         try {
           const parsedState = JSON.parse(savedState);
           
-          // تنظيف أمني: إذا كان المحمل هو agent، نعيده لـ bot لضمان عدم بقاء جلسات عالقة
+          // تنظيف أمني: ضمان أن أي حالة محملة تعود للمساعد الذكي بشكل افتراضي آمن
           const safeSpeaker = parsedState.currentSpeaker === "agent" ? "bot" : (parsedState.currentSpeaker || "bot");
-          const safeStatus = (parsedState.chatStatus === "warning" || parsedState.chatStatus === "ended") ? "online" : (parsedState.chatStatus || "online");
-
+          
           setMessages(parsedState.messages || []);
           setCurrentSpeaker(safeSpeaker);
           setCurrentAgent(safeSpeaker === "bot" ? null : (parsedState.currentAgent || null));
           setSessionAgents(safeSpeaker === "bot" ? [] : (parsedState.sessionAgents || []));
-          setChatStatus(safeStatus);
+          setChatStatus("online");
           return true; 
         } catch (e) { console.error("Error loading chat state:", e); }
       }
@@ -92,10 +89,7 @@ export default function Home() {
 
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
-    if (chatStatus === "online") return "متصل الآن";
-    if (chatStatus === "warning") return `سيتم إنهاء جلسة الدعم خلال ${countdownSeconds} ثانية بسبب عدم وجود أي رد منك.`;
-    if (chatStatus === "ended") return "عاد المساعد الذكي";
-    return "غير نشط";
+    return "متصل الآن";
   };
 
   const clearTimers = () => {
@@ -103,57 +97,39 @@ export default function Home() {
       clearTimeout(idleTimerRef.current);
       idleTimerRef.current = null;
     }
-    if (countdownTimerRef.current) {
-      clearInterval(countdownTimerRef.current);
-      countdownTimerRef.current = null;
-    }
   };
 
-  // 🔴 بدء مؤقتات جلسة الدعم البشري
+  // 🔴 بدء المؤقت الصامت لجلسة الدعم البشري
   const startAgentTimers = () => {
     clearTimers();
-    setChatStatus("online");
-
-    // المرحلة 1: انتظار النشاط لمدة محددة (60 ثانية افتراضياً)
+    
+    // مؤقت واحد فقط، لا يوجد عد تنازلي أو تحذير
     idleTimerRef.current = setTimeout(() => {
-      // المرحلة 2: بدء العد التنازلي للتحذير
-      setChatStatus("warning");
-      setCountdownSeconds(COUNTDOWN_LIMIT_SECONDS);
-
-      countdownTimerRef.current = setInterval(() => {
-        setCountdownSeconds((prev) => {
-          if (prev <= 1) {
-            clearTimers();
-            performAgentAutoClose(); // المرحلة 3: الإنهاء النهائي
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-    }, IDLE_LIMIT_SECONDS * 1000);
+      performAgentAutoClose();
+    }, AGENT_IDLE_TIMEOUT_MINUTES * 60 * 1000);
   };
 
-  // 🔴 إعادة ضبط المؤقتات عند أي نشاط من المستخدم
+  // 🔴 إعادة ضبط المؤقت عند أي نشاط من المستخدم
   const resetActivityTimers = () => {
     if (currentSpeaker === "agent") {
-      startAgentTimers(); // يلغي التحذير والعد، ويعيد البدء من الـ 60 ثانية
+      // إذا كان المستخدم يكتب، نلغي المؤقت القديم ونبدأ الـ 30 دقيقة من جديد
+      startAgentTimers(); 
     } else {
       clearTimers();
       setChatStatus("online");
     }
   };
 
-  // 🔴 الحذف النهائي والصارم لجلسة الموظف
+  // 🔴 الحذف النهائي والصارم لجلسة الموظف والعودة للمساعد الذكي
   const performAgentAutoClose = () => {
     // 1. حذف جميع رسائل الموظف (Agent) من السجل الحالي نهائياً
     const cleanedMessages = messages.filter(msg => msg.sender !== "agent");
 
-    // 2. إضافة رسالة النظام الخاصة بالإنهاء
+    // 2. إضافة رسالة نظام بسيطة توضح العودة للمساعد (بدون أي عداد أو تهديد)
     const closeMsg: Message = {
       id: Date.now().toString(),
       sender: "system",
-      text: "⚠️ تم إنهاء جلسة الدعم البشري بسبب عدم وجود أي رد من المستخدم، وتمت إعادتك إلى المساعد الذكي.",
+      text: "تم إنهاء جلسة الدعم البشري تلقائياً لعدم النشاط. المساعد الذكي متاح الآن لمساعدتك.",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     };
@@ -165,20 +141,18 @@ export default function Home() {
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
-    setChatStatus("online"); // العودة للمساعد الذكي وهو متصل
+    setChatStatus("online");
 
     // 4. الكتابة الفورية والنهائية في LocalStorage لضمان عدم عودة الرسائل القديمة عند التحديث
-    setTimeout(() => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-          messages: finalMessages,
-          currentSpeaker: "bot",
-          currentAgent: null,
-          sessionAgents: [],
-          chatStatus: "online"
-        }));
-      }
-    }, 0);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
+        messages: finalMessages,
+        currentSpeaker: "bot",
+        currentAgent: null,
+        sessionAgents: [],
+        chatStatus: "online"
+      }));
+    }
   };
 
   // تشغيل المؤقتات فقط عند تحول المتحدث إلى "agent"
@@ -280,7 +254,7 @@ export default function Home() {
         if (!sessionAgents.find(a => a.employeeId === assignedAgent!.employeeId)) {
           setSessionAgents(prev => [...prev, assignedAgent!]);
         }
-        setCurrentSpeaker("agent"); // هذا السطر هو ما يشغل مؤقتات الحذف والتنازل
+        setCurrentSpeaker("agent"); // هذا السطر هو ما يشغل المؤقت الصامت
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
           text: `أهلاً بك، أنا ${assignedAgent.name} (${assignedAgent.role}). تفضل كيف يمكنني مساعدتك؟`,
@@ -301,9 +275,9 @@ export default function Home() {
   const sendMessage = async () => {
     if (!text.trim()) return; 
     
-    // إذا كانت منتهية، الكتابة تعيد إحياء المساعد الذكي فوراً بشكل نظيف
-    if (chatStatus === "ended") {
-      setChatStatus("online");
+    // إذا كان هناك أي حالة سابقة، الكتابة تعيد إحياء المساعد الذكي فوراً بشكل نظيف
+    if (currentSpeaker !== "bot") {
+      // هذا السطر احترازي لضمان أن أي رسالة بعد إغلاق الجلسة تذهب للمساعد
       setCurrentSpeaker("bot");
       setCurrentAgent(null);
       setSessionAgents([]);
@@ -319,7 +293,7 @@ export default function Home() {
       status: "sent"
     }]);
 
-    // إعادة ضبط المؤقتات (يلغي العد التنازلي فوراً ويعيد الـ 60 ثانية من جديد)
+    // إعادة ضبط المؤقتات (إذا كان موظفاً، يعيد الـ 30 دقيقة من جديد)
     resetActivityTimers();
 
     if (checkAndPerformEscalation(userText)) return;
@@ -335,7 +309,7 @@ export default function Home() {
 
       const data = await response.json();
       setMessages((prev) => [...prev, {
-        id: (Date.now() + 1).toString(), sender: currentSpeaker, role: "assistant",
+        id: (Date.now() + 1).toString(), sender: "bot", role: "assistant",
         text: data.text || "عذراً، لم أتمكن من الرد حالياً.",
         time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
       }]);
@@ -438,7 +412,7 @@ export default function Home() {
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
-            {(sessionAgents.length === 0 || chatStatus === "ended") ? (
+            {sessionAgents.length === 0 ? (
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -463,18 +437,10 @@ export default function Home() {
           </div>
           <div className="flex-1 min-w-0">
             <h4 className="font-bold text-white text-sm truncate">
-              {chatStatus === "ended" ? "المساعد الذكي" : (sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name)}
+              {sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name}
             </h4>
-            <p className={`text-xs flex items-center gap-1 truncate ${
-              chatStatus === "online" ? "text-green-400" : 
-              chatStatus === "typing" ? "text-yellow-400" : 
-              chatStatus === "warning" ? "text-red-400 font-bold" : "text-gray-400"
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                chatStatus === "online" ? "bg-green-400 animate-pulse" : 
-                chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
-                chatStatus === "warning" ? "bg-red-400 animate-pulse" : "bg-green-400"
-              }`}></span>
+            <p className="text-xs flex items-center gap-1 truncate text-green-400">
+              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-green-400 animate-pulse"></span>
               <span className="truncate">{getStatusText()}</span>
             </p>
           </div>
@@ -512,7 +478,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* 🔴 الحقل مفتوح دائماً في جميع الحالات (حتى أثناء العد التنازلي) */}
+        {/* 🔴 الحقل مفتوح دائماً في جميع الحالات بدون أي تعطيل */}
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           <div className="flex gap-2 items-end">
             <textarea 
