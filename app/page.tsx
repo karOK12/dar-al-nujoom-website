@@ -111,12 +111,12 @@ export default function Home() {
     return "غير نشط";
   };
 
-  // دالة إنهاء المحادثة تلقائياً (تنهي المحادثة وتعود للمساعد الذكي)
+  // دالة إنهاء المحادثة مع الموظف (تنهي وتعود للمساعد الذكي)
   const performAutoClose = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
-    // فقط إذا كان هناك موظف (وليس بوت)
+    // 🔴 فقط إذا كان هناك موظف (وليس بوت)
     if (currentSpeaker !== "agent") return;
 
     setChatStatus("ended");
@@ -149,13 +149,13 @@ export default function Home() {
     });
   };
 
-  // دالة إعادة ضبط المؤقتات (تُستدعى عند أي نشاط)
+  // 🔴 دالة إعادة ضبط المؤقتات (خاصة بالموظف فقط)
   const resetActivityTimers = () => {
     // مسح المؤقتات القديمة
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
-    // ONLY for agent, NOT for bot
+    // 🔴 المؤقتات تعمل فقط مع الموظف (وليست مع البوت)
     if (currentSpeaker !== "agent") return;
 
     // تحديث الحالة إلى متصل (إذا كانت المحادثة غير منتهية)
@@ -207,7 +207,7 @@ export default function Home() {
           };
           setMessages([welcomeMsg]);
           setChatStatus("online");
-          // لا نستدعي resetActivityTimers لأن currentSpeaker = "bot"
+          // 🔴 لا نستدعي resetActivityTimers لأن currentSpeaker = "bot"
         }, 1000);
       }
     }
@@ -308,7 +308,7 @@ export default function Home() {
       }
       
       setChatStatus("online");
-      resetActivityTimers(); // نبدأ المؤقتات بعد التحويل إلى موظف
+      resetActivityTimers(); // 🔴 نبدأ المؤقتات بعد التحويل إلى موظف
     }, 100);
 
     return true;
@@ -327,7 +327,7 @@ export default function Home() {
       status: "sent"
     }]);
 
-    // إذا كنا في محادثة مع موظف، نضبط المؤقتات
+    // 🔴 إذا كنا في محادثة مع موظف، نضبط المؤقتات
     if (currentSpeaker === "agent") {
       resetActivityTimers();
     }
@@ -350,7 +350,7 @@ export default function Home() {
         time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
       }]);
       setChatStatus("online");
-      // إذا كنا مع موظف، نضبط المؤقتات
+      // 🔴 إذا كنا مع موظف، نضبط المؤقتات
       if (currentSpeaker === "agent") {
         resetActivityTimers();
       }
