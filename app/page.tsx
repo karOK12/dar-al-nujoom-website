@@ -59,16 +59,60 @@ const normalizeArabicText = (text: string): string => {
   return text.normalize("NFKD").replace(/[\u064B-\u065F]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
 };
 
+// 🔴 التعديل 1: إزالة الكلمات العامة ("اريد"، "ممكن"، "احتاج"، إلخ) والاعتماد على عبارات صريحة وكلمات الأقسام فقط
 const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
-  const keywords = ["حولني", "تحويل", "اتواصل", "اكلم", "كلم", "اتصل", "اتحدث", "احجي", "موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمه العملاء", "خدمة العملاء", "دعم", "دعم فني", "فريق الدعم", "روبوت", "مو روبوت", "ليس روبوت", "مساعده بشريه", "مساعدة بشرية", "احتاج مساعده", "احتاج مساعدة", "اريد", "ابي", "ابغى", "احتاج", "ممكن"];
-  return keywords.some(keyword => normalized.includes(keyword));
+  
+  // عبارات صريحة تطلب موظفاً أو بشراً
+  const humanRequestPhrases = [
+    "اريد موظف",
+    "حولني للدعم",
+    "اريد التحدث مع شخص",
+    "اريد خدمة العملاء",
+    "اريد مسؤول الاعلانات",
+    "اريد الدعم الفني",
+    "حولني",
+    "اكلم موظف",
+    "اتحدث مع موظف",
+    "خدمة العملاء",
+    "دعم فني",
+    "اتواصل مع الدعم",
+    "اريد شخص حقيقي",
+    "اكلم شخص",
+    "مو روبوت",
+    "ليس روبوت",
+    "مساعدة بشرية",
+    "مساعده بشريه",
+    "فريق الدعم",
+    "موظف",
+    "شخص حقيقي"
+  ];
+
+  // كلمات تدل على مشكلة تقنية أو استفسار إعلاني يتطلب تدخلاً بشرياً (حسب الطلب)
+  const departmentKeywords = [
+    "مشكلة", "خطأ", "لا يعمل", "تعطل", "فشل", "بطئ", "معلق", "دخول", "كلمة مرور",
+    "اعلان", "اعلانات", "ترويج", "سبونسر", "بانر", "فيديو ترويجي", "اسعار الاعلان"
+  ];
+
+  return humanRequestPhrases.some(phrase => normalized.includes(phrase)) || 
+         departmentKeywords.some(keyword => normalized.includes(keyword));
 };
 
+// 🔴 التعديل 2: توجيه دقيق للأقسام بناءً على الكلمات المفتاحية
 const detectDepartment = (userText: string): Department => {
   const text = userText.toLowerCase();
-  if (["اعلان", "اعلانات", "ترويج", "سبونسر", "بانر", "فيديو", "اسعار"].some(k => text.includes(k))) return 'ads';
-  if (["مشكلة", "خطأ", "لا يعمل", "تعطل", "فشل", "بطئ", "معلق", "دخول", "كلمة مرور", "فني", "تقني"].some(k => text.includes(k))) return 'technical';
+  
+  // 1. قسم الإعلانات
+  if (["اعلان", "اعلانات", "ترويج", "سبونسر", "بانر", "فيديو", "اسعار"].some(k => text.includes(k))) {
+    return 'ads';
+  }
+  
+  // 2. قسم الدعم الفني
+  if (["مشكلة", "خطأ", "لا يعمل", "تعطل", "فشل", "بطئ", "معلق", "دخول", "كلمة مرور", "دعم فني", "تقني"].some(k => text.includes(k))) {
+    return 'technical';
+  }
+  
+  // 3. خدمة العملاء (الافتراضي لباقي طلبات الموظفين)
   return 'support';
 };
 
@@ -162,16 +206,13 @@ export default function Home() {
     clearAllTimers();
     
     if (currentSpeakerRef.current === "agent") {
-      // إذا كانت الحالة ended، فإن كتابة المستخدم تعيد فتح الجلسة مع نفس الموظف فوراً
       if (chatStatusRef.current === "ended") {
         setChatStatus("online");
       }
       
-      // المرحلة 1: الانتقال إلى حالة ended بعد 40 ثانية
       idleToEndedTimerRef.current = setTimeout(() => {
         setChatStatus("ended");
         
-        // المرحلة 2: الإغلاق النهائي والعودة للـ bot بعد 30 دقيقة
         endedToBotTimerRef.current = setTimeout(() => {
           endAgentSession();
         }, ENDED_TO_BOT_MINUTES * 60 * 1000);
@@ -453,7 +494,6 @@ export default function Home() {
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor()}`}></span>
               <span className="truncate">{getStatusText()}</span>
             </p>
-            {/* تم إزالة زر إنهاء المحادثة تماماً حسب الطلب */}
           </div>
         </div>
 
