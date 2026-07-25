@@ -56,7 +56,6 @@ export default function Home() {
   const [endTime, setEndTime] = useState<Date | null>(null);
 
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const saveStateToStorage = () => {
     if (typeof window !== 'undefined') {
@@ -80,10 +79,6 @@ export default function Home() {
           setEndTime(parsedState.endTime ? new Date(parsedState.endTime) : null);
           
           if (parsedState.chatStatus === "online") resetActivityTimers();
-          else if (parsedState.chatStatus === "ended") {
-            if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-            if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-          }
           return true; 
         } catch (e) { console.error("Error loading chat state:", e); }
       }
@@ -113,10 +108,9 @@ export default function Home() {
     return "غير نشط";
   };
 
-  // دالة إنهاء المحادثة تلقائياً
+  // دالة إنهاء المحادثة تلقائياً (أو عند إغلاق الشات)
   const performAutoClose = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
     setChatStatus("ended");
     setEndTime(new Date());
@@ -127,7 +121,7 @@ export default function Home() {
     const closeMsg: Message = {
       id: Date.now().toString(),
       sender: "system",
-      text: "⚠️ تم إنهاء المحادثة تلقائياً بسبب عدم النشاط الطويل. يمكنك بدء محادثة جديدة.",
+      text: "⚠️ تم إنهاء المحادثة. يمكنك بدء محادثة جديدة مع المساعد الذكي.",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     };
@@ -151,7 +145,6 @@ export default function Home() {
   // دالة إعادة ضبط المؤقتات (تُستدعى عند أي نشاط)
   const resetActivityTimers = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
     // نطبق المؤقتات فقط أثناء محادثة مع موظف (وليس مع البوت)
     if (currentSpeaker !== "agent") return;
@@ -159,16 +152,11 @@ export default function Home() {
     setChatStatus("online");
     saveStateToStorage();
 
-    // المؤقت الأول: بعد 10 ثوانٍ من عدم النشاط → حالة "انتهى مؤقتاً"
+    // المؤقت: بعد 20 ثانية من عدم النشاط → حالة "انتهى مؤقتاً"
     idleTimerRef.current = setTimeout(() => {
       setChatStatus("idle");
       saveStateToStorage();
-    }, 10 * 1000);
-
-    // المؤقت الثاني: بعد 10 دقائق من عدم النشاط → إنهاء المحادثة
-    autoCloseTimerRef.current = setTimeout(() => {
-      performAutoClose();
-    }, 10 * 60 * 1000);
+    }, 20 * 1000); // 20 ثانية
   };
 
   useEffect(() => {
@@ -203,7 +191,6 @@ export default function Home() {
     }
     return () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
     };
   }, [open]);
 
@@ -427,7 +414,15 @@ export default function Home() {
         </section>
       </main>
 
-      <div ref={chatButtonRef} onClick={() => { setOpen(!open); if (!open) resetActivityTimers(); }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة والدعم">
+      <div ref={chatButtonRef} onClick={() => {
+        if (open && currentSpeaker === "agent" && chatStatus !== "ended") {
+          performAutoClose(); // إنهاء المحادثة عند إغلاق الشات
+          setOpen(false);
+        } else {
+          setOpen(!open);
+          if (!open) resetActivityTimers(); // عند الفتح، إعادة ضبط المؤقتات
+        }
+      }} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة والدعم">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-blink"><circle cx="10" cy="14" r="5" fill="white" /><circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
           <g className="animate-blink"><circle cx="22" cy="14" r="5" fill="white" /><circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} /></g>
@@ -523,7 +518,6 @@ export default function Home() {
                 setCurrentAgent(null);
                 setSessionAgents([]);
                 if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-                if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
                 localStorage.removeItem('dar-alnujum-chat-state');
                 setChatStatus("typing");
                 setTimeout(() => {
