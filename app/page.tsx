@@ -115,11 +115,9 @@ export default function Home() {
 
   // دالة إنهاء المحادثة تلقائياً
   const performAutoClose = () => {
-    // إلغاء أي مؤقتات قائمة
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
-    // تحديث الحالة إلى "منتهية"
     setChatStatus("ended");
     setEndTime(new Date());
     setCurrentSpeaker("bot");
@@ -136,7 +134,6 @@ export default function Home() {
 
     setMessages((prev) => {
       const newMessages = [...prev, closeMsg];
-      // حفظ الحالة في التخزين المحلي
       setTimeout(() => {
         localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
           messages: newMessages,
@@ -153,14 +150,12 @@ export default function Home() {
 
   // دالة إعادة ضبط المؤقتات (تُستدعى عند أي نشاط)
   const resetActivityTimers = () => {
-    // مسح المؤقتات القديمة
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
     // نطبق المؤقتات فقط أثناء محادثة مع موظف (وليس مع البوت)
     if (currentSpeaker !== "agent") return;
 
-    // تحديث الحالة إلى "متصل" وإلغاء حالة "انتهى مؤقتاً"
     setChatStatus("online");
     saveStateToStorage();
 
@@ -168,12 +163,12 @@ export default function Home() {
     idleTimerRef.current = setTimeout(() => {
       setChatStatus("idle");
       saveStateToStorage();
-    }, 10 * 1000); // 10 ثوانٍ
+    }, 10 * 1000);
 
-    // المؤقت الثاني: بعد 10 دقائق من عدم النشاط (حتى لو كان في حالة idle) → إنهاء المحادثة
+    // المؤقت الثاني: بعد 10 دقائق من عدم النشاط → إنهاء المحادثة
     autoCloseTimerRef.current = setTimeout(() => {
       performAutoClose();
-    }, 10 * 60 * 1000); // 10 دقائق (تم التعديل من 20 ثانية)
+    }, 10 * 60 * 1000);
   };
 
   useEffect(() => {
@@ -203,7 +198,6 @@ export default function Home() {
           };
           setMessages([welcomeMsg]);
           setChatStatus("online");
-          // لا نستدعي resetActivityTimers هنا لأن currentSpeaker = "bot"
         }, 1000);
       }
     }
@@ -250,7 +244,7 @@ export default function Home() {
     return explicitKeywords.some(k => t.includes(k));
   };
 
-  // 🔴 2. ما هو القسم المطلوب؟ (يتم استدعاؤها فقط إذا كان يريد بشراً)
+  // 🔴 2. ما هو القسم المطلوب؟
   const detectDepartment = (userText: string): 'support' | 'ads' | 'technical' => {
     const text = userText.toLowerCase();
     const adKeywords = ["إعلان", "اعلان", "ترويج", "سبونسر", "بانر", "فيديو ترويجي", "اسعار الاعلان", "حجز اعلان"];
@@ -261,9 +255,9 @@ export default function Home() {
     return 'support'; 
   };
 
-  // 🔴 3. محرك التحويل الرئيسي (يعمل فقط عند طلب صريح)
+  // 🔴 3. محرك التحويل الرئيسي
   const checkAndPerformEscalation = (userText: string): boolean => {
-    if (!wantsHumanContact(userText)) return false; // إذا لم يطلب بشراً صراحة، لا تحول أبداً
+    if (!wantsHumanContact(userText)) return false;
     
     setChatStatus("typing");
     const targetDept = detectDepartment(userText);
@@ -304,7 +298,7 @@ export default function Home() {
       }
       
       setChatStatus("online");
-      resetActivityTimers(); // نبدأ المؤقتات بعد تحويل إلى موظف
+      resetActivityTimers();
     }, 100);
 
     return true;
@@ -323,10 +317,8 @@ export default function Home() {
       status: "sent"
     }]);
 
-    // إعادة ضبط المؤقتات عند إرسال رسالة (نشاط المستخدم)
     resetActivityTimers();
 
-    // 🔴 التحقق من التحويل: إذا لم يطلب بشراً صراحة، سيمر هذا الشرط ويذهب للـ API
     if (checkAndPerformEscalation(userText)) return;
 
     try {
@@ -345,7 +337,6 @@ export default function Home() {
         time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
       }]);
       setChatStatus("online");
-      // إعادة ضبط المؤقتات بعد استلام الرد
       resetActivityTimers();
     } catch (error) {
       setMessages((prev) => [...prev, {
@@ -531,11 +522,9 @@ export default function Home() {
                 setCurrentSpeaker("bot");
                 setCurrentAgent(null);
                 setSessionAgents([]);
-                // إلغاء أي مؤقتات
                 if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
                 if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
                 localStorage.removeItem('dar-alnujum-chat-state');
-                // إعادة الترحيب
                 setChatStatus("typing");
                 setTimeout(() => {
                   const welcomeMsg: Message = {
@@ -566,8 +555,7 @@ export default function Home() {
                 <textarea id="chat-input" value={text} placeholder="اكتب رسالتك هنا..." 
                   onChange={(e) => { 
                     setText(e.target.value); 
-                    // إعادة ضبط المؤقتات عند الكتابة (نشاط)
-                    if (chatStatus !== "ended") resetActivityTimers();
+                    resetActivityTimers();
                   }} 
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   rows={1} className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed" />
