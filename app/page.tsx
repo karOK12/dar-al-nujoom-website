@@ -93,10 +93,13 @@ export default function Home() {
   };
 
   const clearTimers = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
   };
 
-  // 🔴 المنطق الزمني المتقدم والدقيق
+  // 🔴 المنطق الزمني المتقدم والمضمون (60s متصل + 60s انتظار + 50s تحذير)
   const startAgentTimers = () => {
     clearTimers();
     elapsedTimeRef.current = 0;
@@ -107,33 +110,29 @@ export default function Home() {
       elapsedTimeRef.current += 1;
       const elapsed = elapsedTimeRef.current;
 
-      // المرحلة 1: أول 60 ثانية - متصل الآن
       if (elapsed <= 60) {
+        // المرحلة 1: أول 60 ثانية - متصل الآن
         setChatStatus("online");
-      } 
-      // المرحلة 2: من 61 إلى 70 ثانية - انتهى (بانتظار ردك)
-      else if (elapsed <= 70) {
+      } else if (elapsed <= 120) {
+        // المرحلة 2: من 60 إلى 120 ثانية - انتهى (بانتظار ردك) - مدة انتظار طويلة
         setChatStatus("idle");
-      } 
-      // المرحلة 3: من 71 إلى 120 ثانية - تحذير العد التنازلي (50 ثانية)
-      else {
+      } else if (elapsed <= 170) {
+        // المرحلة 3: من 120 إلى 170 ثانية - تحذير العد التنازلي (50 ثانية)
         setChatStatus("warning");
-        const remaining = 120 - elapsed;
-        setCountdownSeconds(remaining > 0 ? remaining : 0);
-        
-        // المرحلة 4: عند وصول العداد للصفر
-        if (remaining <= 0) {
-          clearTimers();
-          performAgentAutoClose();
-        }
+        const remaining = 170 - elapsed;
+        setCountdownSeconds(remaining);
+      } else {
+        // المرحلة 4: بعد 170 ثانية - إغلاق المحادثة رسمياً
+        clearTimers();
+        performAgentAutoClose();
       }
     }, 1000);
   };
 
-  // 🔴 إعادة ضبط المؤقت عند أي نشاط من المستخدم
+  // 🔴 إعادة ضبط المؤقت عند أي نشاط من المستخدم (يلغي كل شيء ويعيد العد من الصفر)
   const resetActivityTimers = () => {
     if (currentSpeaker === "agent") {
-      startAgentTimers(); // يعيد كل شيء إلى "متصل الآن" ويبدأ العد من الصفر
+      startAgentTimers(); 
     } else {
       clearTimers();
       setChatStatus("online");
@@ -161,8 +160,8 @@ export default function Home() {
     });
   };
 
+  // تشغيل المؤقتات فقط عند تحول المتحدث إلى "agent"
   useEffect(() => {
-    // تشغيل المؤقتات فقط عند تحول المتحدث إلى "agent"
     if (currentSpeaker === "agent") {
       startAgentTimers();
     } else {
@@ -260,7 +259,7 @@ export default function Home() {
         if (!sessionAgents.find(a => a.employeeId === assignedAgent!.employeeId)) {
           setSessionAgents(prev => [...prev, assignedAgent!]);
         }
-        setCurrentSpeaker("agent"); // هذا السطر هو ما يشغل المؤقتات المتقدمة
+        setCurrentSpeaker("agent"); // هذا السطر يشغل المؤقتات المتقدمة
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
           text: `أهلاً بك، أنا ${assignedAgent.name} (${assignedAgent.role}). تفضل كيف يمكنني مساعدتك؟`,
