@@ -131,8 +131,8 @@ export default function Home() {
   };
 
   const performAutoClose = () => {
-    setChatStatus("ended");
-    setEndTime(new Date());
+    setChatStatus("online");
+    setEndTime(null);
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
