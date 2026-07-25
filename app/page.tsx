@@ -9,7 +9,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 type Sender = "user" | "bot" | "agent" | "system";
 type AgentStatus = "online" | "away" | "offline";
 type Department = 'support' | 'ads' | 'technical';
-// 🔴 التعديل 1: إضافة حالة ended
 type ChatStatus = "typing" | "online" | "ended";
 
 interface Message {
@@ -36,7 +35,6 @@ interface Agent {
 // CONSTANTS
 // ============================================================
 
-// 🔴 التعديل 2: ثوابت الوقت الواضحة للتعديل السهل
 const IDLE_TO_ENDED_SECONDS = 40; 
 const ENDED_TO_BOT_MINUTES = 30;  
 
@@ -146,7 +144,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // 🔴 CORE FUNCTION: TIMER & STATE MACHINE MANAGEMENT
+  // CORE FUNCTION: TIMER & STATE MACHINE MANAGEMENT
   // ============================================================
 
   const clearAllTimers = useCallback(() => {
@@ -164,28 +162,28 @@ export default function Home() {
     clearAllTimers();
     
     if (currentSpeakerRef.current === "agent") {
+      // إذا كانت الحالة ended، فإن كتابة المستخدم تعيد فتح الجلسة مع نفس الموظف فوراً
       if (chatStatusRef.current === "ended") {
         setChatStatus("online");
       }
       
+      // المرحلة 1: الانتقال إلى حالة ended بعد 40 ثانية
       idleToEndedTimerRef.current = setTimeout(() => {
         setChatStatus("ended");
         
+        // المرحلة 2: الإغلاق النهائي والعودة للـ bot بعد 30 دقيقة
         endedToBotTimerRef.current = setTimeout(() => {
-          endAgentSession("timeout");
+          endAgentSession();
         }, ENDED_TO_BOT_MINUTES * 60 * 1000);
         
       }, IDLE_TO_ENDED_SECONDS * 1000);
     }
   }, [clearAllTimers]);
 
-  const endAgentSession = useCallback((reason: "manual" | "timeout" = "timeout") => {
+  const endAgentSession = useCallback(() => {
     clearAllTimers();
     
-    const reasonText = reason === "manual" 
-      ? "تم إنهاء جلسة الدعم من قبل الموظف. يمكنك متابعة المحادثة مع المساعد الذكي."
-      : "تم إغلاق جلسة الدعم نهائياً بسبب عدم النشاط الطويل. المساعد الذكي متاح الآن.";
-
+    const reasonText = "تم إغلاق جلسة الدعم نهائياً بسبب عدم النشاط الطويل. المساعد الذكي متاح الآن.";
     const endMessage = createMessage("system", reasonText);
 
     setMessages(prev => {
@@ -264,7 +262,7 @@ export default function Home() {
     if (checkAndPerformEscalation(trimmedText)) return;
 
     if (currentSpeaker === "agent") {
-      return; 
+      return; // حاجز الحماية: لا استدعاء للـ API أثناء وجود الموظف
     }
 
     setChatStatus("typing");
@@ -328,7 +326,7 @@ export default function Home() {
 
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
-    if (chatStatus === "ended") return "انتهت المحادثة (أرسل رسالة لإعادة الفتح)";
+    if (chatStatus === "ended") return "انتهت المحادثة";
     if (isQueued) return "في قائمة الانتظار...";
     return "متصل الآن";
   };
@@ -455,16 +453,7 @@ export default function Home() {
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor()}`}></span>
               <span className="truncate">{getStatusText()}</span>
             </p>
-            
-            {currentSpeaker === "agent" && (
-              <button 
-                onClick={() => endAgentSession("manual")}
-                className="mt-1 text-[10px] bg-red-500/20 text-red-400 hover:bg-red-500/30 px-2 py-0.5 rounded border border-red-500/50 transition w-fit"
-                title="محاكاة: ضغط الموظف على زر إنهاء المحادثة"
-              >
-                إنهاء المحادثة
-              </button>
-            )}
+            {/* تم إزالة زر إنهاء المحادثة تماماً حسب الطلب */}
           </div>
         </div>
 
@@ -521,7 +510,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 🔴 التعديل 3: استعادة قسم الـ Footer بكامل روابطه الأصلية */}
       <footer className="bg-[#0b0f1a] border-t border-gray-800 text-gray-400 mt-auto">
         <div className="container mx-auto px-4 py-8">
           <div className="flex flex-col items-center gap-6">
