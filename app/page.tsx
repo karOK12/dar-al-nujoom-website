@@ -10,7 +10,7 @@ type Sender = "user" | "bot" | "agent" | "system";
 type AgentStatus = "online" | "away" | "offline";
 type Department = 'support' | 'ads' | 'technical';
 type ChatStatus = "typing" | "online" | "ended";
-type ProductShape = "circle" | "rectangle" | "square" | "portrait"; // 🔴 إضافة نوع محدد للأشكال
+type ProductShape = "circle" | "rectangle" | "square" | "portrait";
 
 interface Attachment {
   type: 'image' | 'link' | 'card' | 'product';
@@ -51,7 +51,7 @@ interface TrendingProduct {
   name: string;
   desc: string;
   img: string;
-  shape: ProductShape; // 🔴 استخدام النوع المحدد
+  shape: ProductShape;
 }
 
 // ============================================================
@@ -73,7 +73,6 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'technical', name: 'فريق الدعم الفني', description: 'لحل المشاكل التقنية وأخطاء الموقع' },
 ];
 
-// 🔴 تعريف المصفوفة بالنوع الصحيح لمنع أخطاء TypeScript
 const TRENDING_PRODUCTS: TrendingProduct[] = [
   { id: 1, name: "كاميرا تصوير احترافية", desc: "خصم 25% لفترة محدودة", img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=150&h=150&fit=crop", shape: "circle" },
   { id: 2, name: "سماعات استوديو", desc: "عزل ضوضاء فائق الجودة", img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&h=150&fit=crop", shape: "rectangle" },
@@ -312,7 +311,7 @@ export default function Home() {
   }, [currentSpeaker, showDepartmentSelection, handleHumanRequest]);
 
   // ============================================================
-  // SEND MESSAGE & API HANDLING
+  // SEND MESSAGE & API HANDLING (تم التعديل هنا لإضافة رد الموظف)
   // ============================================================
 
   const sendMessage = useCallback(async () => {
@@ -324,16 +323,39 @@ export default function Home() {
     setText("");
     resetActivityTimers();
 
+    // 1. التحقق من نية المستخدم للتحويل
     if (checkAndPerformEscalation(trimmedText)) {
       isSendingRef.current = false;
       return;
     }
 
+    // 🔴 2. محاكاة رد الموظف (الحل الجذري لمشكلة عدم الرد)
     if (currentSpeaker === "agent") {
-      isSendingRef.current = false;
+      setChatStatus("typing");
+      
+      // محاكاة تأخير الكتابة لمدة 1.5 ثانية ليكون الرد واقعياً
+      setTimeout(() => {
+        const normalized = normalizeArabicText(trimmedText);
+        let agentReply = "شكراً لتواصلك. تم استلام رسالتك وسيقوم المختص بالرد عليك بالتفصيل في أقرب وقت ممكن.";
+
+        // ردود مخصصة بناءً على محتوى الرسالة
+        if (normalized.includes("مرحبا") || normalized.includes("سلام") || normalized.includes("هلو") || normalized.includes("مساء") || normalized.includes("صباح")) {
+          agentReply = `أهلاً بك مجدداً. أنا ${currentAgent?.name}، يسعدني جداً تواصلك. كيف يمكنني مساعدتك اليوم؟`;
+        } else if (normalized.includes("سعر") || normalized.includes("اعلان") || normalized.includes("حجز")) {
+          agentReply = "أهلاً بك. بخصوص استفسارك عن الإعلانات والأسعار، سأقوم بتمرير طلبك فوراً لفريق المبيعات المختص ليقوم بتزويدك بأحدث العروض والباقات المتاحة.";
+        } else if (normalized.includes("مشكلة") || normalized.includes("خطأ") || normalized.includes("لا يعمل")) {
+          agentReply = "نعتذر عن هذا الإزعاج. تم تسجيل ملاحظتك التقنية، وسأقوم بإحالتها لفريق الدعم الفني للتحقق منها وحلها في أسرع وقت.";
+        }
+
+        setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
+        setChatStatus("online");
+        isSendingRef.current = false;
+      }, 1500);
+      
       return; 
     }
 
+    // 3. منطق المساعد الذكي (AI API)
     setChatStatus("typing");
     try {
       const apiMessages = messagesRef.current
@@ -375,7 +397,7 @@ export default function Home() {
       setChatStatus("online");
       isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, resetActivityTimers, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest]);
+  }, [text, currentSpeaker, currentAgent, resetActivityTimers, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest]);
 
   // ============================================================
   // EFFECTS
@@ -430,11 +452,8 @@ export default function Home() {
     return "bg-green-400 animate-pulse";
   };
 
-  // 🔴 إصلاح خطأ TypeScript هنا باستخدام Record وصريح
   const renderSeamlessItems = () => {
     const products = [...TRENDING_PRODUCTS, ...TRENDING_PRODUCTS];
-    
-    // تعريف الخريطة بشكل صريح لمنع خطأ "Implicit Any"
     const shapeMap: Record<ProductShape, string> = {
       'circle': 'w-16 h-16 rounded-full',
       'rectangle': 'w-20 h-14 rounded-xl',
