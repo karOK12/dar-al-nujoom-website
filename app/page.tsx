@@ -153,7 +153,7 @@ export default function Home() {
   const chatStatusRef = useRef(chatStatus);
   const lastActivityTimeRef = useRef(Date.now());
   const isSendingRef = useRef(false);
-  const previousAgentRepliesRef = useRef<Set<string>>(new Set()); // تتبع الردود السابقة لمنع التكرار
+  const previousAgentRepliesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
@@ -190,7 +190,7 @@ export default function Home() {
       setChatStatus("online");
       setIsQueued(false);
       setShowDepartmentSelection(false);
-      previousAgentRepliesRef.current.clear(); // مسح السجل عند تحميل جديد
+      previousAgentRepliesRef.current.clear();
       return true;
     } catch (e) { 
       console.error('Load state error:', e); 
@@ -247,7 +247,7 @@ export default function Home() {
     setShowDepartmentSelection(false);
     setChatStatus("online");
     lastActivityTimeRef.current = Date.now();
-    previousAgentRepliesRef.current.clear(); // مسح سجل الردود
+    previousAgentRepliesRef.current.clear();
 
     if (typeof window !== "undefined") {
       localStorage.setItem(
@@ -270,7 +270,7 @@ export default function Home() {
     setCurrentSpeaker("agent");
     setIsQueued(false);
     setShowDepartmentSelection(false);
-    previousAgentRepliesRef.current.clear(); // مسح السجل عند بدء جلسة جديدة
+    previousAgentRepliesRef.current.clear();
     
     const welcomeMsg = createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). تفضل، كيف يمكنني مساعدتك؟`, "assistant");
     setMessages(prev => [...prev, welcomeMsg]);
@@ -325,6 +325,50 @@ export default function Home() {
   }, [currentSpeaker, showDepartmentSelection, handleHumanRequest]);
 
   // ============================================================
+  // INTERNAL TRANSFER BETWEEN AGENTS
+  // ============================================================
+
+  const performInternalTransfer = useCallback((targetDept: Department, currentAgentName: string) => {
+    const targetAgent = findAvailableAgent(targetDept) || SUPPORT_AGENTS.find(a => a.department === targetDept);
+    
+    if (!targetAgent) return;
+
+    // رسالة التحويل من الموظف الحالي
+    const transferMsg = createMessage(
+      "agent",
+      `لحظة واحدة، سأحولك الآن إلى زميلي المختص بهذا النوع من الطلبات.`,
+      "assistant"
+    );
+    
+    setMessages(prev => [...prev, transferMsg]);
+    
+    // محاكاة وقت التحويل
+    setTimeout(() => {
+      // إضافة الموظف الجديد للسجل مع الاحتفاظ بالموظفين السابقين
+      setSessionAgents(prev => {
+        if (prev.find(a => a.employeeId === targetAgent!.employeeId)) return prev;
+        return [...prev, targetAgent!];
+      });
+      
+      // تغيير الموظف الحالي
+      setCurrentAgent(targetAgent);
+      
+      // رسالة ترحيب من الموظف الجديد
+      setTimeout(() => {
+        const newAgentWelcome = createMessage(
+          "agent",
+          `مرحباً، أنا ${targetAgent!.name} من قسم ${targetDept === 'ads' ? 'الإعلانات' : targetDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}. اطلعت على كامل المحادثة بينك وبين الأستاذ ${currentAgentName}، وسأتابع معك من هذه النقطة. كيف أقدر أساعدك؟`,
+          "assistant"
+        );
+        
+        setMessages(prev => [...prev, newAgentWelcome]);
+        setChatStatus("online");
+        isSendingRef.current = false;
+      }, 1000);
+    }, 1500);
+  }, []);
+
+  // ============================================================
   // SEND MESSAGE & API HANDLING
   // ============================================================
 
@@ -342,7 +386,7 @@ export default function Home() {
     }
 
     // ============================================================
-    // سلوك الموظف المحاكي (مُحسّن لمنع التكرار وزيادة الواقعية)
+    // سلوك الموظف المحاكي مع التحويل الفعلي
     // ============================================================
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
@@ -350,7 +394,6 @@ export default function Home() {
         const normalized = normalizeArabicText(trimmedText);
         const currentDept = currentAgent.department;
         
-        // جلب آخر رسالتين من المستخدم لفهم السياق
         const recentUserMessages = messages
           .filter(m => m.sender === "user")
           .slice(-2)
@@ -358,9 +401,7 @@ export default function Home() {
           .join(" ");
         const context = normalizeArabicText(recentUserMessages);
 
-        let agentReply = "";
-
-        // 1. ردود الشكر والختام (متنوعة وعشوائية)
+        // 1. ردود الشكر والختام
         if (normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || normalized.includes("ممتاز") || normalized.includes("تمام") || normalized.includes("أوكي") || normalized.includes("الله يعطيك") || normalized.includes("حلو") || normalized.includes("زين")) {
           const thanksReplies = [
             "العفو، هذا واجبي. أتمنى لك التوفيق في مشروعك.",
@@ -373,20 +414,26 @@ export default function Home() {
             "يسعدني خدمتك. بالتوفيق والنجاح!"
           ];
           
-          // اختيار رد لم يُستخدم من قبل
           const availableReplies = thanksReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+          let agentReply;
           if (availableReplies.length > 0) {
             agentReply = availableReplies[Math.floor(Math.random() * availableReplies.length)];
           } else {
-            // إذا تم استخدام جميع الردود، نختار عشوائياً ونمسح السجل
             previousAgentRepliesRef.current.clear();
             agentReply = thanksReplies[Math.floor(Math.random() * thanksReplies.length)];
           }
+          
+          previousAgentRepliesRef.current.add(agentReply);
+          setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
+          setChatStatus("online");
+          isSendingRef.current = false;
+          return;
         }
-        // 2. الاستفسار عن الأسعار، الباقات، أو الإعلانات (لموظف الإعلانات/المبيعات)
-        else if (normalized.includes("سعر") || normalized.includes("كلفه") || normalized.includes("باقه") || normalized.includes("اعلان") || normalized.includes("ترويج")) {
+
+        // 2. الاستفسار عن الأسعار/الإعلانات - تحويل فعلي إذا لم يكن الموظف مختصاً
+        if (normalized.includes("سعر") || normalized.includes("كلفه") || normalized.includes("باقه") || normalized.includes("اعلان") || normalized.includes("ترويج")) {
           if (currentDept === 'ads') {
-            // إجابات متنوعة ومفصلة
+            // الموظف الحالي مختص، يجيب مباشرة
             const adsReplies = [
               `بكل سرور. لدينا باقات متنوعة تناسب المتاجر والمشاريع:
 • الباقة الأسبوعية: 500 ريال (تصل لـ 50,000 ظهور).
@@ -411,18 +458,28 @@ export default function Home() {
             ];
             
             const availableAdsReplies = adsReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+            let agentReply;
             if (availableAdsReplies.length > 0) {
               agentReply = availableAdsReplies[Math.floor(Math.random() * availableAdsReplies.length)];
             } else {
               previousAgentRepliesRef.current.clear();
               agentReply = adsReplies[Math.floor(Math.random() * adsReplies.length)];
             }
+            
+            previousAgentRepliesRef.current.add(agentReply);
+            setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
+            setChatStatus("online");
+            isSendingRef.current = false;
+            return;
           } else {
-            agentReply = "بخصوص استفسارك عن الأسعار والباقات، سأقوم بتحويلك الآن لزميلي المختص في فريق المبيعات والإعلانات ليقوم بتزويدك بأحدث العروض والتفاصيل الدقيقة.";
+            // الموظف الحالي غير مختص - تحويل فعلي
+            performInternalTransfer('ads', currentAgent.name);
+            return;
           }
         }
-        // 3. الاستفسار التقني (لموظف الدعم الفني)
-        else if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("معلق")) {
+
+        // 3. الاستفسار التقني - تحويل فعلي إذا لم يكن الموظف مختصاً
+        if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("معلق")) {
           if (currentDept === 'technical') {
             const techReplies = [
               "حاضر، يسعدني مساعدتك في حل هذه المشكلة. لكي أتمكن من فحص الأمر بدقة، هل يمكنك تزويدي برقم الطلب أو لقطة شاشة (Screenshot) للخطأ الذي يظهر لك؟",
@@ -431,18 +488,28 @@ export default function Home() {
             ];
             
             const availableTechReplies = techReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+            let agentReply;
             if (availableTechReplies.length > 0) {
               agentReply = availableTechReplies[Math.floor(Math.random() * availableTechReplies.length)];
             } else {
               previousAgentRepliesRef.current.clear();
               agentReply = techReplies[Math.floor(Math.random() * techReplies.length)];
             }
+            
+            previousAgentRepliesRef.current.add(agentReply);
+            setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
+            setChatStatus("online");
+            isSendingRef.current = false;
+            return;
           } else {
-            agentReply = "سأقوم بتحويلك فوراً لزميلي في فريق الدعم الفني ليتحقق من هذه المشكلة التقنية ويحلها لك في أسرع وقت.";
+            // الموظف الحالي غير مختص - تحويل فعلي
+            performInternalTransfer('technical', currentAgent.name);
+            return;
           }
         }
-        // 4. تحية جديدة من المستخدم أثناء الجلسة
-        else if (normalized.includes("مرحبا") || normalized.includes("هلو") || normalized.includes("السلام")) {
+
+        // 4. تحية جديدة
+        if (normalized.includes("مرحبا") || normalized.includes("هلو") || normalized.includes("السلام")) {
           const greetingReplies = [
             "أهلاً بك مجدداً. كيف يمكنني خدمتك الآن؟",
             "أهلاً وسهلاً. تفضل، أنا أستمع إليك.",
@@ -450,49 +517,54 @@ export default function Home() {
           ];
           
           const availableGreetings = greetingReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+          let agentReply;
           if (availableGreetings.length > 0) {
             agentReply = availableGreetings[Math.floor(Math.random() * availableGreetings.length)];
           } else {
             previousAgentRepliesRef.current.clear();
             agentReply = greetingReplies[Math.floor(Math.random() * greetingReplies.length)];
           }
-        }
-        // 5. رد عام ذكي يتناسب مع اختصاص الموظف ويحافظ على السياق
-        else {
-          const generalReplies: string[] = [];
           
-          if (currentDept === 'ads') {
-            generalReplies.push(
-              "أكيد، يسعدني ذلك. هل تود أن نبدأ بتجهيز إحدى الباقات الإعلانية لمتجرك، أم لديك استفسار عن ميزة معينة في الحملات؟",
-              "بكل سرور. أنا هنا لمساعدتك في جميع استفساراتك المتعلقة بالإعلانات. تفضل بطرح سؤالك.",
-              "حاضر، أنا معك. ما الذي تود معرفته عن خدماتنا الإعلانية؟"
-            );
-          } else if (currentDept === 'technical') {
-            generalReplies.push(
-              "حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية وسأقوم بمعالجتها فوراً.",
-              "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح المشكلة أكثر؟",
-              "حاضر، أنا هنا. ما التفاصيل الأخرى التي تحتاجها؟"
-            );
-          } else {
-            generalReplies.push(
-              "بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.",
-              "أكيد، يسعدني مساعدتك. كيف أقدر أخدمك؟",
-              "حاضر، أنا معك. تفضل بطرح استفسارك."
-            );
-          }
-          
-          const availableGeneral = generalReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-          if (availableGeneral.length > 0) {
-            agentReply = availableGeneral[Math.floor(Math.random() * availableGeneral.length)];
-          } else {
-            previousAgentRepliesRef.current.clear();
-            agentReply = generalReplies[Math.floor(Math.random() * generalReplies.length)];
-          }
+          previousAgentRepliesRef.current.add(agentReply);
+          setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
+          setChatStatus("online");
+          isSendingRef.current = false;
+          return;
         }
 
-        // تسجيل الرد في السجل لمنع التكرار
-        previousAgentRepliesRef.current.add(agentReply);
+        // 5. رد عام حسب اختصاص الموظف
+        const generalReplies: string[] = [];
         
+        if (currentDept === 'ads') {
+          generalReplies.push(
+            "أكيد، يسعدني ذلك. هل تود أن نبدأ بتجهيز إحدى الباقات الإعلانية لمتجرك، أم لديك استفسار عن ميزة معينة في الحملات؟",
+            "بكل سرور. أنا هنا لمساعدتك في جميع استفساراتك المتعلقة بالإعلانات. تفضل بطرح سؤالك.",
+            "حاضر، أنا معك. ما الذي تود معرفته عن خدماتنا الإعلانية؟"
+          );
+        } else if (currentDept === 'technical') {
+          generalReplies.push(
+            "حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية وسأقوم بمعالجتها فوراً.",
+            "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح المشكلة أكثر؟",
+            "حاضر، أنا هنا. ما التفاصيل الأخرى التي تحتاجها؟"
+          );
+        } else {
+          generalReplies.push(
+            "بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.",
+            "أكيد، يسعدني مساعدتك. كيف أقدر أخدمك؟",
+            "حاضر، أنا معك. تفضل بطرح استفسارك."
+          );
+        }
+        
+        const availableGeneral = generalReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+        let agentReply;
+        if (availableGeneral.length > 0) {
+          agentReply = availableGeneral[Math.floor(Math.random() * availableGeneral.length)];
+        } else {
+          previousAgentRepliesRef.current.clear();
+          agentReply = generalReplies[Math.floor(Math.random() * generalReplies.length)];
+        }
+        
+        previousAgentRepliesRef.current.add(agentReply);
         setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
         setChatStatus("online");
         isSendingRef.current = false;
@@ -549,7 +621,7 @@ export default function Home() {
       setChatStatus("online");
       isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, currentAgent, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest, messages]);
+  }, [text, currentSpeaker, currentAgent, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer]);
 
   // ============================================================
   // EFFECTS
