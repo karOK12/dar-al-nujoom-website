@@ -69,48 +69,68 @@ const TRENDING_PRODUCTS = [
 // ============================================================
 
 const normalizeArabicText = (text: string): string => {
-  return text.normalize("NFKD").replace(/[\u064B-\u065F]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  return text
+    .normalize("NFKD")
+    .replace(/[\u064B-\u065F]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 };
 
-// 🔴 فحص صارم: هل يطلب المستخدم بشراً بشكل صريح؟ (لا يكفي مجرد ذكر "سعر" أو "اعلان")
+// هل يريد المستخدم التحدث مع موظف؟
 const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
-  
- const actionWords = [
-  "يمكنني التواصل مع فريق قسم الدعم",
-  "احتاج التحدث مع قسم الدعم ",
-  "اتواصل",
-  "حولني",
-  "تحويل",
-  "اربطني",
-  "اوصلني",
-];
 
-const humanWords = [
-  "موظف",
-  "شخص",
-  "انسان",
-  "بشري",
-  "حقيقي",
-  "ممثل",
-  "خدمة العملاء",
-  "الدعم",
-  "فريق الدعم",
-];
+  const humanRequestKeywords = [
+    "موظف",
+    "شخص",
+    "انسان",
+    "بشري",
+    "حقيقي",
+    "ممثل",
+    "خدمة العملاء",
+    "فريق الدعم",
+    "الدعم",
+    "قسم الدعم",
+    "الدعم الفني",
+    "المبيعات",
+    "الاعلانات"
+  ];
 
-return (
-  actionWords.some(word => normalized.includes(word)) &&
-  humanWords.some(word => normalized.includes(word))
-);
-
-const findAvailableAgent = (department: Department): Agent | null => {
-  return SUPPORT_AGENTS.find(agent => agent.department === department && agent.status === 'online' && !agent.isBusy) || null;
+  return humanRequestKeywords.some(keyword =>
+    normalized.includes(normalizeArabicText(keyword))
+  );
 };
 
-const createMessage = (sender: Sender, text: string, role?: "user" | "assistant", status: "sent" | "delivered" | "read" = "read"): Message => ({
+const findAvailableAgent = (department: Department): Agent | null => {
+  return (
+    SUPPORT_AGENTS.find(
+      agent =>
+        agent.department === department &&
+        agent.status === "online" &&
+        !agent.isBusy
+    ) || null
+  );
+};
+
+const createMessage = (
+  sender: Sender,
+  text: string,
+  role?: "user" | "assistant",
+  status: "sent" | "delivered" | "read" = "read"
+): Message => ({
   id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-  sender, text, role,
-  time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+  sender,
+  text,
+  role,
+  time: new Date().toLocaleTimeString("ar-EG", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }),
   status,
 });
 
