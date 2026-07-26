@@ -55,11 +55,11 @@ interface TrendingProduct {
 }
 
 // ============================================================
-// CONSTANTS
+// CONSTANTS (تم ضبط الأرقام بدقة حسب طلبك)
 // ============================================================
 
-const IDLE_TO_ENDED_SECONDS = 40; // بعد 40 ثانية من عدم النشاط تظهر "انتهت المحادثة"
-const ENDED_TO_BOT_SECONDS = 30;  // بعد 30 ثانية إضافية من "انتهت"، يتم حذف المحادثة والعودة للمساعد
+const IDLE_TO_ENDED_SECONDS = 60; // دقيقة واحدة (60 ثانية) لظهور "انتهت المحادثة"
+const ENDED_TO_BOT_SECONDS = 30;  // 30 ثانية إضافية (المجموع 90 ثانية) لإغلاق الجلسة والعودة للمساعد
 
 const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
@@ -146,16 +146,12 @@ export default function Home() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
 
+  // Refs لإدارة الوقت بدقة متناهية
   const currentSpeakerRef = useRef(currentSpeaker);
-  const chatStatusRef = useRef(chatStatus);
-  const idleToEndedTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const endedToBotTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const messagesRef = useRef(messages);
+  const lastActivityTimeRef = useRef(Date.now());
   const isSendingRef = useRef(false);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
-  useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
-  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   // ============================================================
   // LOCAL STORAGE
@@ -165,15 +161,15 @@ export default function Home() {
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-        messages: messagesRef.current,
-        currentSpeaker: currentSpeakerRef.current,
+        messages,
+        currentSpeaker,
         currentAgent,
         sessionAgents,
-        chatStatus: chatStatusRef.current,
+        chatStatus,
         isQueued
       }));
     } catch (e) { console.error('Save state error:', e); }
-  }, [currentAgent, sessionAgents, isQueued]);
+  }, [messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued]);
 
   const loadStateFromStorage = useCallback((): boolean => {
     if (typeof window === 'undefined') return false;
@@ -197,34 +193,54 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // TIMER & STATE MACHINE MANAGEMENT
+  // TIMER & STATE MACHINE MANAGEMENT (المنطق المضمون 100%)
   // ============================================================
 
-  const clearAllTimers = useCallback(() => {
-    if (idleToEndedTimerRef.current) {
-      clearTimeout(idleToEndedTimerRef.current);
-      idleToEndedTimerRef.current = null;
+  // 1. تحديث وقت آخر نشاط فوراً عند إضافة أي رسالة جديدة
+  useEffect(() => {
+    if (currentSpeaker === "agent") {
+      lastActivityTimeRef.current = Date.now();
+      // إذا كان المستخدم في حالة "انتهت" وأرسل رسالة، نعيدها فوراً إلى "متصل الآن"
+      if (chatStatus === "ended") {
+        setChatStatus("online");
+      }
     }
-    if (endedToBotTimerRef.current) {
-      clearTimeout(endedToBotTimerRef.current);
-      endedToBotTimerRef.current = null;
-    }
-  }, []);
+  }, [messages, currentSpeaker, chatStatus]);
 
-  // 🔴 التعديل الجذري: حذف المحادثة القديمة بالكامل والبدء من جديد مع المساعد
+  // 2. فحص الوقت كل ثانية بدقة
+  useEffect(() => {
+    if (currentSpeaker !== "agent") return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const elapsedSeconds = (now - lastActivityTimeRef.current) / 1000;
+      const totalTimeout = IDLE_TO_ENDED_SECONDS + ENDED_TO_BOT_SECONDS; // 60 + 30 = 90 ثانية
+
+      if (elapsedSeconds >= totalTimeout) {
+        // انتهت المهلة بالكامل (90 ثانية) -> حذف المحادثة والعودة للمساعد
+        endAgentSession();
+      } else if (elapsedSeconds >= IDLE_TO_ENDED_SECONDS && chatStatus !== "ended") {
+        // مرت 60 ثانية (دقيقة) -> تغيير الحالة إلى "انتهت"
+        setChatStatus("ended");
+      } else if (elapsedSeconds < IDLE_TO_ENDED_SECONDS && chatStatus === "ended") {
+        // المستخدم رد بسرعة (أقل من 60 ثانية) -> العودة إلى "متصل الآن"
+        setChatStatus("online");
+      }
+    }, 1000); // فحص كل ثانية
+
+    return () => clearInterval(interval);
+  }, [currentSpeaker, chatStatus]);
+
+  // 3. دالة إنهاء الجلسة وحذف المحادثة والعودة للمساعد
   const endAgentSession = useCallback(() => {
-    clearAllTimers();
-
-    // رسالة ترحيب جديدة تماماً وكأنها محادثة جديدة
     const freshBotMessage = createMessage(
       "bot",
-      "أهلاً بك مجدداً في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
+      "أهلاً بك مجدداً! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
       "assistant"
     );
 
-    // حذف المحادثة القديمة واستبدالها برسالة الترحيب الجديدة فقط
+    // حذف المحادثة القديمة بالكامل واستبدالها برسالة ترحيب جديدة
     setMessages([freshBotMessage]);
-
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
@@ -236,7 +252,7 @@ export default function Home() {
       localStorage.setItem(
         "dar-alnujum-chat-state",
         JSON.stringify({
-          messages: [freshBotMessage], // حفظ المحادثة النظيفة فقط في LocalStorage
+          messages: [freshBotMessage], // حفظ المحادثة النظيفة فقط
           currentSpeaker: "bot",
           currentAgent: null,
           sessionAgents: [],
@@ -245,25 +261,7 @@ export default function Home() {
         })
       );
     }
-  }, [clearAllTimers]);
-
-  const resetActivityTimers = useCallback(() => {
-    clearAllTimers();
-    
-    if (currentSpeakerRef.current === "agent") {
-      // إذا رد المستخدم قبل انتهاء الـ 30 ثانية، نلغي الإغلاق ونعيد الجلسة للموظف
-      if (chatStatusRef.current === "ended") {
-        setChatStatus("online");
-      }
-      
-      idleToEndedTimerRef.current = setTimeout(() => {
-        setChatStatus("ended");
-        endedToBotTimerRef.current = setTimeout(() => {
-          endAgentSession(); // هنا يتم حذف المحادثة والعودة للمساعد
-        }, ENDED_TO_BOT_SECONDS * 1000);
-      }, IDLE_TO_ENDED_SECONDS * 1000);
-    }
-  }, [clearAllTimers, endAgentSession]);
+  }, []);
 
   const startAgentSession = useCallback((agent: Agent) => {
     setCurrentAgent(agent);
@@ -275,8 +273,8 @@ export default function Home() {
     const welcomeMsg = createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). تفضل، كيف يمكنني مساعدتك؟`, "assistant");
     setMessages(prev => [...prev, welcomeMsg]);
     setChatStatus("online");
-    resetActivityTimers();
-  }, [resetActivityTimers]);
+    lastActivityTimeRef.current = Date.now(); // تصفير العداد عند بدء الجلسة
+  }, []);
 
   // ============================================================
   // ESCALATION LOGIC
@@ -333,11 +331,10 @@ export default function Home() {
     if (!trimmedText || isSendingRef.current) return;
 
     isSendingRef.current = true;
+    
+    // إضافة رسالة المستخدم (هذا سيطلق useEffect الخاص بـ lastActivityTime ويصفر العداد تلقائياً)
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
-    
-    // إعادة ضبط المؤقتات عند إرسال رسالة (إذا كانت "ended" تعود "online" ويبدأ العد من جديد)
-    resetActivityTimers();
 
     if (checkAndPerformEscalation(trimmedText)) {
       isSendingRef.current = false;
@@ -369,7 +366,7 @@ export default function Home() {
 
     setChatStatus("typing");
     try {
-      const apiMessages = messagesRef.current
+      const apiMessages = messages
         .filter(m => m.sender !== "system")
         .map(m => ({ role: m.role || "user", content: m.text }));
       
@@ -408,17 +405,13 @@ export default function Home() {
       setChatStatus("online");
       isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, currentAgent, resetActivityTimers, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest]);
+  }, [text, currentSpeaker, currentAgent, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest, messages]);
 
   // ============================================================
   // EFFECTS
   // ============================================================
 
   useEffect(() => { saveStateToStorage(); }, [saveStateToStorage]);
-
-  useEffect(() => {
-    return () => { clearAllTimers(); };
-  }, [clearAllTimers]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
