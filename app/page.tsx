@@ -59,139 +59,43 @@ const normalizeArabicText = (text: string): string => {
   return text.normalize("NFKD").replace(/[\u064B-\u065F]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
 };
 
-// 🔴 التصحيح الجذري: فحص طلب الموظف فقط، بدون كلمات الأقسام العامة
+// 🔴 فحص طلب الموظف فقط (عبارات صريحة 100%)
 const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
   
-  // عبارات صريحة تطلب بشراً أو موظفاً فقط
   const humanRequestPhrases = [
+    "حولني", "حولني للدعم", "حولني لموظف", "حولني لشخص", "حولني للقسم المختص",
+    "حولني للدعم المختص", "حولني لخدمة العملاء", "حولني للدعم الفني", "حولني لمسؤول",
+    "حولني للإعلانات", "التحويل", "تحويل", "ابغى تحويل", "اريد تحويل",
+    "اتواصل", "اتواصل مع الدعم", "اتواصل مع موظف", "اتواصل مع شخص", "اتواصل مع المسؤول",
+    "اتواصل مع القسم المختص", "اتواصل مع الدعم الفني", "اتواصل مع خدمة العملاء",
+    "اكلم", "اكلم موظف", "اكلم شخص", "اكلم مسؤول", "اكلم الدعم", "اكلم الدعم الفني",
+    "اكلم خدمة العملاء", "اتحدث", "اتحدث مع موظف", "اتحدث مع شخص", "اتحدث مع الدعم",
+    "اتحدث مع خدمة العملاء", "اتحدث مع المسؤول",
+    "اريد موظف", "اريد شخص", "اريد شخص حقيقي", "اريد انسان", "اريد موظف حقيقي",
+    "احتاج موظف", "احتاج شخص", "احتاج انسان", "ابي موظف", "ابي شخص", "ابغى موظف", "ابغى شخص",
+    "الدعم", "الدعم الفني", "فريق الدعم", "القسم المختص", "الدعم المختص", "الفريق المختص",
+    "المختص", "الموظف المختص", "المسؤول المختص", "خدمة العملاء", "ممثل خدمة العملاء",
+    "موظف", "شخص", "انسان", "بشري", "شخص حقيقي", "موظف حقيقي", "ممثل", "مسؤول",
+    "الادارة", "الإدارة", "مو روبوت", "مو بوت", "ليس روبوت", "لا اريد روبوت",
+    "لا اريد بوت", "اكلم انسان", "اكلم بشري", "اريد بشري", "مساعدة بشرية", "مساعده بشريه",
+    "قسم الاعلانات", "الاعلانات", "مسؤول الاعلانات", "فريق الاعلانات",
+    "الدعم التقني", "الفني", "المختص التقني", "القسم التقني"
+  ];
 
-  // تحويل
-  "حولني",
-  "حولني للدعم",
-  "حولني لموظف",
-  "حولني لشخص",
-  "حولني للقسم المختص",
-  "حولني للدعم المختص",
-  "حولني لخدمة العملاء",
-  "حولني للدعم الفني",
-  "حولني لمسؤول",
-  "حولني للإعلانات",
-  "التحويل",
-  "تحويل",
-  "ابغى تحويل",
-  "اريد تحويل",
-
-  // التواصل
-  "اتواصل",
-  "اتواصل مع الدعم",
-  "اتواصل مع موظف",
-  "اتواصل مع شخص",
-  "اتواصل مع المسؤول",
-  "اتواصل مع القسم المختص",
-  "اتواصل مع الدعم الفني",
-  "اتواصل مع خدمة العملاء",
-
-  // الكلام
-  "اكلم",
-  "اكلم موظف",
-  "اكلم شخص",
-  "اكلم مسؤول",
-  "اكلم الدعم",
-  "اكلم الدعم الفني",
-  "اكلم خدمة العملاء",
-
-  "اتحدث",
-  "اتحدث مع موظف",
-  "اتحدث مع شخص",
-  "اتحدث مع الدعم",
-  "اتحدث مع خدمة العملاء",
-  "اتحدث مع المسؤول",
-
-  // الطلب
-  "اريد موظف",
-  "اريد شخص",
-  "اريد شخص حقيقي",
-  "اريد انسان",
-  "اريد موظف حقيقي",
-  "احتاج موظف",
-  "احتاج شخص",
-  "احتاج انسان",
-  "ابي موظف",
-  "ابي شخص",
-  "ابغى موظف",
-  "ابغى شخص",
-
-  // الدعم
-  "الدعم",
-  "الدعم الفني",
-  "فريق الدعم",
-  "القسم المختص",
-  "الدعم المختص",
-  "الفريق المختص",
-  "المختص",
-  "الموظف المختص",
-  "المسؤول المختص",
-  "خدمة العملاء",
-  "ممثل خدمة العملاء",
-
-  // الموظف
-  "موظف",
-  "شخص",
-  "انسان",
-  "بشري",
-  "شخص حقيقي",
-  "موظف حقيقي",
-  "ممثل",
-  "مسؤول",
-  "الادارة",
-  "الإدارة",
-
-  // الروبوت
-  "مو روبوت",
-  "مو بوت",
-  "ليس روبوت",
-  "لا اريد روبوت",
-  "لا اريد بوت",
-  "اكلم انسان",
-  "اكلم بشري",
-  "اريد بشري",
-  "مساعدة بشرية",
-  "مساعده بشريه",
-
-  // الإعلانات
-  "قسم الاعلانات",
-  "الاعلانات",
-  "مسؤول الاعلانات",
-  "فريق الاعلانات",
-
-  // التقنية
-  "الدعم التقني",
-  "الدعم الفني",
-  "الفني",
-  "المختص التقني",
-  "القسم التقني"
-];
-
-  // العودة بـ true فقط إذا وجدنا طلباً صريحاً لموظف
   return humanRequestPhrases.some(phrase => normalized.includes(phrase));
 };
 
-// 🔴 التوجيه الذكي: يعمل فقط AFTER التأكد من أن المستخدم طلب موظفاً
+// 🔴 التوجيه الذكي للأقسام (يعمل فقط بعد التأكد من طلب الموظف)
 const detectDepartment = (userText: string): Department => {
   const text = userText.toLowerCase();
   
-  // إذا طلب موظفاً وذكر كلمات الإعلان، يذهب لقسم الإعلانات
   if (["اعلان", "اعلانات", "ترويج", "سبونسر", "بانر", "فيديو", "اسعار"].some(k => text.includes(k))) {
     return 'ads';
   }
-  
-  // إذا طلب موظفاً وذكر كلمات مشكلة تقنية، يذهب للدعم الفني
   if (["مشكلة", "خطأ", "لا يعمل", "تعطل", "فشل", "بطئ", "معلق", "دخول", "كلمة مرور", "دعم فني", "تقني"].some(k => text.includes(k))) {
     return 'technical';
   }
-  
-  // الافتراضي: خدمة العملاء
   return 'support';
 };
 
@@ -225,7 +129,7 @@ export default function Home() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
 
-  // Refs لمنع Stale Closures
+  // Refs لمنع Stale Closures في المؤقتات
   const currentSpeakerRef = useRef(currentSpeaker);
   const chatStatusRef = useRef(chatStatus);
   const idleToEndedTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -257,6 +161,7 @@ export default function Home() {
       const parsed = JSON.parse(saved);
       
       setMessages(parsed.messages || []);
+      // دائماً نعود للمساعد الذكي عند التحميل لمنع جلسات عالقة
       setCurrentSpeaker("bot");
       setCurrentAgent(null);
       setSessionAgents([]);
@@ -313,7 +218,6 @@ export default function Home() {
       const newMessages = [...prev, endMessage];
       setTimeout(() => {
         if (typeof window !== 'undefined') {
-          // حفظ الحالة نظيفة: المساعد الذكي فقط، بدون بيانات الموظف
           localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
             messages: newMessages,
             currentSpeaker: "bot",
@@ -348,8 +252,8 @@ export default function Home() {
   }, [resetActivityTimers]);
 
   const checkAndPerformEscalation = useCallback((userText: string): boolean => {
-    // التحويل يحدث فقط إذا طلب المستخدم ذلك صراحةً وكان يتحدث مع البوت
-    if (!wantsHumanContact(userText) || currentSpeaker !== "bot") return false;
+    // التحويل يحدث فقط إذا طلب المستخدم ذلك صراحةً، وكان يتحدث مع البوت، ولم يكن بالفعل في قائمة الانتظار
+    if (!wantsHumanContact(userText) || currentSpeaker !== "bot" || isQueued) return false;
 
     setChatStatus("typing");
     const targetDept = detectDepartment(userText);
@@ -358,49 +262,36 @@ export default function Home() {
     setMessages(prev => [...prev, createMessage("bot", `يرجى الانتظار، جاري تحويلك إلى ${deptNames[targetDept]}...`, "assistant")]);
 
     setTimeout(() => {
-  // أول موظف
-  const firstAgent = findAvailableAgent(targetDept);
+      const firstAgent = findAvailableAgent(targetDept);
 
-  if (firstAgent) {
-    startAgentSession(firstAgent);
-    return;
-  }
+      if (firstAgent) {
+        startAgentSession(firstAgent);
+        return;
+      }
 
-  // إذا لا يوجد، انتظر
-  setIsQueued(true);
-
-  setMessages(prev => [
-    ...prev,
-    createMessage(
-      "system",
-      `جميع موظفي ${deptNames[targetDept]} مشغولون، يرجى الانتظار...`
-    ),
-  ]);
-
-  setChatStatus("online");
-
-  setTimeout(() => {
-    const secondAgent =
-      findAvailableAgent(targetDept) ||
-      SUPPORT_AGENTS.find(a => a.department === targetDept);
-
-    if (secondAgent) {
-      startAgentSession(secondAgent);
-
+      // إذا لا يوجد موظف متاح، دخول قائمة الانتظار
+      setIsQueued(true);
       setMessages(prev => [
         ...prev,
-        createMessage(
-          "system",
-          "تم تحويلك إلى القسم المختص لحل هذه المشكلة."
-        ),
+        createMessage("system", `جميع موظفي ${deptNames[targetDept]} مشغولون، يرجى الانتظار...`),
       ]);
-    }
-  }, 5000);
+      setChatStatus("online");
 
-}, 1500);
+      // محاكاة التحقق الدوري من توفر موظف
+      setTimeout(() => {
+        const secondAgent = findAvailableAgent(targetDept) || SUPPORT_AGENTS.find(a => a.department === targetDept);
+        if (secondAgent) {
+          startAgentSession(secondAgent);
+          setMessages(prev => [
+            ...prev,
+            createMessage("system", "تم تحويلك إلى القسم المختص لحل هذه المشكلة."),
+          ]);
+        }
+      }, 5000);
+    }, 1500);
 
     return true;
-  }, [currentSpeaker, startAgentSession]);
+  }, [currentSpeaker, startAgentSession, isQueued]);
 
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -414,12 +305,12 @@ export default function Home() {
     // 1. التحقق من طلب التحويل (لن يحدث إلا إذا كانت العبارات صريحة)
     if (checkAndPerformEscalation(trimmedText)) return;
 
-    // 2. حاجز الحماية: إذا كان المتحدث هو الموظف، لا تستدعِ الـ API
+    // 2. حاجز الحماية: إذا كان المتحدث هو الموظف، لا تستدعِ الـ API (يتم التعامل معه عبر WebSocket في الإنتاج)
     if (currentSpeaker === "agent") {
       return; 
     }
 
-    // 3. منطق المساعد الذكي (يجيب على كل شيء بما في ذلك أسعار الإعلانات)
+    // 3. منطق المساعد الذكي (يجيب على كل شيء: أخبار، برامج، إعلانات، أسعار، إلخ)
     setChatStatus("typing");
     try {
       const apiMessages = messagesRef.current.filter(m => m.sender !== "system").map(m => ({ role: m.role || "user", content: m.text }));
