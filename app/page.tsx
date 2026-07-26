@@ -59,7 +59,7 @@ interface TrendingProduct {
 // ============================================================
 
 const IDLE_TO_ENDED_SECONDS = 40; 
-const ENDED_TO_BOT_MINUTES = 30;  
+const ENDED_TO_BOT_SECONDS = 30;  // 🔴 التعديل: من دقائق إلى ثواني
 
 const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
@@ -215,40 +215,55 @@ export default function Home() {
     clearAllTimers();
     
     if (currentSpeakerRef.current === "agent") {
+      // إذا عاد المستخدم خلال فترة "انتهت"، نرجع الحالة إلى online
       if (chatStatusRef.current === "ended") {
         setChatStatus("online");
       }
       
+      // المرحلة 1: بعد 40 ثانية، تتحول الحالة إلى ended
       idleToEndedTimerRef.current = setTimeout(() => {
         setChatStatus("ended");
+        
+        // 🔴 المرحلة 2: بعد 30 ثانية من حالة ended، يتم الإغلاق النهائي
         endedToBotTimerRef.current = setTimeout(() => {
           endAgentSession();
-        }, ENDED_TO_BOT_MINUTES * 60 * 1000);
+        }, ENDED_TO_BOT_SECONDS * 1000); // 🔴 تعديل المعادلة
+        
       }, IDLE_TO_ENDED_SECONDS * 1000);
     }
-  }, [clearAllTimers]);
+  }, [clearAllTimers, endAgentSession]);
 
   const endAgentSession = useCallback(() => {
     clearAllTimers();
-    
+
+    const botMessage = createMessage(
+      "bot",
+      "تم إنهاء جلسة الدعم بسبب عدم وجود نشاط، وتم تحويلك تلقائياً إلى المساعد الذكي. كيف يمكنني مساعدتك؟",
+      "assistant"
+    );
+
+    setMessages(prev => [...prev, botMessage]);
+
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
     setIsQueued(false);
+    setShowDepartmentSelection(false);
     setChatStatus("online");
-    
-    setTimeout(() => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-          messages: messagesRef.current,
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(
+        "dar-alnujum-chat-state",
+        JSON.stringify({
+          messages: [...messagesRef.current, botMessage],
           currentSpeaker: "bot",
           currentAgent: null,
           sessionAgents: [],
           chatStatus: "online",
           isQueued: false
-        }));
-      }
-    }, 0);
+        })
+      );
+    }
   }, [clearAllTimers]);
 
   const startAgentSession = useCallback((agent: Agent) => {
@@ -311,7 +326,7 @@ export default function Home() {
   }, [currentSpeaker, showDepartmentSelection, handleHumanRequest]);
 
   // ============================================================
-  // SEND MESSAGE & API HANDLING (تم التعديل هنا لإضافة رد الموظف)
+  // SEND MESSAGE & API HANDLING
   // ============================================================
 
   const sendMessage = useCallback(async () => {
@@ -323,22 +338,19 @@ export default function Home() {
     setText("");
     resetActivityTimers();
 
-    // 1. التحقق من نية المستخدم للتحويل
     if (checkAndPerformEscalation(trimmedText)) {
       isSendingRef.current = false;
       return;
     }
 
-    // 🔴 2. محاكاة رد الموظف (الحل الجذري لمشكلة عدم الرد)
+    // 🔴 محاكاة رد الموظف
     if (currentSpeaker === "agent") {
       setChatStatus("typing");
       
-      // محاكاة تأخير الكتابة لمدة 1.5 ثانية ليكون الرد واقعياً
       setTimeout(() => {
         const normalized = normalizeArabicText(trimmedText);
         let agentReply = "شكراً لتواصلك. تم استلام رسالتك وسيقوم المختص بالرد عليك بالتفصيل في أقرب وقت ممكن.";
 
-        // ردود مخصصة بناءً على محتوى الرسالة
         if (normalized.includes("مرحبا") || normalized.includes("سلام") || normalized.includes("هلو") || normalized.includes("مساء") || normalized.includes("صباح")) {
           agentReply = `أهلاً بك مجدداً. أنا ${currentAgent?.name}، يسعدني جداً تواصلك. كيف يمكنني مساعدتك اليوم؟`;
         } else if (normalized.includes("سعر") || normalized.includes("اعلان") || normalized.includes("حجز")) {
@@ -355,7 +367,7 @@ export default function Home() {
       return; 
     }
 
-    // 3. منطق المساعد الذكي (AI API)
+    // منطق المساعد الذكي
     setChatStatus("typing");
     try {
       const apiMessages = messagesRef.current
