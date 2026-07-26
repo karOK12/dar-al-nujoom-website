@@ -77,8 +77,8 @@ const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
   
  const actionWords = [
-  "اكلم",
-  "اتحدث",
+  "يمكنني التواصل مع فريق قسم الدعم",
+  "احتاج التحدث مع قسم الدعم ",
   "اتواصل",
   "حولني",
   "تحويل",
