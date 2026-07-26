@@ -76,14 +76,32 @@ const normalizeArabicText = (text: string): string => {
 const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
   
-  // كلمات تدل حصراً على الرغبة في التحدث مع بشري
-  const humanRequestKeywords = [
-    "موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", 
-    "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول"
-  ];
+ const actionWords = [
+  "اكلم",
+  "اتحدث",
+  "اتواصل",
+  "حولني",
+  "تحويل",
+  "اربطني",
+  "اوصلني",
+];
 
-  return humanRequestKeywords.some(keyword => normalized.includes(keyword));
-};
+const humanWords = [
+  "موظف",
+  "شخص",
+  "انسان",
+  "بشري",
+  "حقيقي",
+  "ممثل",
+  "خدمة العملاء",
+  "الدعم",
+  "فريق الدعم",
+];
+
+return (
+  actionWords.some(word => normalized.includes(word)) &&
+  humanWords.some(word => normalized.includes(word))
+);
 
 const findAvailableAgent = (department: Department): Agent | null => {
   return SUPPORT_AGENTS.find(agent => agent.department === department && agent.status === 'online' && !agent.isBusy) || null;
