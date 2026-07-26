@@ -313,7 +313,6 @@ export default function Home() {
   }, [startAgentSession]);
 
   const checkAndPerformEscalation = useCallback((userText: string): boolean => {
-    // يمنع عرض قائمة التحويل إذا كان المستخدم يتحدث مع موظف بالفعل
     if (wantsHumanContact(userText) && currentSpeaker === "bot" && !showDepartmentSelection) {
       handleHumanRequest();
       return true;
@@ -339,62 +338,53 @@ export default function Home() {
     }
 
     // ============================================================
-    // سلوك الموظف المحاكي (مع دعم التحويل الداخلي الكامل)
+    // سلوك الموظف المحاكي (تم تصحيحه ليكون ذكياً وسياقياً)
     // ============================================================
-    if (currentSpeaker === "agent") {
+    if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
       setTimeout(() => {
         const normalized = normalizeArabicText(trimmedText);
-        
-        // 1. منطق التحويل الداخلي بين الموظفين (يحتفظ بسجل المحادثة بالكامل)
-        let targetDept: Department | null = null;
-        let deptName = "";
-        
-        if (normalized.includes("فني") || normalized.includes("مشكلة") || normalized.includes("خطأ") || normalized.includes("دعم فني")) {
-          targetDept = 'technical';
-          deptName = 'الدعم الفني';
-        } else if (normalized.includes("اعلان") || normalized.includes("سعر") || normalized.includes("حجز") || normalized.includes("ترويج")) {
-          targetDept = 'ads';
-          deptName = 'فريق الإعلانات';
-        } else if (normalized.includes("تحويل") || normalized.includes("قسم آخر") || normalized.includes("زميل") || normalized.includes("موظف آخر")) {
-          targetDept = currentAgent?.department === 'ads' ? 'technical' : 'ads';
-          deptName = targetDept === 'ads' ? 'فريق الإعلانات' : 'الدعم الفني';
-        }
+        const currentDept = currentAgent.department;
 
-        if (targetDept && currentAgent && currentAgent.department !== targetDept) {
-          const targetAgent = findAvailableAgent(targetDept) || SUPPORT_AGENTS.find(a => a.department === targetDept);
-          if (targetAgent) {
-            // رسالة من الموظف الحالي
-            setMessages(prev => [...prev, createMessage("agent", `حسناً، سأقوم بتحويلك الآن إلى زميلي المختص في ${deptName} لمساعدتك بشكل أفضل.`, "assistant")]);
-            
-            // محاكاة وقت التحويل
-            setTimeout(() => {
-              setCurrentAgent(targetAgent);
-              // إضافة الموظف الجديد للقائمة مع الاحتفاظ بسجل الجلسة
-              setSessionAgents(prev => {
-                if (prev.find(a => a.employeeId === targetAgent!.employeeId)) return prev;
-                return [...prev, targetAgent!];
-              });
-              setMessages(prev => [...prev, createMessage("system", `تم تحويلك بنجاح إلى ${deptName}.`)]);
-              
-              setTimeout(() => {
-                setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${targetAgent!.name} (${targetAgent!.role}). لقد اطلعت على محادثتك السابقة، تفضل كيف يمكنني مساعدتك؟`, "assistant")]);
-                setChatStatus("online");
-                isSendingRef.current = false;
-              }, 1000);
-            }, 1000);
-            return; // خروج مبكر بعد معالجة التحويل
+        // تحديد نية المستخدم بناءً على الكلمات المفتاحية
+        const isAdsQuery = normalized.includes("اعلان") || normalized.includes("سعر") || normalized.includes("حجز") || normalized.includes("ترويج") || normalized.includes("مدة") || normalized.includes("ظهور") || normalized.includes("منصات") || normalized.includes("باقات");
+        const isTechQuery = normalized.includes("مشكلة") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("دعم فني") || normalized.includes("تقني") || normalized.includes("معلق");
+        
+        let agentReply = "";
+
+        // 1. إذا كان الاستفسار عن الإعلانات
+        if (isAdsQuery) {
+          if (currentDept === 'ads') {
+            // الموظف الحالي هو المختص، يجيب مباشرة وبشكل طبيعي
+            agentReply = "أهلاً بك. بصفتي مسؤولاً عن الإعلانات، يسعدني مساعدتك مباشرة. أسعارنا وباقاتنا متنوعة وتناسب جميع الاحتياجات، ومدة وظهور الإعلان تعتمد على الباقة المختارة. هل تود أن أزودك بتفاصيل باقاتنا الحالية أو لديك استفسار محدد؟";
+          } else {
+            // يحتاج تحويل لقسم الإعلانات
+            agentReply = "بخصوص استفسارك عن الإعلانات والأسعار، سأقوم بتحويلك الآن إلى زميلي المختص في فريق الإعلانات والمبيعات ليقوم بتزويدك بأحدث العروض والتفاصيل الدقيقة.";
           }
-        }
-
-        // 2. ردود عادية إذا لم يكن هناك طلب تحويل داخلي
-        let agentReply = "شكراً لتواصلك. تم استلام رسالتك وسأقوم بالرد عليك بالتفصيل قريباً.";
-        if (normalized.includes("مرحبا") || normalized.includes("سلام") || normalized.includes("هلو")) {
-          agentReply = `أهلاً بك. أنا ${currentAgent?.name}، يسعدني جداً تواصلك. كيف يمكنني مساعدتك؟`;
-        } else if (normalized.includes("سعر") || normalized.includes("اعلان") || normalized.includes("حجز")) {
-          agentReply = "بخصوص استفسارك عن الإعلانات، سأقوم بتمرير طلبك فوراً لفريق المبيعات المختص لتزويدك بأحدث العروض والباقات.";
-        } else if (normalized.includes("مشكلة") || normalized.includes("خطأ") || normalized.includes("لا يعمل")) {
-          agentReply = "نعتذر عن هذا الإزعاج. تم تسجيل ملاحظتك التقنية وإحالتها لفريق الدعم الفني للتحقق منها وحلها في أسرع وقت.";
+        } 
+        // 2. إذا كان الاستفسار تقنياً
+        else if (isTechQuery) {
+          if (currentDept === 'technical') {
+            // الموظف الحالي هو المختص، يجيب مباشرة
+            agentReply = "أهلاً بك. بصفتي من فريق الدعم الفني، سأقوم بمراجعة المشكلة التي تواجهها فوراً. هل يمكنك تزويدي بالمزيد من التفاصيل أو وصف ما يحدث بالضبط؟";
+          } else {
+            // يحتاج تحويل للدعم الفني
+            agentReply = "نعتذر عن هذا الإزعاج. بخصوص المشكلة التقنية، سأقوم بتحويلك فوراً إلى زميلي في فريق الدعم الفني ليتحقق منها ويحلها في أسرع وقت.";
+          }
+        } 
+        // 3. تحية عادية
+        else if (normalized.includes("مرحبا") || normalized.includes("سلام") || normalized.includes("هلو") || normalized.includes("مساء") || normalized.includes("صباح")) {
+          agentReply = `أهلاً بك. أنا ${currentAgent.name} (${currentAgent.role})، يسعدني جداً تواصلك. كيف يمكنني مساعدتك اليوم؟`;
+        } 
+        // 4. رد افتراضي ذكي بناءً على قسم الموظف الحالي لضمان استمرارية الحوار
+        else {
+          if (currentDept === 'ads') {
+            agentReply = "شكراً لتواصلك. أنا هنا لمساعدتك في جميع استفساراتك المتعلقة بالإعلانات والحجز. تفضل بطرح سؤالك وسأجيبك مباشرة.";
+          } else if (currentDept === 'technical') {
+            agentReply = "شكراً لتواصلك. أنا هنا لمساعدتك في حل أي مشاكل تقنية. تفضل بشرح ما تواجهه وسأقوم بمساعدتك.";
+          } else {
+            agentReply = "شكراً لتواصلك. تم استلام رسالتك، وأنا هنا لمساعدتك أو الإجابة على استفساراتك مباشرة. تفضل، كيف يمكنني خدمتك؟";
+          }
         }
 
         setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
