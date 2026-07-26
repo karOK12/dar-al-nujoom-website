@@ -31,6 +31,12 @@ interface Agent {
   isBusy: boolean;
 }
 
+interface DepartmentOption {
+  id: Department;
+  name: string;
+  description: string;
+}
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -42,6 +48,13 @@ const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
   { employeeId: "EMP-002", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
   { employeeId: "EMP-003", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=47", role: "مسؤولة الإعلانات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+];
+
+// قائمة الأقسام الديناميكية (قابلة للتوسعة من قاعدة البيانات مستقبلاً)
+const DEPARTMENT_OPTIONS: DepartmentOption[] = [
+  { id: 'support', name: 'فريق الدعم وخدمة العملاء', description: 'للاستفسارات العامة وخدمة العملاء' },
+  { id: 'ads', name: 'فريق الإعلانات والمبيعات', description: 'لحجز الإعلانات والاستفسار عن الأسعار والباقات' },
+  { id: 'technical', name: 'فريق الدعم الفني', description: 'لحل المشاكل التقنية وأخطاء الموقع' },
 ];
 
 const TRENDING_PRODUCTS = [
@@ -59,44 +72,17 @@ const normalizeArabicText = (text: string): string => {
   return text.normalize("NFKD").replace(/[\u064B-\u065F]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
 };
 
-// 🔴 فحص طلب الموظف فقط (عبارات صريحة 100%)
+// 🔴 فحص صارم: هل يطلب المستخدم بشراً بشكل صريح؟ (لا يكفي مجرد ذكر "سعر" أو "اعلان")
 const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
   
-  const humanRequestPhrases = [
-    "حولني", "حولني للدعم", "حولني لموظف", "حولني لشخص", "حولني للقسم المختص",
-    "حولني للدعم المختص", "حولني لخدمة العملاء", "حولني للدعم الفني", "حولني لمسؤول",
-    "حولني للإعلانات", "التحويل", "تحويل", "ابغى تحويل", "اريد تحويل",
-    "اتواصل", "اتواصل مع الدعم", "اتواصل مع موظف", "اتواصل مع شخص", "اتواصل مع المسؤول",
-    "اتواصل مع القسم المختص", "اتواصل مع الدعم الفني", "اتواصل مع خدمة العملاء",
-    "اكلم", "اكلم موظف", "اكلم شخص", "اكلم مسؤول", "اكلم الدعم", "اكلم الدعم الفني",
-    "اكلم خدمة العملاء", "اتحدث", "اتحدث مع موظف", "اتحدث مع شخص", "اتحدث مع الدعم",
-    "اتحدث مع خدمة العملاء", "اتحدث مع المسؤول",
-    "اريد موظف", "اريد شخص", "اريد شخص حقيقي", "اريد انسان", "اريد موظف حقيقي",
-    "احتاج موظف", "احتاج شخص", "احتاج انسان", "ابي موظف", "ابي شخص", "ابغى موظف", "ابغى شخص",
-    "الدعم", "الدعم الفني", "فريق الدعم", "القسم المختص", "الدعم المختص", "الفريق المختص",
-    "المختص", "الموظف المختص", "المسؤول المختص", "خدمة العملاء", "ممثل خدمة العملاء",
-    "موظف", "شخص", "انسان", "بشري", "شخص حقيقي", "موظف حقيقي", "ممثل", "مسؤول",
-    "الادارة", "الإدارة", "مو روبوت", "مو بوت", "ليس روبوت", "لا اريد روبوت",
-    "لا اريد بوت", "اكلم انسان", "اكلم بشري", "اريد بشري", "مساعدة بشرية", "مساعده بشريه",
-    "قسم الاعلانات", "الاعلانات", "مسؤول الاعلانات", "فريق الاعلانات",
-    "الدعم التقني", "الفني", "المختص التقني", "القسم التقني"
+  // كلمات تدل حصراً على الرغبة في التحدث مع بشري
+  const humanRequestKeywords = [
+    "موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", 
+    "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول"
   ];
 
-  return humanRequestPhrases.some(phrase => normalized.includes(phrase));
-};
-
-// 🔴 التوجيه الذكي للأقسام (يعمل فقط بعد التأكد من طلب الموظف)
-const detectDepartment = (userText: string): Department => {
-  const text = userText.toLowerCase();
-  
-  if (["اعلان", "اعلانات", "ترويج", "سبونسر", "بانر", "فيديو", "اسعار"].some(k => text.includes(k))) {
-    return 'ads';
-  }
-  if (["مشكلة", "خطأ", "لا يعمل", "تعطل", "فشل", "بطئ", "معلق", "دخول", "كلمة مرور", "دعم فني", "تقني"].some(k => text.includes(k))) {
-    return 'technical';
-  }
-  return 'support';
+  return humanRequestKeywords.some(keyword => normalized.includes(keyword));
 };
 
 const findAvailableAgent = (department: Department): Agent | null => {
@@ -125,6 +111,7 @@ export default function Home() {
   const [sessionAgents, setSessionAgents] = useState<Agent[]>([]);
   const [chatStatus, setChatStatus] = useState<ChatStatus>("online");
   const [isQueued, setIsQueued] = useState(false);
+  const [showDepartmentSelection, setShowDepartmentSelection] = useState(false); // لعرض قائمة الأقسام
   
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
@@ -161,12 +148,12 @@ export default function Home() {
       const parsed = JSON.parse(saved);
       
       setMessages(parsed.messages || []);
-      // دائماً نعود للمساعد الذكي عند التحميل لمنع جلسات عالقة
       setCurrentSpeaker("bot");
       setCurrentAgent(null);
       setSessionAgents([]);
       setChatStatus("online");
       setIsQueued(false);
+      setShowDepartmentSelection(false);
       return true;
     } catch (e) { return false; }
   }, []);
@@ -190,16 +177,16 @@ export default function Home() {
     clearAllTimers();
     
     if (currentSpeakerRef.current === "agent") {
-      // إذا كانت الحالة ended، فإن كتابة المستخدم تعيد فتح الجلسة مع نفس الموظف فوراً
+      // إذا عاد المستخدم خلال فترة "انتهت المحادثة"، نستأنف الجلسة فوراً
       if (chatStatusRef.current === "ended") {
         setChatStatus("online");
       }
       
-      // المرحلة 1: الانتقال إلى حالة ended بعد 40 ثانية من عدم النشاط
+      // المرحلة 1: بعد 40 ثانية من عدم النشاط، تتحول الحالة إلى "انتهت المحادثة"
       idleToEndedTimerRef.current = setTimeout(() => {
         setChatStatus("ended");
         
-        // المرحلة 2: الإغلاق النهائي والعودة للـ bot بعد 30 دقيقة من حالة ended
+        // المرحلة 2: بعد 30 دقيقة من حالة "انتهت المحادثة"، تُغلق الجلسة نهائياً
         endedToBotTimerRef.current = setTimeout(() => {
           endAgentSession();
         }, ENDED_TO_BOT_MINUTES * 60 * 1000);
@@ -211,31 +198,25 @@ export default function Home() {
   const endAgentSession = useCallback(() => {
     clearAllTimers();
     
-    const reasonText = "تم إغلاق جلسة الدعم نهائياً بسبب عدم النشاط الطويل. المساعد الذكي متاح الآن.";
-    const endMessage = createMessage("system", reasonText);
-
-    setMessages(prev => {
-      const newMessages = [...prev, endMessage];
-      setTimeout(() => {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-            messages: newMessages,
-            currentSpeaker: "bot",
-            currentAgent: null,
-            sessionAgents: [],
-            chatStatus: "online",
-            isQueued: false
-          }));
-        }
-      }, 0);
-      return newMessages;
-    });
-
+    // نحتفظ بالرسائل، ونغير المتحدث فقط إلى المساعد الذكي
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
     setIsQueued(false);
     setChatStatus("online");
+    
+    setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
+          messages: messagesRef.current, // الاحتفاظ بسجل المحادثة
+          currentSpeaker: "bot",
+          currentAgent: null,
+          sessionAgents: [],
+          chatStatus: "online",
+          isQueued: false
+        }));
+      }
+    }, 0);
   }, [clearAllTimers]);
 
   const startAgentSession = useCallback((agent: Agent) => {
@@ -243,6 +224,7 @@ export default function Home() {
     setSessionAgents([agent]);
     setCurrentSpeaker("agent");
     setIsQueued(false);
+    setShowDepartmentSelection(false);
     
     const welcomeMsg = createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). تفضل، كيف يمكنني مساعدتك؟`, "assistant");
     setMessages(prev => [...prev, welcomeMsg]);
@@ -251,47 +233,53 @@ export default function Home() {
     resetActivityTimers();
   }, [resetActivityTimers]);
 
-  const checkAndPerformEscalation = useCallback((userText: string): boolean => {
-    // التحويل يحدث فقط إذا طلب المستخدم ذلك صراحةً، وكان يتحدث مع البوت، ولم يكن بالفعل في قائمة الانتظار
-    if (!wantsHumanContact(userText) || currentSpeaker !== "bot" || isQueued) return false;
-
-    setChatStatus("typing");
-    const targetDept = detectDepartment(userText);
-    const deptNames = { 'ads': 'قسم الإعلانات', 'technical': 'الدعم الفني', 'support': 'خدمة العملاء' };
+  // 🔴 منطق عرض قائمة الأقسام عند طلب موظف
+  const handleHumanRequest = useCallback((userText: string) => {
+    setShowDepartmentSelection(true);
+    setChatStatus("online");
     
-    setMessages(prev => [...prev, createMessage("bot", `يرجى الانتظار، جاري تحويلك إلى ${deptNames[targetDept]}...`, "assistant")]);
+    const deptMsg = createMessage("system", "يرجى اختيار القسم الذي ترغب في التواصل معه:");
+    setMessages(prev => [...prev, deptMsg]);
+  }, []);
+
+  // 🔴 منطق التحويل الفعلي بعد اختيار القسم
+  const initiateDepartmentTransfer = useCallback((dept: Department) => {
+    setChatStatus("typing");
+    const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
+    
+    setMessages(prev => [...prev, createMessage("system", `جاري البحث عن موظف متاح في ${deptOption?.name}...`)]);
+    setShowDepartmentSelection(false);
 
     setTimeout(() => {
-      const firstAgent = findAvailableAgent(targetDept);
-
-      if (firstAgent) {
-        startAgentSession(firstAgent);
-        return;
+      const availableAgent = findAvailableAgent(dept);
+      
+      if (availableAgent) {
+        startAgentSession(availableAgent);
+      } else {
+        setIsQueued(true);
+        setMessages(prev => [...prev, createMessage("system", `جميع موظفي ${deptOption?.name} مشغولون حالياً. تم وضعك في قائمة الانتظار، وسيتم تحويلك تلقائياً عند توفر أحد الموظفين.`)]);
+        setChatStatus("online");
+        
+        // محاكاة التحقق الدوري من توفر موظف (في الإنتاج يكون عبر WebSocket)
+        setTimeout(() => {
+          const fallbackAgent = findAvailableAgent(dept) || SUPPORT_AGENTS.find(a => a.department === dept);
+          if (fallbackAgent) {
+            startAgentSession(fallbackAgent);
+            setMessages(prev => [...prev, createMessage("system", "تم توصيلك بأحد موظفينا. نعتذر عن الانتظار.")]);
+          }
+        }, 8000);
       }
-
-      // إذا لا يوجد موظف متاح، دخول قائمة الانتظار
-      setIsQueued(true);
-      setMessages(prev => [
-        ...prev,
-        createMessage("system", `جميع موظفي ${deptNames[targetDept]} مشغولون، يرجى الانتظار...`),
-      ]);
-      setChatStatus("online");
-
-      // محاكاة التحقق الدوري من توفر موظف
-      setTimeout(() => {
-        const secondAgent = findAvailableAgent(targetDept) || SUPPORT_AGENTS.find(a => a.department === targetDept);
-        if (secondAgent) {
-          startAgentSession(secondAgent);
-          setMessages(prev => [
-            ...prev,
-            createMessage("system", "تم تحويلك إلى القسم المختص لحل هذه المشكلة."),
-          ]);
-        }
-      }, 5000);
     }, 1500);
+  }, [startAgentSession]);
 
-    return true;
-  }, [currentSpeaker, startAgentSession, isQueued]);
+  const checkAndPerformEscalation = useCallback((userText: string): boolean => {
+    // إذا كان يطلب موظفاً وهو يتحدث مع البوت ولم يعرض له القائمة بعد
+    if (wantsHumanContact(userText) && currentSpeaker === "bot" && !showDepartmentSelection) {
+      handleHumanRequest(userText);
+      return true;
+    }
+    return false;
+  }, [currentSpeaker, showDepartmentSelection, handleHumanRequest]);
 
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -300,17 +288,18 @@ export default function Home() {
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
     
+    // أي نشاط من المستخدم يعيد ضبط مؤقتات الجلسة
     resetActivityTimers();
 
-    // 1. التحقق من طلب التحويل (لن يحدث إلا إذا كانت العبارات صريحة)
+    // 1. التحقق من طلب تحويل بشري
     if (checkAndPerformEscalation(trimmedText)) return;
 
-    // 2. حاجز الحماية: إذا كان المتحدث هو الموظف، لا تستدعِ الـ API (يتم التعامل معه عبر WebSocket في الإنتاج)
+    // 2. حاجز الحماية: إذا كان المتحدث موظفاً، لا نستدعي الـ API (يتم التعامل مع الرسالة عبر النظام الخلفي)
     if (currentSpeaker === "agent") {
       return; 
     }
 
-    // 3. منطق المساعد الذكي (يجيب على كل شيء: أخبار، برامج، إعلانات، أسعار، إلخ)
+    // 3. منطق المساعد الذكي: يجيب على كل الاستفسارات (أخبار، أسعار، إعلانات، برامج، إلخ)
     setChatStatus("typing");
     try {
       const apiMessages = messagesRef.current.filter(m => m.sender !== "system").map(m => ({ role: m.role || "user", content: m.text }));
@@ -360,7 +349,7 @@ export default function Home() {
     if (!hasSaved) {
       setChatStatus("typing");
       setTimeout(() => {
-        setMessages([createMessage("bot", "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟", "assistant")]);
+        setMessages([createMessage("bot", "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟ يمكنك سؤالي عن الأخبار، البرامج، أسعار الإعلانات، أو أي استفسار آخر.", "assistant")]);
         setChatStatus("online");
       }, 800);
     }
@@ -372,7 +361,7 @@ export default function Home() {
 
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
-    if (chatStatus === "ended") return "انتهت المحادثة";
+    if (chatStatus === "ended") return "انتهت المحادثة (بانتظار ردك)";
     if (isQueued) return "في قائمة الانتظار...";
     return "متصل الآن";
   };
@@ -521,7 +510,23 @@ export default function Home() {
             );
           })}
 
-          {chatStatus === "typing" && (
+          {/* 🔴 عرض قائمة الأقسام الديناميكية عند طلب موظف */}
+          {showDepartmentSelection && currentSpeaker === "bot" && (
+            <div className="space-y-2 mt-2">
+              {DEPARTMENT_OPTIONS.map((dept) => (
+                <button
+                  key={dept.id}
+                  onClick={() => initiateDepartmentTransfer(dept.id)}
+                  className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group"
+                >
+                  <div className="font-bold text-sm text-purple-300 group-hover:text-purple-200">{dept.name}</div>
+                  <div className="text-xs text-gray-400 mt-1">{dept.description}</div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {chatStatus === "typing" && !showDepartmentSelection && (
             <div className="flex flex-col items-start">
               <span className="text-[10px] text-gray-400 mb-1 ml-1">{currentSpeaker === "agent" && currentAgent ? currentAgent.name : "المساعد الذكي"}</span>
               <div className="bg-[#1f2937] border border-purple-500/30 rounded-2xl rounded-tl-sm p-3 flex gap-1.5 items-center h-10">
@@ -538,15 +543,16 @@ export default function Home() {
             <textarea
               id="chat-input"
               value={text}
-              placeholder="اكتب رسالتك هنا..."
+              placeholder={showDepartmentSelection ? "يرجى اختيار قسم من الأعلى..." : "اكتب رسالتك هنا..."}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               rows={1}
-              className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed"
+              disabled={showDepartmentSelection}
+              className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <button 
               onClick={sendMessage} 
-              disabled={!text.trim() || chatStatus === "typing"} 
+              disabled={!text.trim() || chatStatus === "typing" || showDepartmentSelection} 
               className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
