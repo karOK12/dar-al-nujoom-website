@@ -59,7 +59,7 @@ interface TrendingProduct {
 // ============================================================
 
 const IDLE_TO_ENDED_SECONDS = 40; 
-const ENDED_TO_BOT_SECONDS = 30;  // تم التعديل إلى ثواني
+const ENDED_TO_BOT_SECONDS = 30;  // بعد 30 ثانية من حالة "انتهت"، يتم الحذف والعودة للمساعد
 
 const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
@@ -197,7 +197,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // TIMER & STATE MACHINE MANAGEMENT (تم إصلاح الترتيب هنا)
+  // TIMER & STATE MACHINE MANAGEMENT
   // ============================================================
 
   const clearAllTimers = useCallback(() => {
@@ -211,17 +211,19 @@ export default function Home() {
     }
   }, []);
 
-  // 🔴 التعديل: نقل endAgentSession ليكون قبل resetActivityTimers
+  // 🔴 التعديل الجذري هنا: حذف المحادثة والبدء من جديد
   const endAgentSession = useCallback(() => {
     clearAllTimers();
 
-    const botMessage = createMessage(
+    // رسالة ترحيب جديدة تماماً كأنها محادثة جديدة
+    const freshBotMessage = createMessage(
       "bot",
-      "تم إنهاء جلسة الدعم بسبب عدم وجود نشاط، وتم تحويلك تلقائياً إلى المساعد الذكي. كيف يمكنني مساعدتك؟",
+      "أهلاً بك مجدداً في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
       "assistant"
     );
 
-    setMessages(prev => [...prev, botMessage]);
+    // حذف المحادثة القديمة واستبدالها برسالة الترحيب الجديدة فقط
+    setMessages([freshBotMessage]);
 
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
@@ -234,7 +236,7 @@ export default function Home() {
       localStorage.setItem(
         "dar-alnujum-chat-state",
         JSON.stringify({
-          messages: [...messagesRef.current, botMessage],
+          messages: [freshBotMessage], // حفظ المحادثة النظيفة فقط في LocalStorage
           currentSpeaker: "bot",
           currentAgent: null,
           sessionAgents: [],
@@ -249,6 +251,7 @@ export default function Home() {
     clearAllTimers();
     
     if (currentSpeakerRef.current === "agent") {
+      // إذا رد المستخدم قبل انتهاء الـ 30 ثانية، نلغي الإغلاق ونعيد الجلسة للموظف
       if (chatStatusRef.current === "ended") {
         setChatStatus("online");
       }
@@ -256,11 +259,11 @@ export default function Home() {
       idleToEndedTimerRef.current = setTimeout(() => {
         setChatStatus("ended");
         endedToBotTimerRef.current = setTimeout(() => {
-          endAgentSession(); // الآن المتغير معرف ولا يسبب خطأ
+          endAgentSession(); // هنا يتم الحذف والعودة للمساعد
         }, ENDED_TO_BOT_SECONDS * 1000);
       }, IDLE_TO_ENDED_SECONDS * 1000);
     }
-  }, [clearAllTimers, endAgentSession]); // الاعتمادية الآن صحيحة 100%
+  }, [clearAllTimers, endAgentSession]);
 
   const startAgentSession = useCallback((agent: Agent) => {
     setCurrentAgent(agent);
