@@ -72,7 +72,7 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
 
 const SESSION_TIMEOUTS = {
   IDLE_TO_INACTIVE: 60,
-  INACTIVE_TO_CLOSED: 30,
+  INACTIVE_TO_CLOSED: 50, // 🔴 تم الزيادة من 30 إلى 50 ثانية
   QUEUE_CHECK_INTERVAL: 8000,
 };
 
@@ -146,6 +146,9 @@ export default function Home() {
   const [isQueued, setIsQueued] = useState(false);
   const [showDepartmentSelection, setShowDepartmentSelection] = useState(false);
   
+  // 🔴 شريط التحميل الاحترافي
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
 
@@ -154,9 +157,81 @@ export default function Home() {
   const lastActivityTimeRef = useRef(Date.now());
   const isSendingRef = useRef(false);
   const previousAgentRepliesRef = useRef<Set<string>>(new Set());
+  
+  // 🔴 تتبع مرحلة الختام مع الموظف
+  const awaitingFinalConfirmationRef = useRef(false);
+  const lastAgentTopicRef = useRef<string>("");
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
+
+  // ============================================================
+  //  شريط التحميل الاحترافي - يتتبع التحميل الحقيقي للصفحة
+  // ============================================================
+  useEffect(() => {
+    let progress = 0;
+    let isComplete = false;
+    let intervalId: NodeJS.Timeout | null = null;
+
+    const updateProgress = (target: number) => {
+      if (isComplete) return;
+      const step = () => {
+        if (isComplete) return;
+        progress += (target - progress) * 0.15;
+        if (Math.abs(target - progress) < 1) {
+          progress = target;
+        }
+        setLoadingProgress(Math.min(progress, 99));
+        if (progress < target) {
+          requestAnimationFrame(step);
+        }
+      };
+      requestAnimationFrame(step);
+    };
+
+    // بدء التحميل التدريجي
+    updateProgress(30);
+
+    const timeout1 = setTimeout(() => updateProgress(60), 300);
+    const timeout2 = setTimeout(() => updateProgress(85), 800);
+
+    // عند اكتمال تحميل DOM
+    const handleReadyState = () => {
+      if (document.readyState === 'interactive') {
+        updateProgress(95);
+      }
+    };
+
+    // عند اكتمال التحميل الكامل (جميع الموارد)
+    const handleLoad = () => {
+      isComplete = true;
+      if (intervalId) clearInterval(intervalId);
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+      setLoadingProgress(100);
+      setTimeout(() => setLoadingProgress(0), 600);
+    };
+
+    document.addEventListener('readystatechange', handleReadyState);
+    window.addEventListener('load', handleLoad);
+
+    // fallback: إذا لم يحدث load خلال 5 ثوان
+    intervalId = setTimeout(() => {
+      if (!isComplete) {
+        isComplete = true;
+        setLoadingProgress(100);
+        setTimeout(() => setLoadingProgress(0), 600);
+      }
+    }, 5000);
+
+    return () => {
+      document.removeEventListener('readystatechange', handleReadyState);
+      window.removeEventListener('load', handleLoad);
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+      if (intervalId) clearTimeout(intervalId);
+    };
+  }, []);
 
   // ============================================================
   // LOCAL STORAGE
@@ -191,6 +266,8 @@ export default function Home() {
       setIsQueued(false);
       setShowDepartmentSelection(false);
       previousAgentRepliesRef.current.clear();
+      awaitingFinalConfirmationRef.current = false;
+      lastAgentTopicRef.current = "";
       return true;
     } catch (e) { 
       console.error('Load state error:', e); 
@@ -248,6 +325,8 @@ export default function Home() {
     setChatStatus("online");
     lastActivityTimeRef.current = Date.now();
     previousAgentRepliesRef.current.clear();
+    awaitingFinalConfirmationRef.current = false;
+    lastAgentTopicRef.current = "";
 
     if (typeof window !== "undefined") {
       localStorage.setItem(
@@ -271,6 +350,8 @@ export default function Home() {
     setIsQueued(false);
     setShowDepartmentSelection(false);
     previousAgentRepliesRef.current.clear();
+    awaitingFinalConfirmationRef.current = false;
+    lastAgentTopicRef.current = "";
     
     const welcomeMsg = createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). تفضل، كيف يمكنني مساعدتك؟`, "assistant");
     setMessages(prev => [...prev, welcomeMsg]);
@@ -333,7 +414,6 @@ export default function Home() {
     
     if (!targetAgent) return;
 
-    // رسالة التحويل من الموظف الحالي
     const transferMsg = createMessage(
       "agent",
       `لحظة واحدة، سأحولك الآن إلى زميلي المختص بهذا النوع من الطلبات.`,
@@ -342,18 +422,16 @@ export default function Home() {
     
     setMessages(prev => [...prev, transferMsg]);
     
-    // محاكاة وقت التحويل
     setTimeout(() => {
-      // إضافة الموظف الجديد للسجل مع الاحتفاظ بالموظفين السابقين
       setSessionAgents(prev => {
         if (prev.find(a => a.employeeId === targetAgent!.employeeId)) return prev;
         return [...prev, targetAgent!];
       });
       
-      // تغيير الموظف الحالي
       setCurrentAgent(targetAgent);
+      awaitingFinalConfirmationRef.current = false;
+      lastAgentTopicRef.current = "";
       
-      // رسالة ترحيب من الموظف الجديد
       setTimeout(() => {
         const newAgentWelcome = createMessage(
           "agent",
@@ -386,23 +464,70 @@ export default function Home() {
     }
 
     // ============================================================
-    // سلوك الموظف المحاكي مع التحويل الفعلي
+    // سلوك الموظف المحاكي مع تحسين الختام
     // ============================================================
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
       setTimeout(() => {
         const normalized = normalizeArabicText(trimmedText);
         const currentDept = currentAgent.department;
-        
-        const recentUserMessages = messages
-          .filter(m => m.sender === "user")
-          .slice(-2)
-          .map(m => m.text)
-          .join(" ");
-        const context = normalizeArabicText(recentUserMessages);
 
-        // 1. ردود الشكر والختام
-        if (normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || normalized.includes("ممتاز") || normalized.includes("تمام") || normalized.includes("أوكي") || normalized.includes("الله يعطيك") || normalized.includes("حلو") || normalized.includes("زين")) {
+        // 🔴 التحقق: هل المستخدم يرد على سؤال "هل تحتاج شيئاً آخر؟"
+        if (awaitingFinalConfirmationRef.current) {
+          const isDeclining = 
+            (normalized.includes("لا") && !normalized.includes("لا اريد") && !normalized.includes("لا احتاج")) ||
+            normalized.includes("خلاص") || 
+            normalized.includes("كفى") ||
+            normalized.includes("ما احتاج") ||
+            normalized.includes("لا شكرا") ||
+            normalized.includes("لا شكرًا") ||
+            (normalized.includes("شكر") && !normalized.includes("شكرا على") && normalized.length < 30);
+          
+          const isContinuing = 
+            normalized.includes("نعم") || 
+            normalized.includes("اي") || 
+            normalized.includes("ابي") || 
+            normalized.includes("عندي") ||
+            normalized.includes("احتاج") ||
+            normalized.includes("اريد") ||
+            normalized.includes("كيف") ||
+            normalized.includes("وش") ||
+            normalized.includes("ماذا") ||
+            normalized.includes("متى") ||
+            normalized.includes("اين") ||
+            normalized.includes("ليش") ||
+            normalized.includes("لماذا");
+
+          if (isDeclining && !isContinuing) {
+            // 🔴 ختام المحادثة بأسلوب احترافي
+            const closingReplies = [
+              "أشكرك على تواصلك معنا. نتمنى لك يوماً سعيداً، وإذا احتجت أي مساعدة مستقبلاً فنحن في خدمتك دائماً.",
+              "شكراً لثقتك بنا. أتمنى لك التوفيق، ولا تتردد في التواصل معنا في أي وقت.",
+              "على الرحب والسعة. نتمنى لك يوماً مباركاً، ونحن دائماً هنا لخدمتك.",
+              "تشرفنا بخدمتك. نتمنى لك كل التوفيق والنجاح، وفي أي وقت تحتاجنا نحن موجودين."
+            ];
+            
+            const agentReply = closingReplies[Math.floor(Math.random() * closingReplies.length)];
+            previousAgentRepliesRef.current.add(agentReply);
+            setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
+            setChatStatus("online");
+            awaitingFinalConfirmationRef.current = false;
+            lastAgentTopicRef.current = "";
+            isSendingRef.current = false;
+            return;
+          } else {
+            // المستخدم يحتاج شيئاً آخر - يستمر الحوار
+            awaitingFinalConfirmationRef.current = false;
+            // يكمل معالجة الرسالة كاستفسار جديد
+          }
+        }
+
+        // 1. ردود الشكر والختام (عندما يشكر المستخدم دون أن يكون في مرحلة الختام)
+        if (!awaitingFinalConfirmationRef.current && 
+            (normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || 
+             normalized.includes("ممتاز") || normalized.includes("تمام") || normalized.includes("أوكي") || 
+             normalized.includes("الله يعطيك") || normalized.includes("حلو") || normalized.includes("زين"))) {
+          
           const thanksReplies = [
             "العفو، هذا واجبي. أتمنى لك التوفيق في مشروعك.",
             "تدلل، بأي وقت. إذا احتجت أي شيء آخر فأنا موجود.",
@@ -430,17 +555,20 @@ export default function Home() {
           return;
         }
 
-        // 2. الاستفسار عن الأسعار/الإعلانات - تحويل فعلي إذا لم يكن الموظف مختصاً
-        if (normalized.includes("سعر") || normalized.includes("كلفه") || normalized.includes("باقه") || normalized.includes("اعلان") || normalized.includes("ترويج")) {
+        // 2. الاستفسار عن الأسعار/الإعلانات
+        if (normalized.includes("سعر") || normalized.includes("كلفه") || normalized.includes("باقه") || 
+            normalized.includes("اعلان") || normalized.includes("ترويج")) {
+          
+          lastAgentTopicRef.current = "ads";
+          
           if (currentDept === 'ads') {
-            // الموظف الحالي مختص، يجيب مباشرة
             const adsReplies = [
               `بكل سرور. لدينا باقات متنوعة تناسب المتاجر والمشاريع:
 • الباقة الأسبوعية: 500 ريال (تصل لـ 50,000 ظهور).
 • الباقة الشهرية: 1,500 ريال (تصل لـ 200,000 ظهور + قصة مميزة).
 • الباقة المميزة: 3,000 ريال (حملة شاملة على جميع المنصات مع تقارير أداء).
 
-بناءً على ما ذكرته سابقاً، إذا أخبرتني بنوع المنتجات والجمهور المستهدف، سأقوم بترشيح الأنسب لك فوراً.`,
+إذا أخبرتني بنوع المنتجات والجمهور المستهدف، سأقوم بترشيح الأنسب لك فوراً.`,
               
               `أكيد، يسعدني ذلك. باقاتنا الإعلانية كالتالي:
 - الباقة الأساسية: 500 ريال/أسبوع (50,000 ظهور)
@@ -468,18 +596,27 @@ export default function Home() {
             
             previousAgentRepliesRef.current.add(agentReply);
             setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
-            setChatStatus("online");
-            isSendingRef.current = false;
+            
+            // 🔴 بعد الإجابة، يسأل عن حاجة أخرى
+            setTimeout(() => {
+              setMessages(prev => [...prev, createMessage("agent", "هل تحتاج إلى شيء آخر أستاذ؟", "assistant")]);
+              awaitingFinalConfirmationRef.current = true;
+              setChatStatus("online");
+              isSendingRef.current = false;
+            }, 1200);
             return;
           } else {
-            // الموظف الحالي غير مختص - تحويل فعلي
             performInternalTransfer('ads', currentAgent.name);
             return;
           }
         }
 
-        // 3. الاستفسار التقني - تحويل فعلي إذا لم يكن الموظف مختصاً
-        if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("معلق")) {
+        // 3. الاستفسار التقني
+        if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || 
+            normalized.includes("معلق")) {
+          
+          lastAgentTopicRef.current = "technical";
+          
           if (currentDept === 'technical') {
             const techReplies = [
               "حاضر، يسعدني مساعدتك في حل هذه المشكلة. لكي أتمكن من فحص الأمر بدقة، هل يمكنك تزويدي برقم الطلب أو لقطة شاشة (Screenshot) للخطأ الذي يظهر لك؟",
@@ -499,10 +636,10 @@ export default function Home() {
             previousAgentRepliesRef.current.add(agentReply);
             setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
             setChatStatus("online");
+            // لا نسأل عن ختام هنا لأن المشكلة التقنية تحتاج متابعة
             isSendingRef.current = false;
             return;
           } else {
-            // الموظف الحالي غير مختص - تحويل فعلي
             performInternalTransfer('technical', currentAgent.name);
             return;
           }
@@ -532,7 +669,7 @@ export default function Home() {
           return;
         }
 
-        // 5. رد عام حسب اختصاص الموظف
+        // 5. رد عام حسب اختصاص الموظف + سؤال الختام
         const generalReplies: string[] = [];
         
         if (currentDept === 'ads') {
@@ -566,8 +703,14 @@ export default function Home() {
         
         previousAgentRepliesRef.current.add(agentReply);
         setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
-        setChatStatus("online");
-        isSendingRef.current = false;
+        
+        // 🔴 بعد الرد العام، يسأل عن حاجة أخرى
+        setTimeout(() => {
+          setMessages(prev => [...prev, createMessage("agent", "هل لديك أي استفسار آخر؟", "assistant")]);
+          awaitingFinalConfirmationRef.current = true;
+          setChatStatus("online");
+          isSendingRef.current = false;
+        }, 1200);
       }, 1500);
       return; 
     }
@@ -705,7 +848,7 @@ export default function Home() {
   };
 
   // ============================================================
-  // JSX (لم يتم تغيير أي شيء في التصميم أو الألوان أو الهيكل)
+  // JSX
   // ============================================================
 
   return (
@@ -721,6 +864,20 @@ export default function Home() {
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
+
+      {/* 🔴 شريط التحميل الاحترافي - يظهر فقط أثناء التحميل */}
+      {loadingProgress > 0 && (
+        <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-gray-800/50">
+          <div 
+            className="h-full bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)]"
+            style={{ 
+              width: `${loadingProgress}%`,
+              transition: loadingProgress === 100 ? 'width 0.4s ease-out, opacity 0.4s ease-out' : 'width 0.3s ease-out',
+              opacity: loadingProgress === 100 ? 0 : 1
+            }}
+          />
+        </div>
+      )}
 
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
         <div className="w-full px-2 md:px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-2 md:gap-4">
