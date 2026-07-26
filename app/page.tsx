@@ -58,11 +58,11 @@ interface TrendingProduct {
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
-// 🔴 العملة قابلة للتعديل من هنا - يمكن تغييرها لأي عملة أخرى
+// العملة قابلة للتعديل من هنا
 const CURRENCY_CONFIG = {
-  symbol: "USD",        // USD, IQD, SAR, EUR, etc.
-  symbolAr: "دولار",    // الاسم بالعربية
-  position: "after" as "before" | "after", // before = 500$ | after = 500 دولار
+  symbol: "USD",
+  symbolAr: "دولار",
+  position: "after" as "before" | "after",
   format: (amount: number) => `${amount} ${CURRENCY_CONFIG.symbolAr}`
 };
 
@@ -80,7 +80,7 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
 
 const SESSION_TIMEOUTS = {
   IDLE_TO_INACTIVE: 60,
-  INACTIVE_TO_CLOSED: 50, // 🔴 50 ثانية قبل العودة للمساعد الذكي
+  INACTIVE_TO_CLOSED: 50,
   QUEUE_CHECK_INTERVAL: 8000,
 };
 
@@ -166,10 +166,11 @@ export default function Home() {
   const isSendingRef = useRef(false);
   const previousAgentRepliesRef = useRef<Set<string>>(new Set());
   
-  // 🔴 تتبع مرحلة الختام والسياق
+  // 🔴 تحسين إدارة المحادثة
   const awaitingFinalConfirmationRef = useRef(false);
-  const lastTopicRef = useRef<string>("");
   const conversationContextRef = useRef<string[]>([]);
+  const lastHandledTopicRef = useRef<string | null>(null);
+  const conversationPhaseRef = useRef<"initial" | "ongoing" | "closing">("initial");
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
@@ -180,9 +181,9 @@ export default function Home() {
   useEffect(() => {
     let progress = 0;
     let isComplete = false;
-    let fallbackTimeout: NodeJS.Timeout;
+    let intervalId: NodeJS.Timeout | null = null;
 
-    const smoothProgress = (target: number, duration: number = 400) => {
+    const updateProgress = (target: number, duration: number = 400) => {
       if (isComplete) return;
       const startTime = performance.now();
       const startProgress = progress;
@@ -205,43 +206,44 @@ export default function Home() {
     };
 
     // بدء تدريجي
-    smoothProgress(20, 200);
+    updateProgress(15, 300);
     
-    const t1 = setTimeout(() => smoothProgress(45, 500), 100);
-    const t2 = setTimeout(() => smoothProgress(70, 600), 400);
-    const t3 = setTimeout(() => smoothProgress(90, 500), 800);
+    const t1 = setTimeout(() => updateProgress(30, 500), 100);
+    const t2 = setTimeout(() => updateProgress(65, 600), 400);
+    const t3 = setTimeout(() => updateProgress(95, 500), 800);
 
     const handleReadyState = () => {
       if (document.readyState === 'interactive') {
-        smoothProgress(95, 300);
+        updateProgress(95, 300);
       }
     };
 
     const handleLoad = () => {
       isComplete = true;
-      clearTimeout(fallbackTimeout);
+      if (intervalId) clearInterval(intervalId);
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
       setLoadingProgress(100);
-      setTimeout(() => setLoadingProgress(0), 500);
+      setTimeout(() => setLoadingProgress(0), 400);
     };
 
     document.addEventListener('readystatechange', handleReadyState);
     window.addEventListener('load', handleLoad);
 
-    fallbackTimeout = setTimeout(() => {
+    // fallback: إذا لم يحدث load خلال 5 ثوان
+    intervalId = setTimeout(() => {
       if (!isComplete) {
         isComplete = true;
         setLoadingProgress(100);
-        setTimeout(() => setLoadingProgress(0), 500);
+        setTimeout(() => setLoadingProgress(0), 400);
       }
-    }, 8000);
+    }, 5000);
 
     return () => {
       document.removeEventListener('readystatechange', handleReadyState);
       window.removeEventListener('load', handleLoad);
-      clearTimeout(fallbackTimeout);
+      if (intervalId) clearTimeout(intervalId);
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
@@ -282,8 +284,9 @@ export default function Home() {
       setShowDepartmentSelection(false);
       previousAgentRepliesRef.current.clear();
       awaitingFinalConfirmationRef.current = false;
-      lastTopicRef.current = "";
       conversationContextRef.current = [];
+      lastHandledTopicRef.current = null;
+      conversationPhaseRef.current = "initial";
       return true;
     } catch (e) { 
       console.error('Load state error:', e); 
@@ -328,7 +331,7 @@ export default function Home() {
   const closeAgentSession = useCallback(() => {
     const freshBotMessage = createMessage(
       "bot",
-      "أهلاً بك مجدداً!  أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
+      "أهلاً بك مجدداً! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
       "assistant"
     );
 
@@ -342,8 +345,9 @@ export default function Home() {
     lastActivityTimeRef.current = Date.now();
     previousAgentRepliesRef.current.clear();
     awaitingFinalConfirmationRef.current = false;
-    lastTopicRef.current = "";
     conversationContextRef.current = [];
+    lastHandledTopicRef.current = null;
+    conversationPhaseRef.current = "initial";
 
     if (typeof window !== "undefined") {
       localStorage.setItem(
@@ -368,8 +372,9 @@ export default function Home() {
     setShowDepartmentSelection(false);
     previousAgentRepliesRef.current.clear();
     awaitingFinalConfirmationRef.current = false;
-    lastTopicRef.current = "";
     conversationContextRef.current = [];
+    lastHandledTopicRef.current = null;
+    conversationPhaseRef.current = "initial";
     
     const welcomeMsg = createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). تفضل، كيف يمكنني مساعدتك؟`, "assistant");
     setMessages(prev => [...prev, welcomeMsg]);
@@ -448,8 +453,9 @@ export default function Home() {
       
       setCurrentAgent(targetAgent);
       awaitingFinalConfirmationRef.current = false;
-      lastTopicRef.current = "";
       conversationContextRef.current = [];
+      lastHandledTopicRef.current = null;
+      conversationPhaseRef.current = "initial";
       
       setTimeout(() => {
         const newAgentWelcome = createMessage(
@@ -544,12 +550,14 @@ export default function Home() {
             setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
             setChatStatus("online");
             awaitingFinalConfirmationRef.current = false;
-            lastTopicRef.current = "";
+            conversationPhaseRef.current = "initial";
+            lastHandledTopicRef.current = null;
             isSendingRef.current = false;
             return;
           } else if (isContinuing || normalized.length > 10) {
             // المستخدم يحتاج شيئاً آخر - يستمر الحوار
             awaitingFinalConfirmationRef.current = false;
+            conversationPhaseRef.current = "ongoing";
             // يكمل معالجة الرسالة كاستفسار جديد
           } else {
             // رد غامض - نسأل مرة أخرى
@@ -560,165 +568,47 @@ export default function Home() {
           }
         }
 
-        // 🔴 ردود الشكر - لا تغلق الجلسة مباشرة
-        if (normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || 
-            normalized.includes("ممتاز") || normalized.includes("تمام") || normalized.includes("أوكي") || 
-            normalized.includes("الله يعطيك") || normalized.includes("حلو") || normalized.includes("زين")) {
+        // 🔴 تحديد نوع الطلب
+        const isAdsRequest = normalized.includes("اعلان") || normalized.includes("ترويج") || normalized.includes("دعاية") || normalized.includes("توصيل") || normalized.includes("توصيل") || normalized.includes("ترويج");
+        const isTechnicalRequest = normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("معلق");
+        const isGeneralRequest = normalized.includes("مرحبا") || normalized.includes("سلام") || normalized.includes("هلو") || normalized.includes("صباح") || normalized.includes("مساء");
+        
+        // 🔴 التحقق من اختصاص الموظف
+        if (isAdsRequest && currentDept !== 'ads') {
+          // 🔴 التحويل الفوري إلى قسم الإعلانات
+          const transferMessage = createMessage(
+            "agent",
+            "العفو أستاذ، هذا الطلب يخص قسم الإعلانات. سأحولك الآن إلى زميلتي المختصة.",
+            "assistant"
+          );
           
-          const thanksReplies = [
-            "العفو أستاذ، هذا واجبنا. هل تحتاج أي استفسار آخر؟",
-            "تدلل أستاذ، بأي وقت. هل هناك شيء آخر أقدر أساعدك فيه؟",
-            "بالعفو أستاذ، تحت أمرك. هل لديك أي سؤال آخر؟",
-            "يسعدنا خدمتك أستاذ. هل تحتاج أي شيء آخر؟",
-            "العفو، هذا من واجبنا. هل هناك استفسار آخر؟"
-          ];
-          
-          const availableReplies = thanksReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-          let agentReply;
-          if (availableReplies.length > 0) {
-            agentReply = availableReplies[Math.floor(Math.random() * availableReplies.length)];
-          } else {
-            previousAgentRepliesRef.current.clear();
-            agentReply = thanksReplies[Math.floor(Math.random() * thanksReplies.length)];
-          }
-          
-          previousAgentRepliesRef.current.add(agentReply);
-          setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
+          setMessages(prev => [...prev, transferMessage]);
           setChatStatus("online");
-          awaitingFinalConfirmationRef.current = true; // 🔴 ننتظر تأكيد المستخدم
-          isSendingRef.current = false;
+          setTimeout(() => {
+            performInternalTransfer('ads', currentAgent.name);
+          }, 1000);
           return;
         }
 
-        // 🔴 الاستفسار عن الأسعار/الإعلانات - ردود متنوعة حسب السياق
-        if (normalized.includes("سعر") || normalized.includes("كلفه") || normalized.includes("كم")) {
-          lastTopicRef.current = "pricing";
+        if (isTechnicalRequest && currentDept !== 'technical') {
+          // 🔴 التحويل الفوري إلى قسم الدعم الفني
+          const transferMessage = createMessage(
+            "agent",
+            "العفو أستاذ، هذا الطلب يخص قسم الدعم الفني. سأحولك الآن إلى زميلي المختص.",
+            "assistant"
+          );
           
-          if (currentDept === 'ads') {
-            // 🔴 ردود متنوعة لا تتكرر
-            const pricingReplies = [
-              `أسعارنا تبدأ من ${CURRENCY_CONFIG.format(500)} للباقة الأسبوعية التي تصل إلى 50,000 ظهور. هل تود معرفة تفاصيل الباقات الأخرى؟`,
-              `الباقة الأساسية بـ ${CURRENCY_CONFIG.format(500)} أسبوعياً، والمتوسطة بـ ${CURRENCY_CONFIG.format(1500)} شهرياً. أيهما يناسب مشروعك؟`,
-              `لدينا ثلاث باقات: أسبوعية بـ ${CURRENCY_CONFIG.format(500)}، شهرية بـ ${CURRENCY_CONFIG.format(1500)}، ومميزة بـ ${CURRENCY_CONFIG.format(3000)}. هل تريد تفاصيل أكثر عن باقة معينة؟`
-            ];
-            
-            const availableReplies = pricingReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-            let agentReply;
-            if (availableReplies.length > 0) {
-              agentReply = availableReplies[Math.floor(Math.random() * availableReplies.length)];
-            } else {
-              previousAgentRepliesRef.current.clear();
-              agentReply = pricingReplies[Math.floor(Math.random() * pricingReplies.length)];
-            }
-            
-            previousAgentRepliesRef.current.add(agentReply);
-            setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
-            setChatStatus("online");
-            isSendingRef.current = false;
-            return;
-          } else {
-            performInternalTransfer('ads', currentAgent.name);
-            return;
-          }
-        }
-
-        // 🔴 الاستفسار عن المدة
-        if (normalized.includes("مدة") || normalized.includes("فترة") || normalized.includes("كم يوم") || normalized.includes("كم شهر")) {
-          lastTopicRef.current = "duration";
-          
-          if (currentDept === 'ads') {
-            const durationReplies = [
-              "الباقة الأسبوعية تمتد 7 أيام، والشهرية 30 يوم، والمميزة يمكن تخصيصها حسب حاجتك. أي مدة تناسب حملتك؟",
-              "المدة تعتمد على الباقة: أسبوع، شهر، أو مدة مخصصة للباقة المميزة. ما المدة التي تفكر بها؟",
-              "نوفر مرونة في المدة: من أسبوع واحد إلى شهر كامل أو أكثر. هل لديك مدة محددة في ذهنك؟"
-            ];
-            
-            const availableReplies = durationReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-            let agentReply;
-            if (availableReplies.length > 0) {
-              agentReply = availableReplies[Math.floor(Math.random() * availableReplies.length)];
-            } else {
-              previousAgentRepliesRef.current.clear();
-              agentReply = durationReplies[Math.floor(Math.random() * durationReplies.length)];
-            }
-            
-            previousAgentRepliesRef.current.add(agentReply);
-            setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
-            setChatStatus("online");
-            isSendingRef.current = false;
-            return;
-          } else {
-            performInternalTransfer('ads', currentAgent.name);
-            return;
-          }
-        }
-
-        // 🔴 الاستفسار عن المنصات
-        if (normalized.includes("منص") || normalized.includes("وين") || normalized.includes("اين") || normalized.includes("مكان")) {
-          lastTopicRef.current = "platforms";
-          
-          if (currentDept === 'ads') {
-            const platformReplies = [
-              "نغطي جميع المنصات الرئيسية: فيسبوك، إنستغرام، تويتر، تيك توك، ويوتيوب. هل تركز على منصة معينة؟",
-              "إعلاناتنا تظهر على منصات التواصل الاجتماعي الرئيسية. هل لديك تفضيل لمنصة محددة؟",
-              "نوفر وصولاً واسعاً عبر منصات متعددة. أخبرني عن جمهورك المستهدف وسأنصحك بالمنصات الأنسب."
-            ];
-            
-            const availableReplies = platformReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-            let agentReply;
-            if (availableReplies.length > 0) {
-              agentReply = availableReplies[Math.floor(Math.random() * availableReplies.length)];
-            } else {
-              previousAgentRepliesRef.current.clear();
-              agentReply = platformReplies[Math.floor(Math.random() * platformReplies.length)];
-            }
-            
-            previousAgentRepliesRef.current.add(agentReply);
-            setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
-            setChatStatus("online");
-            isSendingRef.current = false;
-            return;
-          } else {
-            performInternalTransfer('ads', currentAgent.name);
-            return;
-          }
-        }
-
-        // 🔴 الاستفسار التقني
-        if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || 
-            normalized.includes("معلق")) {
-          
-          lastTopicRef.current = "technical";
-          
-          if (currentDept === 'technical') {
-            const techReplies = [
-              "حاضر، يسعدني مساعدتك في حل هذه المشكلة. لكي أتمكن من فحص الأمر بدقة، هل يمكنك تزويدي برقم الطلب أو لقطة شاشة (Screenshot) للخطأ الذي يظهر لك؟",
-              "أكيد، أنا هنا لمساعدتك. يرجى تزويدي بتفاصيل أكثر عن المشكلة: متى بدأت؟ وهل تظهر رسالة خطأ معينة؟",
-              "حاضر، سأقوم بمراجعة الأمر فوراً. هل يمكنك وصف ما يحدث بالضبط؟ وأي خطوة تقوم بها عندما تظهر المشكلة؟"
-            ];
-            
-            const availableTechReplies = techReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-            let agentReply;
-            if (availableTechReplies.length > 0) {
-              agentReply = availableTechReplies[Math.floor(Math.random() * availableTechReplies.length)];
-            } else {
-              previousAgentRepliesRef.current.clear();
-              agentReply = techReplies[Math.floor(Math.random() * techReplies.length)];
-            }
-            
-            previousAgentRepliesRef.current.add(agentReply);
-            setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
-            setChatStatus("online");
-            isSendingRef.current = false;
-            return;
-          } else {
+          setMessages(prev => [...prev, transferMessage]);
+          setChatStatus("online");
+          setTimeout(() => {
             performInternalTransfer('technical', currentAgent.name);
-            return;
-          }
+          }, 1000);
+          return;
         }
 
-        // 🔴 تحية جديدة
-        if (normalized.includes("مرحبا") || normalized.includes("هلو") || normalized.includes("السلام")) {
+        // 🔴 الردود حسب نوع الطلب
+        if (isGeneralRequest) {
+          // 🔴 التحية
           const greetingReplies = [
             "أهلاً بك مجدداً. كيف يمكنني خدمتك الآن؟",
             "أهلاً وسهلاً. تفضل، أنا أستمع إليك.",
@@ -737,11 +627,65 @@ export default function Home() {
           previousAgentRepliesRef.current.add(agentReply);
           setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
           setChatStatus("online");
+          conversationPhaseRef.current = "ongoing";
           isSendingRef.current = false;
           return;
         }
 
-        // 🔴 رد عام حسب اختصاص الموظف
+        if (isAdsRequest) {
+          // 🔴 معالجة طلبات الإعلانات
+          if (conversationPhaseRef.current !== "closing") {
+            // إذا لم نكن في مرحلة الختام، نعالج الطلب
+            const pricingReplies = [
+              `أسعارنا تبدأ من ${CURRENCY_CONFIG.format(500)} للباقة الأسبوعية التي تصل إلى 50,000 ظهور. هل تود معرفة تفاصيل الباقات الأخرى؟`,
+              `الباقة الأساسية بـ ${CURRENCY_CONFIG.format(500)} أسبوعياً، والمتوسطة بـ ${CURRENCY_CONFIG.format(1500)} شهرياً. أيهما يناسب مشروعك؟`,
+              `لدينا ثلاث باقات: أسبوعية بـ ${CURRENCY_CONFIG.format(500)}، شهرية بـ ${CURRENCY_CONFIG.format(1500)}، ومميزة بـ ${CURRENCY_CONFIG.format(3000)}. هل تريد تفاصيل أكثر عن باقة معينة؟`
+            ];
+            
+            const availableReplies = pricingReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+            let agentReply;
+            if (availableReplies.length > 0) {
+              agentReply = availableReplies[Math.floor(Math.random() * availableReplies.length)];
+            } else {
+              previousAgentRepliesRef.current.clear();
+              agentReply = pricingReplies[Math.floor(Math.random() * pricingReplies.length)];
+            }
+            
+            previousAgentRepliesRef.current.add(agentReply);
+            setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
+            setChatStatus("online");
+            conversationPhaseRef.current = "ongoing";
+            isSendingRef.current = false;
+            return;
+          }
+        }
+
+        if (isTechnicalRequest) {
+          // 🔴 معالجة طلبات الدعم الفني
+          const techReplies = [
+            "حاضر، يسعدني مساعدتك في حل هذه المشكلة. لكي أتمكن من فحص الأمر بدقة، هل يمكنك تزويدي برقم الطلب أو لقطة شاشة (Screenshot) للخطأ الذي يظهر لك؟",
+            "أكيد، أنا هنا لمساعدتك. يرجى تزويدي بتفاصيل أكثر عن المشكلة: متى بدأت؟ وهل تظهر رسالة خطأ معينة؟",
+            "حاضر، سأقوم بمراجعة الأمر فوراً. هل يمكنك وصف ما يحدث بالضبط؟ وأي خطوة تقوم بها عندما تظهر المشكلة؟"
+          ];
+          
+          const availableTechReplies = techReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+          let agentReply;
+          if (availableTechReplies.length > 0) {
+            agentReply = availableTechReplies[Math.floor(Math.random() * availableTechReplies.length)];
+          } else {
+            previousAgentRepliesRef.current.clear();
+            agentReply = techReplies[Math.floor(Math.random() * techReplies.length)];
+          }
+          
+          previousAgentRepliesRef.current.add(agentReply);
+          setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
+          setChatStatus("online");
+          conversationPhaseRef.current = "ongoing";
+          isSendingRef.current = false;
+          return;
+        }
+
+        // 🔴 الردود العامة
         const generalReplies: string[] = [];
         
         if (currentDept === 'ads') {
@@ -776,18 +720,21 @@ export default function Home() {
         previousAgentRepliesRef.current.add(agentReply);
         setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
         
-        // 🔴 بعد الرد العام، يسأل عن حاجة أخرى
+        // 🔴 بعد معالجة الطلب، نبدأ مرحلة الختام
         setTimeout(() => {
-          const followUpQuestions = [
-            "هل تحتاج إلى شيء آخر أستاذ؟",
-            "هل لديك أي استفسار آخر؟",
-            "هل هناك شيء آخر أقدر أساعدك فيه؟"
-          ];
-          const followUp = followUpQuestions[Math.floor(Math.random() * followUpQuestions.length)];
-          setMessages(prev => [...prev, createMessage("agent", followUp, "assistant")]);
-          awaitingFinalConfirmationRef.current = true;
-          setChatStatus("online");
-          isSendingRef.current = false;
+          if (conversationPhaseRef.current === "ongoing") {
+            const followUpQuestions = [
+              "هل تحتاج إلى شيء آخر أستاذ؟",
+              "هل لديك أي استفسار آخر؟",
+              "هل هناك شيء آخر أقدر أساعدك فيه؟"
+            ];
+            const followUp = followUpQuestions[Math.floor(Math.random() * followUpQuestions.length)];
+            setMessages(prev => [...prev, createMessage("agent", followUp, "assistant")]);
+            awaitingFinalConfirmationRef.current = true;
+            conversationPhaseRef.current = "closing";
+            setChatStatus("online");
+            isSendingRef.current = false;
+          }
         }, 1200);
       }, 1500);
       return; 
