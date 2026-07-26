@@ -10,6 +10,7 @@ type Sender = "user" | "bot" | "agent" | "system";
 type AgentStatus = "online" | "away" | "offline";
 type Department = 'support' | 'ads' | 'technical';
 type ChatStatus = "typing" | "online" | "ended";
+type ProductShape = "circle" | "rectangle" | "square" | "portrait"; // 🔴 إضافة نوع محدد للأشكال
 
 interface Attachment {
   type: 'image' | 'link' | 'card' | 'product';
@@ -25,7 +26,7 @@ interface Message {
   text: string;
   time: string;
   status?: "sent" | "delivered" | "read";
-  attachments?: Attachment[]; // دعم المحتوى الغني من الـ API
+  attachments?: Attachment[];
 }
 
 interface Agent {
@@ -43,6 +44,14 @@ interface DepartmentOption {
   id: Department;
   name: string;
   description: string;
+}
+
+interface TrendingProduct {
+  id: number;
+  name: string;
+  desc: string;
+  img: string;
+  shape: ProductShape; // 🔴 استخدام النوع المحدد
 }
 
 // ============================================================
@@ -64,7 +73,8 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'technical', name: 'فريق الدعم الفني', description: 'لحل المشاكل التقنية وأخطاء الموقع' },
 ];
 
-const TRENDING_PRODUCTS = [
+// 🔴 تعريف المصفوفة بالنوع الصحيح لمنع أخطاء TypeScript
+const TRENDING_PRODUCTS: TrendingProduct[] = [
   { id: 1, name: "كاميرا تصوير احترافية", desc: "خصم 25% لفترة محدودة", img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=150&h=150&fit=crop", shape: "circle" },
   { id: 2, name: "سماعات استوديو", desc: "عزل ضوضاء فائق الجودة", img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&h=150&fit=crop", shape: "rectangle" },
   { id: 3, name: "إضاءة Ring Light", desc: "مثالية لصناع المحتوى", img: "https://images.unsplash.com/photo-1615469062329-5f23633c1182?w=150&h=150&fit=crop", shape: "square" },
@@ -72,7 +82,7 @@ const TRENDING_PRODUCTS = [
 ];
 
 // ============================================================
-// UTILITY FUNCTIONS (مستقلة تماماً)
+// UTILITY FUNCTIONS
 // ============================================================
 
 const normalizeArabicText = (text: string): string => {
@@ -137,13 +147,12 @@ export default function Home() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
 
-  // Refs لمنع Stale Closures
   const currentSpeakerRef = useRef(currentSpeaker);
   const chatStatusRef = useRef(chatStatus);
   const idleToEndedTimerRef = useRef<NodeJS.Timeout | null>(null);
   const endedToBotTimerRef = useRef<NodeJS.Timeout | null>(null);
   const messagesRef = useRef(messages);
-  const isSendingRef = useRef(false); // منع الإرسال المتكرر
+  const isSendingRef = useRef(false);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
@@ -175,7 +184,7 @@ export default function Home() {
       const parsed = JSON.parse(saved);
       
       setMessages(parsed.messages || []);
-      setCurrentSpeaker("bot"); // دائماً نبدأ مع البوت عند التحميل لمنع الجلسات العالقة
+      setCurrentSpeaker("bot");
       setCurrentAgent(null);
       setSessionAgents([]);
       setChatStatus("online");
@@ -208,7 +217,7 @@ export default function Home() {
     
     if (currentSpeakerRef.current === "agent") {
       if (chatStatusRef.current === "ended") {
-        setChatStatus("online"); // إحياء الجلسة إذا كتب المستخدم
+        setChatStatus("online");
       }
       
       idleToEndedTimerRef.current = setTimeout(() => {
@@ -229,7 +238,6 @@ export default function Home() {
     setIsQueued(false);
     setChatStatus("online");
     
-    // حفظ الحالة فوراً
     setTimeout(() => {
       if (typeof window !== 'undefined') {
         localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
@@ -316,19 +324,16 @@ export default function Home() {
     setText("");
     resetActivityTimers();
 
-    // 1. التحقق من نية المستخدم للتحويل
     if (checkAndPerformEscalation(trimmedText)) {
       isSendingRef.current = false;
       return;
     }
 
-    // 2. حاجز الحماية: عدم استدعاء API إذا كان المتحدث موظفاً
     if (currentSpeaker === "agent") {
       isSendingRef.current = false;
       return; 
     }
 
-    // 3. منطق المساعد الذكي
     setChatStatus("typing");
     try {
       const apiMessages = messagesRef.current
@@ -349,7 +354,6 @@ export default function Home() {
 
       const data = await response.json();
       
-      // دعم المحتوى الغني (صور، روابط، بطاقات) إذا أرجعها الـ API
       const botResponse: Message = createMessage(
         "bot", 
         data.text || "عذراً، لم أتمكن من الرد حالياً.", 
@@ -360,7 +364,6 @@ export default function Home() {
 
       setMessages(prev => [...prev, botResponse]);
 
-      // 4. التحقق من إشارة التحويل الصريحة من الـ API
       if (data.escalate === true && currentSpeaker === "bot" && !showDepartmentSelection) {
         handleHumanRequest();
       }
@@ -427,15 +430,20 @@ export default function Home() {
     return "bg-green-400 animate-pulse";
   };
 
+  // 🔴 إصلاح خطأ TypeScript هنا باستخدام Record وصريح
   const renderSeamlessItems = () => {
     const products = [...TRENDING_PRODUCTS, ...TRENDING_PRODUCTS];
+    
+    // تعريف الخريطة بشكل صريح لمنع خطأ "Implicit Any"
+    const shapeMap: Record<ProductShape, string> = {
+      'circle': 'w-16 h-16 rounded-full',
+      'rectangle': 'w-20 h-14 rounded-xl',
+      'portrait': 'w-14 h-20 rounded-2xl',
+      'square': 'w-16 h-16 rounded-md'
+    };
+
     return products.map((product, index) => {
-      const shapeClass = {
-        'circle': 'w-16 h-16 rounded-full',
-        'rectangle': 'w-20 h-14 rounded-xl',
-        'portrait': 'w-14 h-20 rounded-2xl',
-        'square': 'w-16 h-16 rounded-md'
-      }[product.shape as keyof typeof shapeClass] || 'w-16 h-16 rounded-md';
+      const shapeClass = shapeMap[product.shape] || 'w-16 h-16 rounded-md';
 
       return (
         <div key={`${product.id}-${index}`} className="flex-shrink-0 inline-flex items-center gap-4 mx-4 bg-[#1f2937]/90 backdrop-blur-sm px-4 py-3 border border-gray-700 hover:border-purple-500 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 w-[300px]">
@@ -557,7 +565,6 @@ export default function Home() {
                 <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
                   {msg.text}
                   
-                  {/* 🔴 عرض المحتوى الغني (صور، روابط، بطاقات) من الـ API */}
                   {msg.attachments && msg.attachments.length > 0 && (
                     <div className="mt-2 space-y-2">
                       {msg.attachments.map((att, idx) => {
