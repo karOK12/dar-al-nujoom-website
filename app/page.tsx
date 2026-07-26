@@ -59,7 +59,7 @@ interface TrendingProduct {
 // ============================================================
 
 const IDLE_TO_ENDED_SECONDS = 40; 
-const ENDED_TO_BOT_SECONDS = 30;  // 🔴 التعديل: من دقائق إلى ثواني
+const ENDED_TO_BOT_SECONDS = 30;  // تم التعديل إلى ثواني
 
 const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
@@ -197,7 +197,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // TIMER & STATE MACHINE MANAGEMENT
+  // TIMER & STATE MACHINE MANAGEMENT (تم إصلاح الترتيب هنا)
   // ============================================================
 
   const clearAllTimers = useCallback(() => {
@@ -211,28 +211,7 @@ export default function Home() {
     }
   }, []);
 
-  const resetActivityTimers = useCallback(() => {
-    clearAllTimers();
-    
-    if (currentSpeakerRef.current === "agent") {
-      // إذا عاد المستخدم خلال فترة "انتهت"، نرجع الحالة إلى online
-      if (chatStatusRef.current === "ended") {
-        setChatStatus("online");
-      }
-      
-      // المرحلة 1: بعد 40 ثانية، تتحول الحالة إلى ended
-      idleToEndedTimerRef.current = setTimeout(() => {
-        setChatStatus("ended");
-        
-        // 🔴 المرحلة 2: بعد 30 ثانية من حالة ended، يتم الإغلاق النهائي
-        endedToBotTimerRef.current = setTimeout(() => {
-          endAgentSession();
-        }, ENDED_TO_BOT_SECONDS * 1000); // 🔴 تعديل المعادلة
-        
-      }, IDLE_TO_ENDED_SECONDS * 1000);
-    }
-  }, [clearAllTimers, endAgentSession]);
-
+  // 🔴 التعديل: نقل endAgentSession ليكون قبل resetActivityTimers
   const endAgentSession = useCallback(() => {
     clearAllTimers();
 
@@ -265,6 +244,23 @@ export default function Home() {
       );
     }
   }, [clearAllTimers]);
+
+  const resetActivityTimers = useCallback(() => {
+    clearAllTimers();
+    
+    if (currentSpeakerRef.current === "agent") {
+      if (chatStatusRef.current === "ended") {
+        setChatStatus("online");
+      }
+      
+      idleToEndedTimerRef.current = setTimeout(() => {
+        setChatStatus("ended");
+        endedToBotTimerRef.current = setTimeout(() => {
+          endAgentSession(); // الآن المتغير معرف ولا يسبب خطأ
+        }, ENDED_TO_BOT_SECONDS * 1000);
+      }, IDLE_TO_ENDED_SECONDS * 1000);
+    }
+  }, [clearAllTimers, endAgentSession]); // الاعتمادية الآن صحيحة 100%
 
   const startAgentSession = useCallback((agent: Agent) => {
     setCurrentAgent(agent);
@@ -343,7 +339,6 @@ export default function Home() {
       return;
     }
 
-    // 🔴 محاكاة رد الموظف
     if (currentSpeaker === "agent") {
       setChatStatus("typing");
       
@@ -367,7 +362,6 @@ export default function Home() {
       return; 
     }
 
-    // منطق المساعد الذكي
     setChatStatus("typing");
     try {
       const apiMessages = messagesRef.current
