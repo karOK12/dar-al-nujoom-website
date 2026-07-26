@@ -58,8 +58,8 @@ interface TrendingProduct {
 // CONSTANTS
 // ============================================================
 
-const IDLE_TO_ENDED_SECONDS = 40; 
-const ENDED_TO_BOT_SECONDS = 30;  // بعد 30 ثانية من حالة "انتهت"، يتم الحذف والعودة للمساعد
+const IDLE_TO_ENDED_SECONDS = 40; // بعد 40 ثانية من عدم النشاط تظهر "انتهت المحادثة"
+const ENDED_TO_BOT_SECONDS = 30;  // بعد 30 ثانية إضافية من "انتهت"، يتم حذف المحادثة والعودة للمساعد
 
 const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
@@ -211,11 +211,11 @@ export default function Home() {
     }
   }, []);
 
-  // 🔴 التعديل الجذري هنا: حذف المحادثة والبدء من جديد
+  // 🔴 التعديل الجذري: حذف المحادثة القديمة بالكامل والبدء من جديد مع المساعد
   const endAgentSession = useCallback(() => {
     clearAllTimers();
 
-    // رسالة ترحيب جديدة تماماً كأنها محادثة جديدة
+    // رسالة ترحيب جديدة تماماً وكأنها محادثة جديدة
     const freshBotMessage = createMessage(
       "bot",
       "أهلاً بك مجدداً في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
@@ -259,7 +259,7 @@ export default function Home() {
       idleToEndedTimerRef.current = setTimeout(() => {
         setChatStatus("ended");
         endedToBotTimerRef.current = setTimeout(() => {
-          endAgentSession(); // هنا يتم الحذف والعودة للمساعد
+          endAgentSession(); // هنا يتم حذف المحادثة والعودة للمساعد
         }, ENDED_TO_BOT_SECONDS * 1000);
       }, IDLE_TO_ENDED_SECONDS * 1000);
     }
@@ -335,6 +335,8 @@ export default function Home() {
     isSendingRef.current = true;
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
+    
+    // إعادة ضبط المؤقتات عند إرسال رسالة (إذا كانت "ended" تعود "online" ويبدأ العد من جديد)
     resetActivityTimers();
 
     if (checkAndPerformEscalation(trimmedText)) {
