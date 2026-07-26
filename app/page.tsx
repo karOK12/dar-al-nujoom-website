@@ -9,7 +9,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 type Sender = "user" | "bot" | "agent" | "system";
 type AgentStatus = "online" | "away" | "offline";
 type Department = 'support' | 'ads' | 'technical';
-type ChatStatus = "typing" | "online" | "ended";
+// دورة حياة واضحة للجلسة
+type ChatStatus = "typing" | "online" | "waiting" | "inactive" | "closed";
 type ProductShape = "circle" | "rectangle" | "square" | "portrait";
 
 interface Attachment {
@@ -55,12 +56,11 @@ interface TrendingProduct {
 }
 
 // ============================================================
-// CONSTANTS
+// CONSTANTS & MOCK DATA
 // ============================================================
 
-const IDLE_TO_ENDED_SECONDS = 60; // دقيقة واحدة لظهور "انتهت المحادثة"
-const ENDED_TO_BOT_SECONDS = 30;  // 30 ثانية إضافية لإغلاق الجلسة والعودة للمساعد (المجموع 90 ثانية)
-
+// ملاحظة للمطور: هذه البيانات مؤقتة (Mock Data). 
+// في بيئة الإنتاج، يجب استبدال هذه المصفوفة بجلب البيانات ديناميكياً من قاعدة البيانات أو API.
 const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
   { employeeId: "EMP-002", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
@@ -72,6 +72,12 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'ads', name: 'فريق الإعلانات والمبيعات', description: 'لحجز الإعلانات والاستفسار عن الأسعار والباقات' },
   { id: 'technical', name: 'فريق الدعم الفني', description: 'لحل المشاكل التقنية وأخطاء الموقع' },
 ];
+
+const SESSION_TIMEOUTS = {
+  IDLE_TO_INACTIVE: 60,    // 60 ثانية من عدم النشاط -> حالة غير نشطة (inactive)
+  INACTIVE_TO_CLOSED: 30,  // 30 ثانية إضافية من عدم النشاط -> إغلاق الجلسة (closed)
+  QUEUE_CHECK_INTERVAL: 8000, // 8 ثوانٍ للتحقق من توفر موظف في قائمة الانتظار
+};
 
 const TRENDING_PRODUCTS: TrendingProduct[] = [
   { id: 1, name: "كاميرا تصوير احترافية", desc: "خصم 25% لفترة محدودة", img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=150&h=150&fit=crop", shape: "circle" },
@@ -107,6 +113,7 @@ const wantsHumanContact = (inputText: string): boolean => {
 };
 
 const findAvailableAgent = (department: Department): Agent | null => {
+  // TODO: في الإنتاج، استبدل هذا بجلب الموظفين المتاحين من قاعدة البيانات
   return SUPPORT_AGENTS.find(agent => agent.department === department && agent.status === 'online' && !agent.isBusy) || null;
 };
 
@@ -146,12 +153,14 @@ export default function Home() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
 
-  // Refs لإدارة الوقت والمنع من التكرار
+  // Refs لإدارة الوقت والمنع من التكرار (Stale Closure Prevention)
   const currentSpeakerRef = useRef(currentSpeaker);
+  const chatStatusRef = useRef(chatStatus);
   const lastActivityTimeRef = useRef(Date.now());
   const isSendingRef = useRef(false);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
+  useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
   // LOCAL STORAGE
@@ -193,50 +202,53 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // TIMER & STATE MACHINE MANAGEMENT (المنطق المضمون 100%)
+  // SESSION LIFECYCLE MANAGEMENT
   // ============================================================
 
-  // 1. تحديث وقت آخر نشاط فوراً عند إضافة أي رسالة جديدة (من المستخدم أو الموظف)
+  // 1. تحديث وقت آخر نشاط فوراً عند إضافة أي رسالة جديدة
   useEffect(() => {
-    if (currentSpeaker === "agent") {
+    if (currentSpeaker === "agent" || currentSpeaker === "bot") {
       lastActivityTimeRef.current = Date.now();
-      // إذا كان المستخدم في حالة "انتهت" وأرسل رسالة، نعيدها فوراً إلى "متصل الآن"
-      if (chatStatus === "ended") {
+      // إذا كان المستخدم في حالة "غير نشطة" وأرسل رسالة، نعيدها فوراً إلى "متصل الآن"
+      if (chatStatus === "inactive") {
         setChatStatus("online");
       }
     }
   }, [messages, currentSpeaker]);
 
-  // 2. فحص الوقت كل ثانية بدقة متناهية
+  // 2. فحص الوقت كل ثانية بدقة متناهية لإدارة دورة حياة الجلسة
   useEffect(() => {
-    if (currentSpeaker !== "agent") return;
+    if (currentSpeaker !== "agent" && !isQueued) return;
 
     const interval = setInterval(() => {
       const now = Date.now();
       const elapsedSeconds = (now - lastActivityTimeRef.current) / 1000;
-      const totalTimeout = IDLE_TO_ENDED_SECONDS + ENDED_TO_BOT_SECONDS; // 60 + 30 = 90 ثانية
 
-      if (elapsedSeconds >= totalTimeout) {
-        // انتهت المهلة بالكامل (90 ثانية) -> حذف المحادثة والعودة للمساعد
-        endAgentSession();
-      } else if (elapsedSeconds >= IDLE_TO_ENDED_SECONDS && chatStatus !== "ended") {
-        // مرت 60 ثانية (دقيقة) -> تغيير الحالة إلى "انتهت" مع بقاء الدردشة مفتوحة
-        setChatStatus("ended");
+      if (currentSpeakerRef.current === "agent") {
+        const totalTimeout = SESSION_TIMEOUTS.IDLE_TO_INACTIVE + SESSION_TIMEOUTS.INACTIVE_TO_CLOSED;
+        
+        if (elapsedSeconds >= totalTimeout) {
+          // انتهت المهلة بالكامل -> إغلاق الجلسة والعودة للمساعد وحذف المحادثة القديمة
+          closeAgentSession();
+        } else if (elapsedSeconds >= SESSION_TIMEOUTS.IDLE_TO_INACTIVE && chatStatusRef.current !== "inactive" && chatStatusRef.current !== "closed") {
+          // مرت 60 ثانية -> تغيير الحالة إلى غير نشطة مع بقاء الدردشة مفتوحة
+          setChatStatus("inactive");
+        }
       }
-    }, 1000); // فحص كل ثانية
+    }, 1000);
 
     return () => clearInterval(interval);
-  }, [currentSpeaker, chatStatus, endAgentSession]);
+  }, [currentSpeaker, isQueued]);
 
-  // 3. دالة إنهاء الجلسة وحذف المحادثة والعودة للمساعد الذكي
-  const endAgentSession = useCallback(() => {
+  // 3. دالة إغلاق الجلسة وحذف المحادثة والعودة للمساعد الذكي
+  const closeAgentSession = useCallback(() => {
     const freshBotMessage = createMessage(
       "bot",
       "أهلاً بك مجدداً! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
       "assistant"
     );
 
-    // حذف المحادثة القديمة بالكامل واستبدالها برسالة ترحيب جديدة
+    // حذف المحادثة القديمة بالكامل واستبدالها برسالة ترحيب جديدة نظيفة
     setMessages([freshBotMessage]);
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
@@ -244,12 +256,13 @@ export default function Home() {
     setIsQueued(false);
     setShowDepartmentSelection(false);
     setChatStatus("online");
+    lastActivityTimeRef.current = Date.now();
 
     if (typeof window !== "undefined") {
       localStorage.setItem(
         "dar-alnujum-chat-state",
         JSON.stringify({
-          messages: [freshBotMessage], // حفظ المحادثة النظيفة فقط
+          messages: [freshBotMessage],
           currentSpeaker: "bot",
           currentAgent: null,
           sessionAgents: [],
@@ -260,6 +273,7 @@ export default function Home() {
     }
   }, []);
 
+  // 4. بدء جلسة مع موظف
   const startAgentSession = useCallback((agent: Agent) => {
     setCurrentAgent(agent);
     setSessionAgents([agent]);
@@ -274,7 +288,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // ESCALATION LOGIC
+  // ESCALATION & TRANSFER LOGIC
   // ============================================================
 
   const handleHumanRequest = useCallback(() => {
@@ -298,15 +312,16 @@ export default function Home() {
       } else {
         setIsQueued(true);
         setMessages(prev => [...prev, createMessage("system", `جميع موظفي ${deptOption?.name} مشغولون حالياً. تم وضعك في قائمة الانتظار.`)]);
-        setChatStatus("online");
+        setChatStatus("waiting");
         
+        // محاكاة التحقق الدوري من توفر موظف (في الإنتاج يتم عبر WebSockets)
         setTimeout(() => {
           const fallbackAgent = findAvailableAgent(dept) || SUPPORT_AGENTS.find(a => a.department === dept);
           if (fallbackAgent) {
             startAgentSession(fallbackAgent);
             setMessages(prev => [...prev, createMessage("system", "تم توصيلك بأحد موظفينا. نعتذر عن الانتظار.")]);
           }
-        }, 8000);
+        }, SESSION_TIMEOUTS.QUEUE_CHECK_INTERVAL);
       }
     }, 1500);
   }, [startAgentSession]);
@@ -329,7 +344,7 @@ export default function Home() {
 
     isSendingRef.current = true;
     
-    // إضافة رسالة المستخدم (هذا سيطلق useEffect الخاص بـ lastActivityTime ويصفر العداد تلقائياً)
+    // إضافة رسالة المستخدم (يؤدي هذا لتحديث lastActivityTimeRef تلقائياً)
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
 
@@ -338,33 +353,38 @@ export default function Home() {
       return;
     }
 
-    // محاكاة رد الموظف إذا كانت الجلسة نشطة معه
+    // محاكاة رد الموظف مع دعم منطق التحويل الداخلي بين الموظفين
     if (currentSpeaker === "agent") {
       setChatStatus("typing");
       setTimeout(() => {
         const normalized = normalizeArabicText(trimmedText);
-        let agentReply = "شكراً لتواصلك. تم استلام رسالتك وسيقوم المختص بالرد عليك بالتفصيل في أقرب وقت ممكن.";
+        let agentReply = "شكراً لتواصلك. تم استلام رسالتك.";
 
-        if (normalized.includes("مرحبا") || normalized.includes("سلام") || normalized.includes("هلو") || normalized.includes("مساء") || normalized.includes("صباح")) {
-          agentReply = `أهلاً بك مجدداً. أنا ${currentAgent?.name}، يسعدني جداً تواصلك. كيف يمكنني مساعدتك اليوم؟`;
+        if (normalized.includes("مرحبا") || normalized.includes("سلام") || normalized.includes("هلو")) {
+          agentReply = `أهلاً بك. أنا ${currentAgent?.name}، يسعدني جداً تواصلك. كيف يمكنني مساعدتك؟`;
+        } else if (normalized.includes("تحويل") || normalized.includes("قسم آخر") || normalized.includes("زميل")) {
+          // محاكاة التحويل الداخلي بين الموظفين إذا تعذر الحل
+          const targetDept = currentAgent?.department === 'ads' ? 'technical' : 'ads';
+          agentReply = `لحظة واحدة، سأقوم بتحويلك إلى الزميل المختص في قسم ${targetDept === 'ads' ? 'الإعلانات' : 'الدعم الفني'} لمساعدتك بشكل أفضل.`;
+          // ملاحظة للمطور: هنا يمكن استدعاء دالة transferSession(targetDept) في الإنتاج
         } else if (normalized.includes("سعر") || normalized.includes("اعلان") || normalized.includes("حجز")) {
-          agentReply = "أهلاً بك. بخصوص استفسارك عن الإعلانات والأسعار، سأقوم بتمرير طلبك فوراً لفريق المبيعات المختص ليقوم بتزويدك بأحدث العروض والباقات المتاحة.";
+          agentReply = "بخصوص استفسارك عن الإعلانات، سأقوم بتمرير طلبك فوراً لفريق المبيعات المختص لتزويدك بأحدث العروض والباقات.";
         } else if (normalized.includes("مشكلة") || normalized.includes("خطأ") || normalized.includes("لا يعمل")) {
-          agentReply = "نعتذر عن هذا الإزعاج. تم تسجيل ملاحظتك التقنية، وسأقوم بإحالتها لفريق الدعم الفني للتحقق منها وحلها في أسرع وقت.";
+          agentReply = "نعتذر عن هذا الإزعاج. تم تسجيل ملاحظتك التقنية وإحالتها لفريق الدعم الفني للتحقق منها وحلها في أسرع وقت.";
+        } else {
+          agentReply = "شكراً لرسالتك. سيقوم المختص بالرد عليك بالتفصيل في أقرب وقت ممكن.";
         }
 
         setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
         setChatStatus("online");
         isSendingRef.current = false;
       }, 1500);
-      
       return; 
     }
 
     // منطق المساعد الذكي (AI API) للإجابة على جميع الاستفسارات بدقة
     setChatStatus("typing");
     try {
-      // تجهيز الرسائل بصيغة مناسبة للـ API (user / assistant)
       const apiMessages = messages
         .filter(m => m.sender !== "system")
         .map(m => ({ 
@@ -372,7 +392,6 @@ export default function Home() {
           content: m.text 
         }));
       
-      // التأكد من إضافة رسالة المستخدم الحالية إذا لم تكن مضافة
       if (apiMessages.length === 0 || apiMessages[apiMessages.length - 1].role !== "user") {
          apiMessages.push({ role: "user", content: trimmedText });
       }
@@ -399,6 +418,7 @@ export default function Home() {
 
       setMessages(prev => [...prev, botResponse]);
 
+      // إذا أشار الـ API إلى ضرورة التحويل لموظف بشري
       if (data.escalate === true && currentSpeaker === "bot" && !showDepartmentSelection) {
         handleHumanRequest();
       }
@@ -448,17 +468,25 @@ export default function Home() {
   // ============================================================
 
   const getStatusText = () => {
-    if (chatStatus === "typing") return "يكتب الآن...";
-    if (chatStatus === "ended") return "انتهت المحادثة (بانتظار ردك)";
-    if (isQueued) return "في قائمة الانتظار...";
-    return "متصل الآن";
+    switch (chatStatus) {
+      case "typing": return "يكتب الآن...";
+      case "online": return "متصل الآن";
+      case "waiting": return "في قائمة الانتظار...";
+      case "inactive": return "انتهت المحادثة مؤقتاً (بانتظار ردك)";
+      case "closed": return "عاد المساعد الذكي";
+      default: return "غير نشط";
+    }
   };
 
   const getStatusColor = () => {
-    if (chatStatus === "typing") return "bg-yellow-400 animate-pulse";
-    if (chatStatus === "ended") return "bg-gray-500";
-    if (isQueued) return "bg-orange-400 animate-pulse";
-    return "bg-green-400 animate-pulse";
+    switch (chatStatus) {
+      case "typing": return "bg-yellow-400 animate-pulse";
+      case "online": return "bg-green-400 animate-pulse";
+      case "waiting": return "bg-orange-400 animate-pulse";
+      case "inactive": return "bg-gray-500";
+      case "closed": return "bg-green-400 animate-pulse";
+      default: return "bg-gray-400";
+    }
   };
 
   const renderSeamlessItems = () => {
@@ -486,7 +514,7 @@ export default function Home() {
   };
 
   // ============================================================
-  // JSX
+  // JSX (لم يتم تغيير أي شيء في التصميم أو الألوان)
   // ============================================================
 
   return (
