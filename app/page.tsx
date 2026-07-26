@@ -55,11 +55,11 @@ interface TrendingProduct {
 }
 
 // ============================================================
-// CONSTANTS (تم ضبط الأرقام بدقة حسب طلبك)
+// CONSTANTS
 // ============================================================
 
-const IDLE_TO_ENDED_SECONDS = 60; // دقيقة واحدة (60 ثانية) لظهور "انتهت المحادثة"
-const ENDED_TO_BOT_SECONDS = 30;  // 30 ثانية إضافية (المجموع 90 ثانية) لإغلاق الجلسة والعودة للمساعد
+const IDLE_TO_ENDED_SECONDS = 60; // دقيقة واحدة لظهور "انتهت المحادثة"
+const ENDED_TO_BOT_SECONDS = 30;  // 30 ثانية إضافية لإغلاق الجلسة والعودة للمساعد (المجموع 90 ثانية)
 
 const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
@@ -146,7 +146,7 @@ export default function Home() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
 
-  // Refs لإدارة الوقت بدقة متناهية
+  // Refs لإدارة الوقت والمنع من التكرار
   const currentSpeakerRef = useRef(currentSpeaker);
   const lastActivityTimeRef = useRef(Date.now());
   const isSendingRef = useRef(false);
@@ -196,7 +196,7 @@ export default function Home() {
   // TIMER & STATE MACHINE MANAGEMENT (المنطق المضمون 100%)
   // ============================================================
 
-  // 1. تحديث وقت آخر نشاط فوراً عند إضافة أي رسالة جديدة
+  // 1. تحديث وقت آخر نشاط فوراً عند إضافة أي رسالة جديدة (من المستخدم أو الموظف)
   useEffect(() => {
     if (currentSpeaker === "agent") {
       lastActivityTimeRef.current = Date.now();
@@ -205,9 +205,9 @@ export default function Home() {
         setChatStatus("online");
       }
     }
-  }, [messages, currentSpeaker, chatStatus]);
+  }, [messages, currentSpeaker]);
 
-  // 2. فحص الوقت كل ثانية بدقة
+  // 2. فحص الوقت كل ثانية بدقة متناهية
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
 
@@ -220,18 +220,15 @@ export default function Home() {
         // انتهت المهلة بالكامل (90 ثانية) -> حذف المحادثة والعودة للمساعد
         endAgentSession();
       } else if (elapsedSeconds >= IDLE_TO_ENDED_SECONDS && chatStatus !== "ended") {
-        // مرت 60 ثانية (دقيقة) -> تغيير الحالة إلى "انتهت"
+        // مرت 60 ثانية (دقيقة) -> تغيير الحالة إلى "انتهت" مع بقاء الدردشة مفتوحة
         setChatStatus("ended");
-      } else if (elapsedSeconds < IDLE_TO_ENDED_SECONDS && chatStatus === "ended") {
-        // المستخدم رد بسرعة (أقل من 60 ثانية) -> العودة إلى "متصل الآن"
-        setChatStatus("online");
       }
     }, 1000); // فحص كل ثانية
 
     return () => clearInterval(interval);
-  }, [currentSpeaker, chatStatus]);
+  }, [currentSpeaker, chatStatus, endAgentSession]);
 
-  // 3. دالة إنهاء الجلسة وحذف المحادثة والعودة للمساعد
+  // 3. دالة إنهاء الجلسة وحذف المحادثة والعودة للمساعد الذكي
   const endAgentSession = useCallback(() => {
     const freshBotMessage = createMessage(
       "bot",
@@ -341,9 +338,9 @@ export default function Home() {
       return;
     }
 
+    // محاكاة رد الموظف إذا كانت الجلسة نشطة معه
     if (currentSpeaker === "agent") {
       setChatStatus("typing");
-      
       setTimeout(() => {
         const normalized = normalizeArabicText(trimmedText);
         let agentReply = "شكراً لتواصلك. تم استلام رسالتك وسيقوم المختص بالرد عليك بالتفصيل في أقرب وقت ممكن.";
@@ -364,13 +361,21 @@ export default function Home() {
       return; 
     }
 
+    // منطق المساعد الذكي (AI API) للإجابة على جميع الاستفسارات بدقة
     setChatStatus("typing");
     try {
+      // تجهيز الرسائل بصيغة مناسبة للـ API (user / assistant)
       const apiMessages = messages
         .filter(m => m.sender !== "system")
-        .map(m => ({ role: m.role || "user", content: m.text }));
+        .map(m => ({ 
+          role: (m.sender === "bot" || m.sender === "agent") ? "assistant" : "user", 
+          content: m.text 
+        }));
       
-      apiMessages.push({ role: "user", content: trimmedText });
+      // التأكد من إضافة رسالة المستخدم الحالية إذا لم تكن مضافة
+      if (apiMessages.length === 0 || apiMessages[apiMessages.length - 1].role !== "user") {
+         apiMessages.push({ role: "user", content: trimmedText });
+      }
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -386,7 +391,7 @@ export default function Home() {
       
       const botResponse: Message = createMessage(
         "bot", 
-        data.text || "عذراً، لم أتمكن من الرد حالياً.", 
+        data.text || data.message || "عذراً، لم أتمكن من الرد حالياً.", 
         "assistant", 
         "read",
         data.attachments || data.products || data.cards || [] 
