@@ -11,6 +11,13 @@ type AgentStatus = "online" | "away" | "offline";
 type Department = 'support' | 'ads' | 'technical';
 type ChatStatus = "typing" | "online" | "ended";
 
+interface Attachment {
+  type: 'image' | 'link' | 'card' | 'product';
+  url?: string;
+  title?: string;
+  description?: string;
+}
+
 interface Message {
   id: string;
   sender: Sender;
@@ -18,6 +25,7 @@ interface Message {
   text: string;
   time: string;
   status?: "sent" | "delivered" | "read";
+  attachments?: Attachment[]; // دعم المحتوى الغني من الـ API
 }
 
 interface Agent {
@@ -50,7 +58,6 @@ const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-003", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=47", role: "مسؤولة الإعلانات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
 ];
 
-// قائمة الأقسام الديناميكية (قابلة للتوسعة من قاعدة البيانات مستقبلاً)
 const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'support', name: 'فريق الدعم وخدمة العملاء', description: 'للاستفسارات العامة وخدمة العملاء' },
   { id: 'ads', name: 'فريق الإعلانات والمبيعات', description: 'لحجز الإعلانات والاستفسار عن الأسعار والباقات' },
@@ -65,7 +72,7 @@ const TRENDING_PRODUCTS = [
 ];
 
 // ============================================================
-// UTILITY FUNCTIONS
+// UTILITY FUNCTIONS (مستقلة تماماً)
 // ============================================================
 
 const normalizeArabicText = (text: string): string => {
@@ -81,57 +88,33 @@ const normalizeArabicText = (text: string): string => {
     .toLowerCase();
 };
 
-// هل يريد المستخدم التحدث مع موظف؟
 const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
-
   const humanRequestKeywords = [
-    "موظف",
-    "شخص",
-    "انسان",
-    "بشري",
-    "حقيقي",
-    "ممثل",
-    "خدمة العملاء",
-    "فريق الدعم",
-    "الدعم",
-    "قسم الدعم",
-    "الدعم الفني",
-    "المبيعات",
-    "الاعلانات"
+    "موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", 
+    "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول"
   ];
-
-  return humanRequestKeywords.some(keyword =>
-    normalized.includes(normalizeArabicText(keyword))
-  );
+  return humanRequestKeywords.some(keyword => normalized.includes(keyword));
 };
 
 const findAvailableAgent = (department: Department): Agent | null => {
-  return (
-    SUPPORT_AGENTS.find(
-      agent =>
-        agent.department === department &&
-        agent.status === "online" &&
-        !agent.isBusy
-    ) || null
-  );
+  return SUPPORT_AGENTS.find(agent => agent.department === department && agent.status === 'online' && !agent.isBusy) || null;
 };
 
 const createMessage = (
-  sender: Sender,
-  text: string,
-  role?: "user" | "assistant",
-  status: "sent" | "delivered" | "read" = "read"
+  sender: Sender, 
+  text: string, 
+  role?: "user" | "assistant", 
+  status: "sent" | "delivered" | "read" = "read",
+  attachments?: Attachment[]
 ): Message => ({
-  id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-  sender,
-  text,
+  id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+  sender, 
+  text, 
   role,
-  time: new Date().toLocaleTimeString("ar-EG", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }),
+  time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
   status,
+  attachments
 });
 
 // ============================================================
@@ -149,17 +132,18 @@ export default function Home() {
   const [sessionAgents, setSessionAgents] = useState<Agent[]>([]);
   const [chatStatus, setChatStatus] = useState<ChatStatus>("online");
   const [isQueued, setIsQueued] = useState(false);
-  const [showDepartmentSelection, setShowDepartmentSelection] = useState(false); // لعرض قائمة الأقسام
+  const [showDepartmentSelection, setShowDepartmentSelection] = useState(false);
   
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
 
-  // Refs لمنع Stale Closures في المؤقتات
+  // Refs لمنع Stale Closures
   const currentSpeakerRef = useRef(currentSpeaker);
   const chatStatusRef = useRef(chatStatus);
   const idleToEndedTimerRef = useRef<NodeJS.Timeout | null>(null);
   const endedToBotTimerRef = useRef<NodeJS.Timeout | null>(null);
   const messagesRef = useRef(messages);
+  const isSendingRef = useRef(false); // منع الإرسال المتكرر
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
@@ -173,10 +157,15 @@ export default function Home() {
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-        messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued
+        messages: messagesRef.current,
+        currentSpeaker: currentSpeakerRef.current,
+        currentAgent,
+        sessionAgents,
+        chatStatus: chatStatusRef.current,
+        isQueued
       }));
     } catch (e) { console.error('Save state error:', e); }
-  }, [messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued]);
+  }, [currentAgent, sessionAgents, isQueued]);
 
   const loadStateFromStorage = useCallback((): boolean => {
     if (typeof window === 'undefined') return false;
@@ -186,18 +175,21 @@ export default function Home() {
       const parsed = JSON.parse(saved);
       
       setMessages(parsed.messages || []);
-      setCurrentSpeaker("bot");
+      setCurrentSpeaker("bot"); // دائماً نبدأ مع البوت عند التحميل لمنع الجلسات العالقة
       setCurrentAgent(null);
       setSessionAgents([]);
       setChatStatus("online");
       setIsQueued(false);
       setShowDepartmentSelection(false);
       return true;
-    } catch (e) { return false; }
+    } catch (e) { 
+      console.error('Load state error:', e); 
+      return false; 
+    }
   }, []);
 
   // ============================================================
-  // CORE FUNCTION: TIMER & STATE MACHINE MANAGEMENT
+  // TIMER & STATE MACHINE MANAGEMENT
   // ============================================================
 
   const clearAllTimers = useCallback(() => {
@@ -215,20 +207,15 @@ export default function Home() {
     clearAllTimers();
     
     if (currentSpeakerRef.current === "agent") {
-      // إذا عاد المستخدم خلال فترة "انتهت المحادثة"، نستأنف الجلسة فوراً
       if (chatStatusRef.current === "ended") {
-        setChatStatus("online");
+        setChatStatus("online"); // إحياء الجلسة إذا كتب المستخدم
       }
       
-      // المرحلة 1: بعد 40 ثانية من عدم النشاط، تتحول الحالة إلى "انتهت المحادثة"
       idleToEndedTimerRef.current = setTimeout(() => {
         setChatStatus("ended");
-        
-        // المرحلة 2: بعد 30 دقيقة من حالة "انتهت المحادثة"، تُغلق الجلسة نهائياً
         endedToBotTimerRef.current = setTimeout(() => {
           endAgentSession();
         }, ENDED_TO_BOT_MINUTES * 60 * 1000);
-        
       }, IDLE_TO_ENDED_SECONDS * 1000);
     }
   }, [clearAllTimers]);
@@ -236,17 +223,17 @@ export default function Home() {
   const endAgentSession = useCallback(() => {
     clearAllTimers();
     
-    // نحتفظ بالرسائل، ونغير المتحدث فقط إلى المساعد الذكي
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
     setIsQueued(false);
     setChatStatus("online");
     
+    // حفظ الحالة فوراً
     setTimeout(() => {
       if (typeof window !== 'undefined') {
         localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-          messages: messagesRef.current, // الاحتفاظ بسجل المحادثة
+          messages: messagesRef.current,
           currentSpeaker: "bot",
           currentAgent: null,
           sessionAgents: [],
@@ -267,20 +254,20 @@ export default function Home() {
     const welcomeMsg = createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). تفضل، كيف يمكنني مساعدتك؟`, "assistant");
     setMessages(prev => [...prev, welcomeMsg]);
     setChatStatus("online");
-    
     resetActivityTimers();
   }, [resetActivityTimers]);
 
-  // 🔴 منطق عرض قائمة الأقسام عند طلب موظف
-  const handleHumanRequest = useCallback((userText: string) => {
+  // ============================================================
+  // ESCALATION LOGIC
+  // ============================================================
+
+  const handleHumanRequest = useCallback(() => {
     setShowDepartmentSelection(true);
     setChatStatus("online");
-    
     const deptMsg = createMessage("system", "يرجى اختيار القسم الذي ترغب في التواصل معه:");
     setMessages(prev => [...prev, deptMsg]);
   }, []);
 
-  // 🔴 منطق التحويل الفعلي بعد اختيار القسم
   const initiateDepartmentTransfer = useCallback((dept: Department) => {
     setChatStatus("typing");
     const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
@@ -290,15 +277,13 @@ export default function Home() {
 
     setTimeout(() => {
       const availableAgent = findAvailableAgent(dept);
-      
       if (availableAgent) {
         startAgentSession(availableAgent);
       } else {
         setIsQueued(true);
-        setMessages(prev => [...prev, createMessage("system", `جميع موظفي ${deptOption?.name} مشغولون حالياً. تم وضعك في قائمة الانتظار، وسيتم تحويلك تلقائياً عند توفر أحد الموظفين.`)]);
+        setMessages(prev => [...prev, createMessage("system", `جميع موظفي ${deptOption?.name} مشغولون حالياً. تم وضعك في قائمة الانتظار.`)]);
         setChatStatus("online");
         
-        // محاكاة التحقق الدوري من توفر موظف (في الإنتاج يكون عبر WebSocket)
         setTimeout(() => {
           const fallbackAgent = findAvailableAgent(dept) || SUPPORT_AGENTS.find(a => a.department === dept);
           if (fallbackAgent) {
@@ -311,36 +296,45 @@ export default function Home() {
   }, [startAgentSession]);
 
   const checkAndPerformEscalation = useCallback((userText: string): boolean => {
-    // إذا كان يطلب موظفاً وهو يتحدث مع البوت ولم يعرض له القائمة بعد
     if (wantsHumanContact(userText) && currentSpeaker === "bot" && !showDepartmentSelection) {
-      handleHumanRequest(userText);
+      handleHumanRequest();
       return true;
     }
     return false;
   }, [currentSpeaker, showDepartmentSelection, handleHumanRequest]);
 
+  // ============================================================
+  // SEND MESSAGE & API HANDLING
+  // ============================================================
+
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
-    if (!trimmedText) return;
+    if (!trimmedText || isSendingRef.current) return;
 
+    isSendingRef.current = true;
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
-    
-    // أي نشاط من المستخدم يعيد ضبط مؤقتات الجلسة
     resetActivityTimers();
 
-    // 1. التحقق من طلب تحويل بشري
-    if (checkAndPerformEscalation(trimmedText)) return;
+    // 1. التحقق من نية المستخدم للتحويل
+    if (checkAndPerformEscalation(trimmedText)) {
+      isSendingRef.current = false;
+      return;
+    }
 
-    // 2. حاجز الحماية: إذا كان المتحدث موظفاً، لا نستدعي الـ API (يتم التعامل مع الرسالة عبر النظام الخلفي)
+    // 2. حاجز الحماية: عدم استدعاء API إذا كان المتحدث موظفاً
     if (currentSpeaker === "agent") {
+      isSendingRef.current = false;
       return; 
     }
 
-    // 3. منطق المساعد الذكي: يجيب على كل الاستفسارات (أخبار، أسعار، إعلانات، برامج، إلخ)
+    // 3. منطق المساعد الذكي
     setChatStatus("typing");
     try {
-      const apiMessages = messagesRef.current.filter(m => m.sender !== "system").map(m => ({ role: m.role || "user", content: m.text }));
+      const apiMessages = messagesRef.current
+        .filter(m => m.sender !== "system")
+        .map(m => ({ role: m.role || "user", content: m.text }));
+      
       apiMessages.push({ role: "user", content: trimmedText });
 
       const response = await fetch('/api/chat', {
@@ -349,14 +343,36 @@ export default function Home() {
         body: JSON.stringify({ messages: apiMessages }),
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
-      setMessages(prev => [...prev, createMessage("bot", data.text || "عذراً، لم أتمكن من الرد حالياً.", "assistant")]);
+      
+      // دعم المحتوى الغني (صور، روابط، بطاقات) إذا أرجعها الـ API
+      const botResponse: Message = createMessage(
+        "bot", 
+        data.text || "عذراً، لم أتمكن من الرد حالياً.", 
+        "assistant", 
+        "read",
+        data.attachments || data.products || data.cards || [] 
+      );
+
+      setMessages(prev => [...prev, botResponse]);
+
+      // 4. التحقق من إشارة التحويل الصريحة من الـ API
+      if (data.escalate === true && currentSpeaker === "bot" && !showDepartmentSelection) {
+        handleHumanRequest();
+      }
+
     } catch (error) {
-      setMessages(prev => [...prev, createMessage("system", "عذراً، حدث خطأ في الاتصال بالخادم.")]);
+      console.error("Chat API Error:", error);
+      setMessages(prev => [...prev, createMessage("system", "عذراً، حدث خطأ في الاتصال بالخادم. يرجى المحاولة لاحقاً.")]);
     } finally {
       setChatStatus("online");
+      isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, resetActivityTimers, checkAndPerformEscalation]);
+  }, [text, currentSpeaker, resetActivityTimers, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest]);
 
   // ============================================================
   // EFFECTS
@@ -419,7 +435,7 @@ export default function Home() {
         'rectangle': 'w-20 h-14 rounded-xl',
         'portrait': 'w-14 h-20 rounded-2xl',
         'square': 'w-16 h-16 rounded-md'
-      }[product.shape] || 'w-16 h-16 rounded-md';
+      }[product.shape as keyof typeof shapeClass] || 'w-16 h-16 rounded-md';
 
       return (
         <div key={`${product.id}-${index}`} className="flex-shrink-0 inline-flex items-center gap-4 mx-4 bg-[#1f2937]/90 backdrop-blur-sm px-4 py-3 border border-gray-700 hover:border-purple-500 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 w-[300px]">
@@ -532,7 +548,7 @@ export default function Home() {
         <div className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50">
           {messages.map((msg) => {
             if (msg.sender === "system") {
-              return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center">{msg.text}</span></div>;
+              return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%]">{msg.text}</span></div>;
             }
             const isUser = msg.sender === "user";
             return (
@@ -540,6 +556,27 @@ export default function Home() {
                 {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
                 <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
                   {msg.text}
+                  
+                  {/* 🔴 عرض المحتوى الغني (صور، روابط، بطاقات) من الـ API */}
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {msg.attachments.map((att, idx) => {
+                        if (att.type === 'image' && att.url) {
+                          return <img key={idx} src={att.url} alt="attachment" className="rounded-lg max-w-full h-auto border border-gray-600" />;
+                        }
+                        if ((att.type === 'link' || att.type === 'card' || att.type === 'product') && att.url) {
+                          return (
+                            <a key={idx} href={att.url} target="_blank" rel="noopener noreferrer" className="block bg-[#0b0f1a]/50 hover:bg-[#0b0f1a] border border-purple-500/30 rounded-lg p-2 transition-colors">
+                              {att.title && <div className="font-bold text-xs text-purple-300 mb-1">{att.title}</div>}
+                              {att.description && <div className="text-[10px] text-gray-400">{att.description}</div>}
+                              <div className="text-[10px] text-blue-400 mt-1 truncate">{att.url}</div>
+                            </a>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                  )}
                 </div>
                 <span className="text-[10px] text-gray-500 mt-1 px-1 flex items-center gap-1">
                   {msg.time}{isUser && <span>{msg.status === "read" ? "✓✓" : "✓"}</span>}
@@ -548,9 +585,8 @@ export default function Home() {
             );
           })}
 
-          {/* 🔴 عرض قائمة الأقسام الديناميكية عند طلب موظف */}
           {showDepartmentSelection && currentSpeaker === "bot" && (
-            <div className="space-y-2 mt-2">
+            <div className="space-y-2 mt-2 animate-slide-in-right">
               {DEPARTMENT_OPTIONS.map((dept) => (
                 <button
                   key={dept.id}
@@ -590,7 +626,7 @@ export default function Home() {
             />
             <button 
               onClick={sendMessage} 
-              disabled={!text.trim() || chatStatus === "typing" || showDepartmentSelection} 
+              disabled={!text.trim() || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
               className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
