@@ -149,7 +149,6 @@ export default function Home() {
   // شريط التحميل
   const [loadingProgress, setLoadingProgress] = useState(0);
   
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
 
   const currentSpeakerRef = useRef(currentSpeaker);
@@ -164,6 +163,7 @@ export default function Home() {
   const lastHandledTopicRef = useRef<string | null>(null);
   const conversationPhaseRef = useRef<"initial" | "ongoing" | "closing" | "gratitude">("initial");
   const lastAgentMessageRef = useRef<string>("");
+  const messageCountRef = useRef<number>(0);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
@@ -280,6 +280,7 @@ export default function Home() {
       lastHandledTopicRef.current = null;
       conversationPhaseRef.current = "initial";
       lastAgentMessageRef.current = "";
+      messageCountRef.current = 0;
       return true;
     } catch (e) { 
       console.error('Load state error:', e); 
@@ -342,6 +343,7 @@ export default function Home() {
     lastHandledTopicRef.current = null;
     conversationPhaseRef.current = "initial";
     lastAgentMessageRef.current = "";
+    messageCountRef.current = 0;
 
     if (typeof window !== "undefined") {
       localStorage.setItem(
@@ -370,6 +372,7 @@ export default function Home() {
     lastHandledTopicRef.current = null;
     conversationPhaseRef.current = "initial";
     lastAgentMessageRef.current = "";
+    messageCountRef.current = 0;
     
     const welcomeMsg = createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). تفضل، كيف يمكنني مساعدتك؟`, "assistant");
     setMessages(prev => [...prev, welcomeMsg]);
@@ -452,6 +455,7 @@ export default function Home() {
       lastHandledTopicRef.current = null;
       conversationPhaseRef.current = "initial";
       lastAgentMessageRef.current = "";
+      messageCountRef.current = 0;
       
       setTimeout(() => {
         const newAgentWelcome = createMessage(
@@ -499,6 +503,7 @@ export default function Home() {
         const currentDept = currentAgent.department;
         const context = conversationContextRef.current.join(" ");
         const lastAgentMsg = lastAgentMessageRef.current;
+        messageCountRef.current += 1;
 
         // 🔴 التحقق: هل المستخدم يرد على سؤال "هل تحتاج شيئاً آخر؟"
         if (awaitingFinalConfirmationRef.current) {
@@ -633,32 +638,6 @@ export default function Home() {
           setTimeout(() => {
             performInternalTransfer('technical', currentAgent.name);
           }, 1000);
-          return;
-        }
-
-        // 🔴 الردود حسب نوع السؤال - ذكية وسياقية
-        if (isGeneralRequest) {
-          const greetingReplies = [
-            "أهلاً بك مجدداً. كيف يمكنني خدمتك الآن؟",
-            "أهلاً وسهلاً. تفضل، أنا أستمع إليك.",
-            "مرحباً بك. كيف أقدر أساعدك؟"
-          ];
-          
-          const availableGreetings = greetingReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-          let agentReply;
-          if (availableGreetings.length > 0) {
-            agentReply = availableGreetings[Math.floor(Math.random() * availableGreetings.length)];
-          } else {
-            previousAgentRepliesRef.current.clear();
-            agentReply = greetingReplies[Math.floor(Math.random() * greetingReplies.length)];
-          }
-          
-          previousAgentRepliesRef.current.add(agentReply);
-          setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
-          setChatStatus("online");
-          conversationPhaseRef.current = "ongoing";
-          lastAgentMessageRef.current = agentReply;
-          isSendingRef.current = false;
           return;
         }
 
@@ -821,7 +800,7 @@ export default function Home() {
           return;
         }
 
-        // 🔴 الردود العامة
+        // 🔴 الردود العامة - لا ترحيب متكرر
         const generalReplies: string[] = [];
         
         if (currentDept === 'ads') {
@@ -857,8 +836,9 @@ export default function Home() {
         setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
         lastAgentMessageRef.current = agentReply;
         
+        //  لا تسأل عن الختام إلا بعد عدة رسائل
         setTimeout(() => {
-          if (conversationPhaseRef.current === "ongoing") {
+          if (conversationPhaseRef.current === "ongoing" && messageCountRef.current > 3) {
             const followUpQuestions = [
               "هل تحتاج إلى شيء آخر أستاذ؟",
               "هل لديك أي استفسار آخر؟",
@@ -869,6 +849,9 @@ export default function Home() {
             awaitingFinalConfirmationRef.current = true;
             conversationPhaseRef.current = "closing";
             lastAgentMessageRef.current = followUp;
+            setChatStatus("online");
+            isSendingRef.current = false;
+          } else {
             setChatStatus("online");
             isSendingRef.current = false;
           }
