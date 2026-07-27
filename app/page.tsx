@@ -83,7 +83,7 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'technical', name: 'الدعم الفني', description: 'حل المشاكل التقنية' },
 ];
 
-// 🔴 مدة الانتهاء مضبوطة على 45 ثانية كما طلبت
+// 🔴 مدة الانتهاء مضبوطة على 45 ثانية
 const SESSION_TIMEOUTS = {
   IDLE_TO_ENDED: 45, 
   QUEUE_CHECK_INTERVAL: 8000,
@@ -269,7 +269,7 @@ export default function Home() {
     setCurrentSpeaker("agent");
     setIsQueued(false);
     setShowDepartmentSelection(false);
-    isFirstMessageRef.current = true; // إعادة تعيين للتحية الأولى
+    isFirstMessageRef.current = true;
     awaitingFollowUpRef.current = false;
     
     setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). تفضل، كيف يمكنني مساعدتك؟`, "assistant")]);
@@ -330,12 +330,12 @@ export default function Home() {
         let agentReply = "";
         let triggerFollowUp = false;
 
-        // 1. معالجة التحية الأولى فقط
+        // 1. التحية الأولى
         if (isFirstMessageRef.current && ["مرحبا", "هلو", "السلام", "مساء", "صباح"].some(k => normalized.includes(k))) {
           agentReply = `أهلاً وسهلاً بك أستاذ. أنا ${currentAgent.name} من ${currentAgent.department === 'ads' ? 'قسم الإعلانات' : currentAgent.department === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}. كيف أستطيع مساعدتك اليوم؟`;
           isFirstMessageRef.current = false;
         }
-        // 2. معالجة الشكر والختام
+        // 2. الشكر والختام
         else if (["شكر", "تسلم", "عافيه", "تمام", "ممتاز"].some(k => normalized.includes(k))) {
           if (awaitingFollowUpRef.current) {
             agentReply = "شكراً لتواصلك معنا. نتمنى لك يوماً سعيداً، ونحن دائماً في خدمتك.";
@@ -345,7 +345,7 @@ export default function Home() {
             triggerFollowUp = true;
           }
         }
-        // 3. الرد على "لا" أو "خلاص" بعد سؤال المتابعة
+        // 3. الرد على "لا" أو "خلاص"
         else if (["لا", "خلاص", "هذا كل شيء"].some(k => normalized.includes(k)) && awaitingFollowUpRef.current) {
           agentReply = "شكراً لتواصلك معنا. نتمنى لك يوماً سعيداً، ونحن دائماً في خدمتك.";
           awaitingFollowUpRef.current = false;
@@ -505,17 +505,23 @@ export default function Home() {
         </div>
       )}
 
+      {/* 🔴 الهيدر بنفس التصميم المطلوب تماماً */}
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
-        <div className="w-full px-4 py-3 flex justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-10 h-10 rounded-full object-cover border-2 border-purple-500" />
-            <span className="text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span>
+        <div className="w-full px-2 md:px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-2 md:gap-4">
+          <a href="/" className="flex items-center gap-2 md:gap-3 shrink-0">
+            <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover border-2 border-purple-500 shadow-md" />
+            <span className="text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">قناة مجلة دار النجوم</span>
+          </a>
+          <div className="flex-1 max-w-md mx-2 hidden md:block">
+            <input type="text" placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
           </div>
-          <input type="text" placeholder="🔎 ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="hidden md:block flex-1 max-w-md bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:ring-2 focus:ring-purple-500 text-sm" />
-          <div className="flex items-center gap-2">
-            <a href="/upgrade" className="hidden sm:flex items-center gap-1 px-3 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs font-bold hover:shadow-lg transition">ترقية 👑</a>
-            <a href="/login" className="px-3 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-bold hover:shadow-lg transition">اشتراك</a>
+          <div className="flex items-center gap-2 md:gap-3 shrink-0">
+            <a href="/upgrade" className="hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg transition">ترقية 👑</a>
+            <a href="/login" className="px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg transition">اشتراك</a>
           </div>
+        </div>
+        <div className="md:hidden px-2 pb-3">
+          <input type="text" placeholder="🔎 ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
         </div>
       </header>
 
@@ -525,9 +531,20 @@ export default function Home() {
         <div className="flex animate-seamless-scroll w-max">{renderSeamlessItems()}</div>
       </div>
 
-      <main className="container mx-auto px-4 py-12 flex-1 text-center">
-        <h1 className="text-5xl font-black mb-4">مرحبًا بكم في <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span></h1>
-        <p className="text-gray-400 text-lg max-w-2xl mx-auto">منصتكم الإعلامية الأولى لعالم المشاهير والمحتوى الحصري.</p>
+      <main className="container mx-auto px-4 py-8 flex-1">
+        <section className="text-center mb-12">
+          <div className="youtube-ad-marquee bg-purple-900/30 border border-purple-500/30 rounded-full py-2.5 mb-8 overflow-hidden relative">
+            <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[#0b0f1a] to-transparent z-10 pointer-events-none rounded-r-full"></div>
+            <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[#0b0f1a] to-transparent z-10 pointer-events-none rounded-l-full"></div>
+            <div className="flex whitespace-nowrap animate-seamless-scroll w-max">
+              {[...Array(10), ...Array(10)].map((_, i) => (
+                <span key={i} className="mx-8 text-purple-300 text-sm font-semibold flex items-center gap-2"> إعلان حصري: تابعوا أحدث البرامج واللقاءات على قناة مجلة دار النجوم</span>
+              ))}
+            </div>
+          </div>
+          <h1 className="text-4xl md:text-6xl font-black mb-4 leading-tight">مرحبًا بكم في <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span></h1>
+          <p className="text-gray-400 text-lg mb-8 max-w-2xl mx-auto">منصتكم الإعلامية الأولى لعالم المشاهير والمحتوى الحصري.</p>
+        </section>
       </main>
 
       {/* أيقونة المحادثة مع الحركات الطبيعية وظهور من اليمين */}
@@ -549,13 +566,28 @@ export default function Home() {
 
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
-          <div className="relative">
-            <img src={currentAgent?.img || "https://iili.io/Bsjh2M7.png"} alt="Agent" className="w-10 h-10 rounded-full border-2 border-purple-500" />
-            <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] ${getStatusColor()}`}></span>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {sessionAgents.length === 0 ? (
+              <div className="relative">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="4" y="8" width="16" height="12" rx="3" fill="white" opacity="0.95"/><circle cx="9" cy="14" r="1.5" fill="#7c3aed"/><circle cx="15" cy="14" r="1.5" fill="#7c3aed"/><path d="M9 17 Q12 19 15 17" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" fill="none"/><line x1="12" y1="8" x2="12" y2="5" stroke="white" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="4" r="1.5" fill="white"/></svg>
+                </div>
+                <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] bg-green-500"></span>
+              </div>
+            ) : (
+              <div className="flex -space-x-3 rtl:space-x-reverse">
+                {sessionAgents.map((agent, idx) => (
+                  <img key={agent.employeeId} src={agent.img} alt={agent.name} className={`w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-[#111827] object-cover ${idx === sessionAgents.length - 1 ? "border-purple-500 z-10 ring-2 ring-purple-500/30" : "border-gray-500 z-0 opacity-60 grayscale"}`} />
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="font-bold text-white text-sm truncate">{currentAgent ? currentAgent.name : "المساعد الذكي"}</h4>
-            <p className="text-xs text-gray-400 truncate">{getStatusText()}</p>
+            <h4 className="font-bold text-white text-sm truncate">{sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name}</h4>
+            <p className="text-xs flex items-center gap-1 truncate">
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor()}`}></span>
+              <span className="truncate">{getStatusText()}</span>
+            </p>
           </div>
         </div>
 
