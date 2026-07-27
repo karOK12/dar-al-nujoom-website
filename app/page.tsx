@@ -145,7 +145,7 @@ export default function Home() {
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
 
   // ============================================================
-  // 1. شريط التحميل RTL (من اليمين لليسار)
+  // 1. شريط التحميل RTL (ينمو من اليمين لليسار)
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -180,7 +180,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // 2. حركة الأيقونة الطبيعية (Idle + تتبع الماوس)
+  // 2. حركة الأيقونة الطبيعية (تتبع الماوس بالعينين فقط + رمش + ابتسامة)
   // ============================================================
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -189,32 +189,22 @@ export default function Home() {
         const dist = Math.hypot(e.clientX - (rect.left + rect.width/2), e.clientY - (rect.top + rect.height/2));
         setIsMouseNear(dist < 150);
         
-        if (dist < 150) {
-          const x = Math.max(-4, Math.min(4, (e.clientX - (rect.left + rect.width/2)) / 30));
-          const y = Math.max(-4, Math.min(4, (e.clientY - (rect.top + rect.height/2)) / 30));
-          setEyePos({ x, y });
-        }
+        // تحريك بؤبؤ العين فقط بمقدار بسيط وطبيعي
+        const x = Math.max(-4, Math.min(4, (e.clientX - (rect.left + rect.width/2)) / 25));
+        const y = Math.max(-4, Math.min(4, (e.clientY - (rect.top + rect.height/2)) / 25));
+        setEyePos({ x, y });
       }
     };
     
-    // حركة عشوائية طبيعية عند عدم وجود ماوس قريب
-    const startRandomLook = () => {
-      if (!isMouseNear) {
-        setEyePos({ x: (Math.random() - 0.5) * 4, y: (Math.random() - 0.5) * 4 });
-      }
-      randomLookTimerRef.current = setTimeout(startRandomLook, 2000 + Math.random() * 3000);
-    };
-    startRandomLook();
-
     window.addEventListener("mousemove", handleMouseMove);
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       if (randomLookTimerRef.current) clearTimeout(randomLookTimerRef.current);
     };
-  }, [isMouseNear]);
+  }, []);
 
   // ============================================================
-  // 3. إدارة الجلسة ومؤقت الـ 45 ثانية
+  // 3. إدارة الجلسة ومؤقت الـ 45 ثانية للعودة للمساعد الذكي
   // ============================================================
   const clearAllTimers = useCallback(() => {
     if (followUpTimerRef.current) { clearTimeout(followUpTimerRef.current); followUpTimerRef.current = null; }
@@ -227,7 +217,6 @@ export default function Home() {
     }
   }, [messages, currentSpeaker]);
 
-  // 🔴 منطق الـ 45 ثانية الدقيق للعودة للمساعد الذكي
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
     
@@ -243,7 +232,7 @@ export default function Home() {
 
   const endAgentSession = useCallback(() => {
     clearAllTimers();
-    const endMsg = createMessage("system", "تم إنهاء جلسة الدعم مؤقتاً بسبب عدم النشاط. عاد المساعد الذكي لخدمتك.", "assistant");
+    const endMsg = createMessage("system", "تم إنهاء جلسة الدعم بسبب عدم وجود نشاط، وتمت إعادتك إلى المساعد الذكي.", "assistant");
     setMessages(prev => [...prev, endMsg]);
     
     setCurrentSpeaker("bot");
@@ -256,11 +245,11 @@ export default function Home() {
 
     if (typeof window !== "undefined") {
       localStorage.setItem("dar-alnujum-chat-state", JSON.stringify({
-        messages: [...messages, endMsg], currentSpeaker: "bot", currentAgent: null,
+        messages: [endMsg], currentSpeaker: "bot", currentAgent: null,
         sessionAgents: [], chatStatus: "online", isQueued: false
       }));
     }
-  }, [clearAllTimers, messages]);
+  }, [clearAllTimers]);
 
   const startAgentSession = useCallback((agent: Agent) => {
     clearAllTimers();
@@ -278,11 +267,11 @@ export default function Home() {
   }, [clearAllTimers]);
 
   // ============================================================
-  // 4. منطق التحويل الداخلي بين الموظفين
+  // 4. منطق التحويل الداخلي بين الموظفين (مع الحفاظ على السياق)
   // ============================================================
   const performInternalTransfer = useCallback((targetDept: Department, currentAgentName: string, userQuery: string) => {
-    const targetAgent = SUPPORT_AGENTS.find(a => a.department === targetDept && a.status === 'online') || SUPPORT_AGENTS[0];
-    setMessages(prev => [...prev, createMessage("agent", `لحظة واحدة أستاذ، سأقوم بتحويلك الآن إلى زميلي المختص في قسم ${targetDept === 'ads' ? 'الإعلانات' : 'الدعم الفني'} لخدمة أفضل.`, "assistant")]);
+    const targetAgent = SUPPORT_AGENTS.find(a => a.department === targetDept && a.status === 'online') || SUPPORT_AGENTS.find(a => a.department === targetDept)!;
+    setMessages(prev => [...prev, createMessage("agent", `لحظة واحدة أستاذ، هذا الطلب يخص قسم ${targetDept === 'ads' ? 'الإعلانات' : 'الدعم الفني'}. سأقوم بتحويلك الآن إلى زميلي المختص لخدمتك بشكل أفضل.`, "assistant")]);
     setChatStatus("typing");
     
     setTimeout(() => {
@@ -290,10 +279,11 @@ export default function Home() {
       setSessionAgents(prev => prev.find(a => a.employeeId === targetAgent!.employeeId) ? prev : [...prev, targetAgent!]);
       
       setTimeout(() => {
-        setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${targetAgent!.name}. لقد اطلعت على طلبك بخصوص "${userQuery}"، وأنا هنا لمساعدتك. تفضل.`, "assistant")]);
+        setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${targetAgent!.name} من قسم ${targetDept === 'ads' ? 'الإعلانات' : 'الدعم الفني'}. لقد اطلعت على محادثتك السابقة بخصوص: "${userQuery}"، وأنا هنا لمساعدتك. تفضل.`, "assistant")]);
         setChatStatus("online");
         isSendingRef.current = false;
         lastActivityTimeRef.current = Date.now();
+        isFirstMessageRef.current = false; // منع تكرار التحية
       }, 1200);
     }, 1000);
   }, []);
@@ -313,7 +303,7 @@ export default function Home() {
 
     const normalized = normalizeArabicText(trimmedText);
 
-    // أ. طلب تحويل يدوي
+    // أ. طلب تحويل يدوي للمساعد الذكي
     if (["موظف", "شخص", "دعم", "حولني"].some(k => normalized.includes(k)) && currentSpeaker === "bot" && !showDepartmentSelection) {
       setShowDepartmentSelection(true);
       setMessages(prev => [...prev, createMessage("system", "يرجى اختيار القسم الذي ترغب في التواصل معه:", "assistant")]);
@@ -330,23 +320,34 @@ export default function Home() {
         let agentReply = "";
         let triggerFollowUp = false;
 
-        // 1. معالجة التحية الأولى فقط
-        if (isFirstMessageRef.current && ["مرحبا", "هلو", "السلام", "مساء", "صباح"].some(k => normalized.includes(k))) {
-          agentReply = `أهلاً وسهلاً بك أستاذ. أنا ${currentAgent.name} من ${currentAgent.department === 'ads' ? 'قسم الإعلانات' : currentAgent.department === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}. كيف أستطيع مساعدتك اليوم؟`;
+        // 1. معالجة التحية الأولى فقط (بدون أسئلة متابعة)
+        if (isFirstMessageRef.current && ["مرحبا", "هلو", "السلام", "مساء", "صباح", "اهلا"].some(k => normalized.includes(k))) {
+          const greetings = [
+            "أهلاً وسهلاً بك أستاذ. كيف أستطيع مساعدتك اليوم؟",
+            "يسعدني خدمتك أستاذ. تفضل، كيف يمكنني مساعدتك؟",
+            "أهلاً بك. أنا هنا لمساعدتك، تفضل بطرح استفسارك."
+          ];
+          agentReply = greetings[Math.floor(Math.random() * greetings.length)];
           isFirstMessageRef.current = false;
         }
         // 2. معالجة الشكر والختام
-        else if (["شكر", "تسلم", "عافيه", "تمام", "ممتاز"].some(k => normalized.includes(k))) {
+        else if (["شكر", "تسلم", "عافيه", "تمام", "ممتاز", "جزاك الله"].some(k => normalized.includes(k))) {
           if (awaitingFollowUpRef.current) {
             agentReply = "شكراً لتواصلك معنا. نتمنى لك يوماً سعيداً، ونحن دائماً في خدمتك.";
             awaitingFollowUpRef.current = false;
           } else {
-            agentReply = "العفو أستاذ. يسعدني خدمتك.";
+            const thanksReplies = [
+              "العفو أستاذ، هذا واجبنا.",
+              "يسعدني جداً أن أكون عند حسن ظنك.",
+              "بكل سرور أستاذ، نحن هنا لخدمتك دائماً.",
+              "أهلاً بك في أي وقت، يسعدني مساعدتك."
+            ];
+            agentReply = thanksReplies[Math.floor(Math.random() * thanksReplies.length)];
             triggerFollowUp = true;
           }
         }
         // 3. الرد على "لا" أو "خلاص" بعد سؤال المتابعة
-        else if (["لا", "خلاص", "هذا كل شيء"].some(k => normalized.includes(k)) && awaitingFollowUpRef.current) {
+        else if (["لا", "خلاص", "هذا كل شيء", "لا شكرا"].some(k => normalized.includes(k)) && awaitingFollowUpRef.current) {
           agentReply = "شكراً لتواصلك معنا. نتمنى لك يوماً سعيداً، ونحن دائماً في خدمتك.";
           awaitingFollowUpRef.current = false;
         }
@@ -359,46 +360,52 @@ export default function Home() {
           let rate = 1;
           if (normalized.includes("عراقي") || normalized.includes("دينار")) { currency = "IQD"; symbol = "دينار عراقي"; rate = EXCHANGE_RATES.IQD; }
           else if (normalized.includes("سعودي") || normalized.includes("ريال")) { currency = "SAR"; symbol = "ريال سعودي"; rate = EXCHANGE_RATES.SAR; }
-          else if (normalized.includes("تومان") || normalized.includes("ايراني")) { currency = "IRR"; symbol = "تومان إيراني"; rate = EXCHANGE_RATES.IRR; }
+          else if (normalized.includes("درهم") || normalized.includes("امارات")) { currency = "AED"; symbol = "درهم إماراتي"; rate = EXCHANGE_RATES.AED; }
           else if (normalized.includes("يورو")) { currency = "EUR"; symbol = "يورو"; rate = EXCHANGE_RATES.EUR; }
 
-          const formatPrice = (usd: number) => `${Math.round(usd * rate)} ${symbol}`;
+          const formatPrice = (usd: number) => `${Math.round(usd * rate).toLocaleString()} ${symbol}`;
           
           if (currentAgent.department === 'ads') {
-            agentReply = `أسعار باقاتنا الأساسية (بالدولار الأمريكي كمرجع):\n🔹 الأسبوعية: ${formatPrice(AD_PACKAGES.weekly.usd)}\n🔹 الشهرية: ${formatPrice(AD_PACKAGES.monthly.usd)}\n🔹 الاحترافية: ${formatPrice(AD_PACKAGES.premium.usd)}\n${currency !== 'USD' ? `\n(ملاحظة: الأسعار أعلاه هي التقريبية بالعملة المطلوبة بناءً على سعر الصرف الحالي)` : ''}`;
+            agentReply = `إليك أسعار باقاتنا الأساسية:\n🔹 الباقة الأسبوعية: ${formatPrice(AD_PACKAGES.weekly.usd)}\n🔹 الباقة الشهرية: ${formatPrice(AD_PACKAGES.monthly.usd)}\n🔹 الباقة الاحترافية: ${formatPrice(AD_PACKAGES.premium.usd)}\n${currency !== 'USD' ? '\n(ملاحظة: الأسعار أعلاه هي التقريبية بناءً على سعر الصرف الحالي)' : ''}`;
             triggerFollowUp = true;
           } else {
-            performInternalTransfer('ads', currentAgent.name, "استفسار عن أسعار الإعلانات");
+            performInternalTransfer('ads', currentAgent.name, trimmedText);
             isSendingRef.current = false;
             return;
           }
         }
-        // 5. أسئلة محددة (مدة، منصات، مشاهدات) - إجابة منفصلة
-        else if (normalized.includes("مدة") || normalized.includes("يوم") || normalized.includes("شهر")) {
-          agentReply = `مدة الإعلان تعتمد على الباقة المختارة:\n• الأسبوعية: ${AD_PACKAGES.weekly.duration}\n• الشهرية: ${AD_PACKAGES.monthly.duration}\n• الاحترافية: ${AD_PACKAGES.premium.duration}`;
+        // 5. أسئلة محددة (مدة، منصات، مشاهدات) - إجابة منفصلة ودقيقة
+        else if (normalized.includes("مدة") || normalized.includes("يوم") || normalized.includes("شهر") || normalized.includes("فترة")) {
+          isFirstMessageRef.current = false;
+          agentReply = `مدة الإعلان تعتمد على الباقة المختارة:\n• الباقة الأسبوعية: ${AD_PACKAGES.weekly.duration}\n• الباقة الشهرية: ${AD_PACKAGES.monthly.duration}\n• الباقة الاحترافية: ${AD_PACKAGES.premium.duration}`;
           triggerFollowUp = true;
         }
-        else if (normalized.includes("منصه") || normalized.includes("فيسبوك") || normalized.includes("انستقرام") || normalized.includes("تيك توك")) {
-          agentReply = `نغطي عدة منصات حسب الباقة:\n• الأسبوعية: ${AD_PACKAGES.weekly.platforms}\n• الشهرية: ${AD_PACKAGES.monthly.platforms}\n• الاحترافية: ${AD_PACKAGES.premium.platforms}`;
+        else if (normalized.includes("منصه") || normalized.includes("فيسبوك") || normalized.includes("انستقرام") || normalized.includes("تيك توك") || normalized.includes("منصات")) {
+          isFirstMessageRef.current = false;
+          agentReply = `نغطي عدة منصات حسب الباقة:\n• الباقة الأسبوعية: ${AD_PACKAGES.weekly.platforms}\n• الباقة الشهرية: ${AD_PACKAGES.monthly.platforms}\n• الباقة الاحترافية: ${AD_PACKAGES.premium.platforms}`;
           triggerFollowUp = true;
         }
-        else if (normalized.includes("مشاهدات") || normalized.includes("ظهور") || normalized.includes("reach")) {
-          agentReply = `عدد مرات الظهور المضمون لكل باقة:\n• الأسبوعية: ${AD_PACKAGES.weekly.views}\n• الشهرية: ${AD_PACKAGES.monthly.views}\n• الاحترافية: ${AD_PACKAGES.premium.views}`;
+        else if (normalized.includes("مشاهدات") || normalized.includes("ظهور") || normalized.includes("reach") || normalized.includes("وصول")) {
+          isFirstMessageRef.current = false;
+          agentReply = `عدد مرات الظهور المضمون لكل باقة:\n• الباقة الأسبوعية: ${AD_PACKAGES.weekly.views}\n• الباقة الشهرية: ${AD_PACKAGES.monthly.views}\n• الباقة الاحترافية: ${AD_PACKAGES.premium.views}`;
           triggerFollowUp = true;
         }
-        // 6. تحويل خارج الاختصاص
-        else if (currentAgent.department === 'support' && (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل"))) {
-          performInternalTransfer('technical', currentAgent.name, "مشكلة تقنية");
+        // 6. تحويل خارج الاختصاص (مثال: مشكلة تقنية لموظف مبيعات)
+        else if ((normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("عطل")) && currentAgent.department !== 'technical') {
+          isFirstMessageRef.current = false;
+          performInternalTransfer('technical', currentAgent.name, trimmedText);
           isSendingRef.current = false;
           return;
         }
-        // 7. الرد الافتراضي الطبيعي
+        // 7. الرد الافتراضي الطبيعي المتنوع
         else {
           isFirstMessageRef.current = false;
           const defaults = [
             "أفهمك تماماً أستاذ. هل يمكنك تزويدي بمزيد من التفاصيل لأتمكن من مساعدتك بشكل أفضل؟",
             "حاضر أستاذ، أنا هنا لخدمتك. تفضل بطرح استفسارك.",
-            "بالتأكيد، يسعدني ذلك. كيف يمكنني توجيهك بشكل أدق؟"
+            "بالتأكيد، يسعدني ذلك. كيف يمكنني توجيهك بشكل أدق؟",
+            "بكل سرور. أنا جاهز لمساعدتك، تفضل.",
+            "أهلاً بك. سأقوم بمساعدتك في هذا الأمر، هل يمكنك التوضيح أكثر؟"
           ];
           agentReply = defaults[Math.floor(Math.random() * defaults.length)];
           triggerFollowUp = true;
@@ -408,7 +415,7 @@ export default function Home() {
         setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
         setChatStatus("online");
 
-        // إرسال متابعة "هل تحتاج شيئاً آخر؟" بعد 1000ms إذا لزم الأمر
+        // إرسال متابعة "هل تحتاج شيئاً آخر؟" بعد 1000ms إذا لزم الأمر (فقط بعد الإجابة الكاملة)
         if (triggerFollowUp) {
           followUpTimerRef.current = setTimeout(() => {
             setMessages(prev => [...prev, createMessage("agent", "هل تحتاج إلى شيء آخر أستاذ؟", "assistant")]);
@@ -487,8 +494,16 @@ export default function Home() {
         @keyframes natural-blink { 0%, 45%, 55%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.1); } }
         .animate-natural-blink { animation: natural-blink 4s infinite; transform-origin: center; }
 
-        @keyframes micro-smile { 0%, 100% { d: path("M 10 22 C 10 22, 14 25, 16 25 C 18 25, 22 22, 22 22"); } 50% { d: path("M 10 22 C 10 22, 14 26, 16 26 C 18 26, 22 22, 22 22"); } }
-        .animate-micro-smile { animation: micro-smile 5s ease-in-out infinite; }
+        @keyframes natural-smile { 
+          0%, 100% { d: path("M 10 22 C 10 22, 14 25, 16 25 C 18 25, 22 22, 22 22"); } 
+          50% { d: path("M 10 22 C 10 22, 14 26.5, 16 26.5 C 18 26.5, 22 22, 22 22"); } 
+        }
+        @keyframes happy-smile {
+          0%, 100% { d: path("M 10 22 C 10 22, 14 27, 16 27 C 18 27, 22 22, 22 22"); }
+          50% { d: path("M 10 22 C 10 22, 14 28, 16 28 C 18 28, 22 22, 22 22"); }
+        }
+        .animate-natural-smile { animation: natural-smile 4s ease-in-out infinite; }
+        .animate-happy-smile { animation: happy-smile 2s ease-in-out infinite; }
 
         @keyframes gentle-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
         .animate-gentle-breathe { animation: gentle-breathe 3s ease-in-out infinite; }
@@ -497,9 +512,9 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
-      {/* شريط التحميل RTL (يبدأ من اليمين) */}
+      {/* شريط التحميل RTL (يبدأ من اليمين وينمو لليسار) */}
       {loadingProgress > 0 && (
-        <div className="fixed top-0 right-0 left-auto z-[100] h-1 bg-gray-800/50">
+        <div className="fixed top-0 right-0 left-auto z-[100] h-1 bg-gray-800/50 w-full">
           <div className="h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)]"
             style={{ width: `${loadingProgress}%`, transition: loadingProgress === 100 ? 'width 0.5s ease-out, opacity 0.5s ease-out' : 'width 0.4s ease-out', opacity: loadingProgress === 100 ? 0 : 1 }} />
         </div>
@@ -534,15 +549,22 @@ export default function Home() {
       <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-gentle-breathe">
+            {/* العين اليسرى مع الرمش وحركة البؤبؤ */}
             <g className="animate-natural-blink">
               <circle cx="10" cy="14" r="5" fill="white" />
-              <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.2s ease-out' }} />
+              <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s ease-out' }} />
             </g>
+            {/* العين اليمنى مع الرمش وحركة البؤبؤ */}
             <g className="animate-natural-blink" style={{ animationDelay: '0.1s' }}>
               <circle cx="22" cy="14" r="5" fill="white" />
-              <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.2s ease-out' }} />
+              <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s ease-out' }} />
             </g>
-            <path className="animate-micro-smile" d="M 10 22 C 10 22, 14 25, 16 25 C 18 25, 22 22, 22 22" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+            {/* الفم والابتسامة التي تتفاعل مع اقتراب الماوس */}
+            <path 
+              className={isMouseNear ? "animate-happy-smile" : "animate-natural-smile"} 
+              d="M 10 22 C 10 22, 14 25, 16 25 C 18 25, 22 22, 22 22" 
+              stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none" 
+            />
           </g>
         </svg>
       </div>
@@ -606,7 +628,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 🔴 الفوتر الكامل مع جميع الروابط المطلوبة */}
+      {/* 🔴 الفوتر الكامل مع جميع الروابط المطلوبة بتصميم احترافي */}
       <footer className="bg-[#0b0f1a] border-t border-gray-800 text-gray-400 mt-auto">
         <div className="container mx-auto px-4 py-8">
           <div className="flex flex-col items-center gap-6">
