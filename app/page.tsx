@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ============================================================
-// TYPES & INTERFACES
+// TYPES & INTERFACES (لم يتم تغييرها للحفاظ على هيكل المشروع)
 // ============================================================
 
 type Sender = "user" | "bot" | "agent" | "system";
@@ -58,14 +58,12 @@ interface TrendingProduct {
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
-// الأسعار الأساسية بالدولار الأمريكي فقط
 const AD_PACKAGES = {
-  weekly: { usd: 50, duration: "أسبوع", platforms: "Facebook, Instagram", views: "10,000 ظهور" },
-  monthly: { usd: 150, duration: "شهر", platforms: "Facebook, Instagram, TikTok", views: "50,000 ظهور" },
+  weekly: { usd: 50, duration: "أسبوع واحد", platforms: "Facebook, Instagram", views: "10,000 ظهور" },
+  monthly: { usd: 150, duration: "شهر كامل", platforms: "Facebook, Instagram, TikTok", views: "50,000 ظهور" },
   premium: { usd: 300, duration: "حملة مخصصة", platforms: "جميع المنصات + Website", views: "150,000+ ظهور" }
 };
 
-// أسعار الصرف للتحويل الديناميكي
 const EXCHANGE_RATES: Record<string, number> = {
   'USD': 1, 'SAR': 3.75, 'IQD': 1320, 'AED': 3.67, 
   'JOD': 0.71, 'EGP': 47.5, 'IRR': 42000, 'EUR': 0.92
@@ -83,9 +81,8 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'technical', name: 'الدعم الفني', description: 'حل المشاكل التقنية' },
 ];
 
-// 🔴 مدة الانتهاء مضبوطة على 45 ثانية كما طلبت
 const SESSION_TIMEOUTS = {
-  IDLE_TO_ENDED: 45, 
+  IDLE_TO_ENDED: 45, // 45 ثانية كما طلبت
   QUEUE_CHECK_INTERVAL: 8000,
 };
 
@@ -100,8 +97,21 @@ const TRENDING_PRODUCTS: TrendingProduct[] = [
 // UTILITY FUNCTIONS
 // ============================================================
 
+// تحسين بسيط ليشمل لهجات وأخطاء إملائية شائعة
 const normalizeArabicText = (text: string): string => {
-  return text.normalize("NFKD").replace(/[\u064B-\u065F]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  return text
+    .normalize("NFKD")
+    .replace(/[\u064B-\u065F]/g, "") // إزالة التشكيل
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .replace(/گ/g, "ك") // لهجة خليجية/عراقية
+    .replace(/چ/g, "ج") 
+    .replace(/پ/g, "ب")
+    .replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 };
 
 const createMessage = (sender: Sender, text: string, role?: "user" | "assistant", status: "sent" | "delivered" | "read" = "read", attachments?: Attachment[]): Message => ({
@@ -127,7 +137,7 @@ export default function Home() {
   const [showDepartmentSelection, setShowDepartmentSelection] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   
-  // 🔴 حالات حركة الأيقونة
+  // حالات حركة الأيقونة
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isMouseNear, setIsMouseNear] = useState(false);
 
@@ -136,16 +146,15 @@ export default function Home() {
   const lastActivityTimeRef = useRef(Date.now());
   const isSendingRef = useRef(false);
   
-  // 🔴 مراجع منطق المحادثة المتقدم
+  // مراجع منطق المحادثة المتقدم
   const isFirstMessageRef = useRef(true);
   const awaitingFollowUpRef = useRef(false);
   const followUpTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const randomLookTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
 
   // ============================================================
-  // 1. شريط التحميل RTL (ينمو من اليمين لليسار)
+  // 1. شريط التحميل RTL (ينمو من اليمين لليسار بسلاسة)
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -180,7 +189,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // 2. حركة الأيقونة الطبيعية (تتبع الماوس بالعينين فقط + رمش + ابتسامة)
+  // 2. حركة الأيقونة الطبيعية (تتبع الماوس بالعينين + ابتسامة تفاعلية)
   // ============================================================
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -189,7 +198,7 @@ export default function Home() {
         const dist = Math.hypot(e.clientX - (rect.left + rect.width/2), e.clientY - (rect.top + rect.height/2));
         setIsMouseNear(dist < 150);
         
-        // تحريك بؤبؤ العين فقط بمقدار بسيط وطبيعي
+        // تحريك بؤبؤ العين فقط بمقدار طبيعي ومحدود
         const x = Math.max(-4, Math.min(4, (e.clientX - (rect.left + rect.width/2)) / 25));
         const y = Math.max(-4, Math.min(4, (e.clientY - (rect.top + rect.height/2)) / 25));
         setEyePos({ x, y });
@@ -197,10 +206,7 @@ export default function Home() {
     };
     
     window.addEventListener("mousemove", handleMouseMove);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      if (randomLookTimerRef.current) clearTimeout(randomLookTimerRef.current);
-    };
+    return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
   // ============================================================
@@ -232,7 +238,7 @@ export default function Home() {
 
   const endAgentSession = useCallback(() => {
     clearAllTimers();
-    const endMsg = createMessage("system", "تم إنهاء جلسة الدعم بسبب عدم وجود نشاط، وتمت إعادتك إلى المساعد الذكي.", "assistant");
+    const endMsg = createMessage("system", "تم إنهاء جلسة الدعم تلقائياً بسبب عدم وجود نشاط لمدة 45 ثانية. عاد المساعد الذكي لخدمتك.", "assistant");
     setMessages(prev => [...prev, endMsg]);
     
     setCurrentSpeaker("bot");
@@ -258,7 +264,7 @@ export default function Home() {
     setCurrentSpeaker("agent");
     setIsQueued(false);
     setShowDepartmentSelection(false);
-    isFirstMessageRef.current = true; // إعادة تعيين للتحية الأولى
+    isFirstMessageRef.current = true; 
     awaitingFollowUpRef.current = false;
     
     setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). تفضل، كيف يمكنني مساعدتك؟`, "assistant")]);
@@ -267,10 +273,11 @@ export default function Home() {
   }, [clearAllTimers]);
 
   // ============================================================
-  // 4. منطق التحويل الداخلي بين الموظفين (مع الحفاظ على السياق)
+  // 4. منطق التحويل الداخلي الذكي (مع الحفاظ على سياق المحادثة)
   // ============================================================
   const performInternalTransfer = useCallback((targetDept: Department, currentAgentName: string, userQuery: string) => {
     const targetAgent = SUPPORT_AGENTS.find(a => a.department === targetDept && a.status === 'online') || SUPPORT_AGENTS.find(a => a.department === targetDept)!;
+    
     setMessages(prev => [...prev, createMessage("agent", `لحظة واحدة أستاذ، هذا الطلب يخص قسم ${targetDept === 'ads' ? 'الإعلانات' : 'الدعم الفني'}. سأقوم بتحويلك الآن إلى زميلي المختص لخدمتك بشكل أفضل.`, "assistant")]);
     setChatStatus("typing");
     
@@ -299,12 +306,12 @@ export default function Home() {
     isSendingRef.current = true;
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
-    lastActivityTimeRef.current = Date.now();
+    lastActivityTimeRef.current = Date.now(); // تحديث وقت النشاط
 
     const normalized = normalizeArabicText(trimmedText);
 
     // أ. طلب تحويل يدوي للمساعد الذكي
-    if (["موظف", "شخص", "دعم", "حولني"].some(k => normalized.includes(k)) && currentSpeaker === "bot" && !showDepartmentSelection) {
+    if (["موظف", "شخص", "دعم", "حولني", "بشري"].some(k => normalized.includes(k)) && currentSpeaker === "bot" && !showDepartmentSelection) {
       setShowDepartmentSelection(true);
       setMessages(prev => [...prev, createMessage("system", "يرجى اختيار القسم الذي ترغب في التواصل معه:", "assistant")]);
       isSendingRef.current = false;
@@ -314,7 +321,7 @@ export default function Home() {
     // ب. منطق الموظف البشري المتقدم
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
-      const typingDelay = Math.floor(Math.random() * 500) + 700; // 700ms - 1200ms
+      const typingDelay = Math.floor(Math.random() * 500) + 800; // تأخير بشري طبيعي
       
       setTimeout(() => {
         let agentReply = "";
@@ -336,12 +343,7 @@ export default function Home() {
             agentReply = "شكراً لتواصلك معنا. نتمنى لك يوماً سعيداً، ونحن دائماً في خدمتك.";
             awaitingFollowUpRef.current = false;
           } else {
-            const thanksReplies = [
-              "العفو أستاذ، هذا واجبنا.",
-              "يسعدني جداً أن أكون عند حسن ظنك.",
-              "بكل سرور أستاذ، نحن هنا لخدمتك دائماً.",
-              "أهلاً بك في أي وقت، يسعدني مساعدتك."
-            ];
+            const thanksReplies = ["العفو أستاذ، هذا واجبنا.", "يسعدني جداً أن أكون عند حسن ظنك.", "بكل سرور أستاذ، نحن هنا لخدمتك دائماً."];
             agentReply = thanksReplies[Math.floor(Math.random() * thanksReplies.length)];
             triggerFollowUp = true;
           }
@@ -351,13 +353,10 @@ export default function Home() {
           agentReply = "شكراً لتواصلك معنا. نتمنى لك يوماً سعيداً، ونحن دائماً في خدمتك.";
           awaitingFollowUpRef.current = false;
         }
-        // 4. الاستفسار عن الأسعار (مع دعم التحويل الديناميكي)
-        else if (normalized.includes("سعر") || normalized.includes("كم") || normalized.includes("باقه") || normalized.includes("اعلان")) {
+        // 4. الاستفسار عن الأسعار (إجابة محددة فقط)
+        else if (normalized.includes("سعر") || normalized.includes("كم") || normalized.includes("باقه") || normalized.includes("تكلفه")) {
           isFirstMessageRef.current = false;
-          
-          let currency = "USD";
-          let symbol = "دولار";
-          let rate = 1;
+          let currency = "USD", symbol = "دولار", rate = 1;
           if (normalized.includes("عراقي") || normalized.includes("دينار")) { currency = "IQD"; symbol = "دينار عراقي"; rate = EXCHANGE_RATES.IQD; }
           else if (normalized.includes("سعودي") || normalized.includes("ريال")) { currency = "SAR"; symbol = "ريال سعودي"; rate = EXCHANGE_RATES.SAR; }
           else if (normalized.includes("درهم") || normalized.includes("امارات")) { currency = "AED"; symbol = "درهم إماراتي"; rate = EXCHANGE_RATES.AED; }
@@ -366,7 +365,7 @@ export default function Home() {
           const formatPrice = (usd: number) => `${Math.round(usd * rate).toLocaleString()} ${symbol}`;
           
           if (currentAgent.department === 'ads') {
-            agentReply = `إليك أسعار باقاتنا الأساسية:\n🔹 الباقة الأسبوعية: ${formatPrice(AD_PACKAGES.weekly.usd)}\n🔹 الباقة الشهرية: ${formatPrice(AD_PACKAGES.monthly.usd)}\n🔹 الباقة الاحترافية: ${formatPrice(AD_PACKAGES.premium.usd)}\n${currency !== 'USD' ? '\n(ملاحظة: الأسعار أعلاه هي التقريبية بناءً على سعر الصرف الحالي)' : ''}`;
+            agentReply = `إليك أسعار باقاتنا الأساسية:\n🔹 الباقة الأسبوعية: ${formatPrice(AD_PACKAGES.weekly.usd)}\n🔹 الباقة الشهرية: ${formatPrice(AD_PACKAGES.monthly.usd)}\n🔹 الباقة الاحترافية: ${formatPrice(AD_PACKAGES.premium.usd)}\n${currency !== 'USD' ? '\n(ملاحظة: الأسعار أعلاه تقريبية بناءً على سعر الصرف الحالي)' : ''}`;
             triggerFollowUp = true;
           } else {
             performInternalTransfer('ads', currentAgent.name, trimmedText);
@@ -374,7 +373,7 @@ export default function Home() {
             return;
           }
         }
-        // 5. أسئلة محددة (مدة، منصات، مشاهدات) - إجابة منفصلة ودقيقة
+        // 5. أسئلة محددة (إجابة منفصلة ودقيقة حسب الطلب)
         else if (normalized.includes("مدة") || normalized.includes("يوم") || normalized.includes("شهر") || normalized.includes("فترة")) {
           isFirstMessageRef.current = false;
           agentReply = `مدة الإعلان تعتمد على الباقة المختارة:\n• الباقة الأسبوعية: ${AD_PACKAGES.weekly.duration}\n• الباقة الشهرية: ${AD_PACKAGES.monthly.duration}\n• الباقة الاحترافية: ${AD_PACKAGES.premium.duration}`;
@@ -390,8 +389,8 @@ export default function Home() {
           agentReply = `عدد مرات الظهور المضمون لكل باقة:\n• الباقة الأسبوعية: ${AD_PACKAGES.weekly.views}\n• الباقة الشهرية: ${AD_PACKAGES.monthly.views}\n• الباقة الاحترافية: ${AD_PACKAGES.premium.views}`;
           triggerFollowUp = true;
         }
-        // 6. تحويل خارج الاختصاص (مثال: مشكلة تقنية لموظف مبيعات)
-        else if ((normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("عطل")) && currentAgent.department !== 'technical') {
+        // 6. تحويل خارج الاختصاص (ذكاء توجيهي)
+        else if ((normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("عطل") || normalized.includes("شكوى")) && currentAgent.department !== 'technical') {
           isFirstMessageRef.current = false;
           performInternalTransfer('technical', currentAgent.name, trimmedText);
           isSendingRef.current = false;
@@ -415,14 +414,14 @@ export default function Home() {
         setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
         setChatStatus("online");
 
-        // إرسال متابعة "هل تحتاج شيئاً آخر؟" بعد 1000ms إذا لزم الأمر (فقط بعد الإجابة الكاملة)
+        // إرسال متابعة "هل تحتاج شيئاً آخر؟" فقط بعد الإجابة الكاملة
         if (triggerFollowUp) {
           followUpTimerRef.current = setTimeout(() => {
-            setMessages(prev => [...prev, createMessage("agent", "هل تحتاج إلى شيء آخر أستاذ؟", "assistant")]);
+            setMessages(prev => [...prev, createMessage("agent", "هل هناك أي استفسار آخر يمكنني مساعدتك به؟", "assistant")]);
             awaitingFollowUpRef.current = true;
             setChatStatus("online");
             isSendingRef.current = false;
-          }, 1000);
+          }, 800);
         } else {
           isSendingRef.current = false;
         }
@@ -500,7 +499,7 @@ export default function Home() {
         }
         @keyframes happy-smile {
           0%, 100% { d: path("M 10 22 C 10 22, 14 27, 16 27 C 18 27, 22 22, 22 22"); }
-          50% { d: path("M 10 22 C 10 22, 14 28, 16 28 C 18 28, 22 22, 22 22"); }
+          50% { d: path("M 10 22 C 10 22, 14 28.5, 16 28.5 C 18 28.5, 22 22, 22 22"); }
         }
         .animate-natural-smile { animation: natural-smile 4s ease-in-out infinite; }
         .animate-happy-smile { animation: happy-smile 2s ease-in-out infinite; }
@@ -520,16 +519,37 @@ export default function Home() {
         </div>
       )}
 
+      {/* الهيدر المحسن والمتوازن */}
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
-        <div className="w-full px-4 py-3 flex justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-10 h-10 rounded-full object-cover border-2 border-purple-500" />
-            <span className="text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span>
+        <div className="container mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+          {/* اليمين: الشعار واسم الموقع */}
+          <div className="flex items-center gap-4 w-full md:w-auto justify-center md:justify-start">
+            <img src="https://iili.io/Bsjh2M7.png" alt="شعار دار النجوم" className="w-14 h-14 rounded-full object-cover border-2 border-purple-500 shadow-lg shadow-purple-500/20" />
+            <div className="flex flex-col">
+              <span className="text-2xl font-black bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span>
+              <span className="text-xs text-gray-400 tracking-wider font-medium">منصة المحتوى الحصري</span>
+            </div>
           </div>
-          <input type="text" placeholder="🔎 ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="hidden md:block flex-1 max-w-md bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:ring-2 focus:ring-purple-500 text-sm" />
-          <div className="flex items-center gap-2">
-            <a href="/upgrade" className="hidden sm:flex items-center gap-1 px-3 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs font-bold hover:shadow-lg transition">ترقية 👑</a>
-            <a href="/login" className="px-3 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-bold hover:shadow-lg transition">اشتراك</a>
+          
+          {/* الوسط: شريط البحث */}
+          <div className="flex-1 max-w-xl w-full">
+            <input 
+              type="text" 
+              placeholder="🔎 ابحث عن محتوى، مشاهير، أو برامج..." 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)} 
+              className="w-full bg-[#1f2937] text-white px-5 py-3 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition text-sm placeholder-gray-500" 
+            />
+          </div>
+          
+          {/* اليسار: أزرار الإجراءات */}
+          <div className="flex items-center gap-3 w-full md:w-auto justify-center md:justify-end">
+            <a href="/upgrade" className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-sm font-bold hover:shadow-lg hover:shadow-orange-500/20 transition transform hover:-translate-y-0.5">
+              ترقية 👑
+            </a>
+            <a href="/login" className="px-5 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-bold hover:shadow-lg hover:shadow-purple-500/20 transition transform hover:-translate-y-0.5">
+              تسجيل الدخول
+            </a>
           </div>
         </div>
       </header>
@@ -540,13 +560,18 @@ export default function Home() {
         <div className="flex animate-seamless-scroll w-max">{renderSeamlessItems()}</div>
       </div>
 
-      <main className="container mx-auto px-4 py-12 flex-1 text-center">
-        <h1 className="text-5xl font-black mb-4">مرحبًا بكم في <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span></h1>
-        <p className="text-gray-400 text-lg max-w-2xl mx-auto">منصتكم الإعلامية الأولى لعالم المشاهير والمحتوى الحصري.</p>
+      <main className="container mx-auto px-4 py-16 flex-1 text-center">
+        <h1 className="text-5xl md:text-6xl font-black mb-6 leading-tight">مرحبًا بكم في <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span></h1>
+        <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">منصتكم الإعلامية الأولى لعالم المشاهير، المحتوى الحصري، وأحدث الأخبار.</p>
       </main>
 
       {/* أيقونة المحادثة مع الحركات الطبيعية وظهور من اليمين */}
-      <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
+      <div 
+        ref={chatButtonRef} 
+        onClick={() => setOpen(!open)} 
+        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" 
+        title="مركز المساعدة"
+      >
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-gentle-breathe">
             {/* العين اليسرى مع الرمش وحركة البؤبؤ */}
@@ -583,7 +608,7 @@ export default function Home() {
 
         <div className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50">
           {messages.map((msg) => {
-            if (msg.sender === "system") return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%] whitespace-pre-line">{msg.text}</span></div>;
+            if (msg.sender === "system") return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1.5 rounded-full border border-gray-700 text-center max-w-[90%] whitespace-pre-line">{msg.text}</span></div>;
             const isUser = msg.sender === "user";
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
@@ -628,17 +653,21 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 🔴 الفوتر الكامل مع جميع الروابط المطلوبة بتصميم احترافي */}
+      {/* الفوتر الاحترافي مع الروابط المطلوبة */}
       <footer className="bg-[#0b0f1a] border-t border-gray-800 text-gray-400 mt-auto">
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex flex-col items-center gap-6">
-            <div className="flex flex-wrap justify-center gap-6 md:gap-8 text-sm font-medium border-t border-gray-800 pt-6 w-full">
+        <div className="container mx-auto px-4 py-10">
+          <div className="flex flex-col items-center gap-8">
+            <div className="flex items-center gap-3">
+              <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-10 h-10 rounded-full border border-gray-700" />
+              <span className="text-lg font-bold text-white">دار النجوم</span>
+            </div>
+            <div className="flex flex-wrap justify-center gap-8 md:gap-12 text-sm font-medium border-t border-gray-800 pt-8 w-full">
               <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition underline underline-offset-4 decoration-blue-400/30 hover:decoration-blue-300">سياسة الخصوصية</a>
               <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition underline underline-offset-4 decoration-blue-400/30 hover:decoration-blue-300">الشروط والأحكام</a>
               <a href="/about" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition underline underline-offset-4 decoration-blue-400/30 hover:decoration-blue-300">من نحن</a>
               <a href="/contact" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition underline underline-offset-4 decoration-blue-400/30 hover:decoration-blue-300">اتصل بنا</a>
             </div>
-            <span className="block text-center text-xs text-gray-500 mt-4">جميع الحقوق محفوظة © قناة مجلة دار النجوم 2026</span>
+            <span className="block text-center text-xs text-gray-600 mt-2">جميع الحقوق محفوظة © قناة مجلة دار النجوم 2026</span>
           </div>
         </div>
       </footer>
