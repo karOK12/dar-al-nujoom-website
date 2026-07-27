@@ -58,7 +58,7 @@ interface TrendingProduct {
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
-// 🔴 خامساً: زيادة مهلة انتهاء الجلسة إلى 300 ثانية (5 دقائق)
+// سادساً: زيادة مدة انتهاء الجلسة إلى 300 ثانية (5 دقائق)
 const SESSION_TIMEOUTS = {
   IDLE_TO_CLOSED: 300, 
   QUEUE_CHECK_INTERVAL: 8000,
@@ -148,7 +148,7 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
-  // 🔴 ثانياً: متغيرات حركة العين البشرية الواقعية
+  // ثانياً: متغيرات حركة العين البشرية الواقعية
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
   const targetEyePos = useRef({ x: 0, y: 0 });
@@ -173,7 +173,7 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // أولاً: شريط التحميل البنفسجي (RTL سلس وثابت)
+  // أولاً: شريط التحميل البنفسجي (RTL حقيقي من اليمين لليسار)
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -188,7 +188,7 @@ export default function Home() {
         if (isComplete) return;
         const elapsed = currentTime - startTime;
         const progressRatio = Math.min(elapsed / duration, 1);
-        const eased = 1 - Math.pow(1 - progressRatio, 3); // Smooth easing
+        const eased = 1 - Math.pow(1 - progressRatio, 3);
         
         progress = startProgress + (target - startProgress) * eased;
         setLoadingProgress(Math.min(progress, 99));
@@ -235,7 +235,7 @@ export default function Home() {
   useEffect(() => {
     let rafId: number;
     const animateEye = () => {
-      // Lerp لحركة ناعمة جداً تشبه البشر (ease-out طبيعي)
+      // Lerp لحركة ناعمة جداً تشبه البشر
       currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.1;
       currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.1;
       setEyePos({ x: currentEyePos.current.x, y: currentEyePos.current.y });
@@ -254,7 +254,7 @@ export default function Home() {
         
         // حد أقصى 2.2 بكسل لضمان بقاء البؤبؤ داخل دائرة البياض (نصف القطر 5) دائماً
         const maxOffset = 2.2;
-        const rawX = (e.clientX - centerX) / 40; // القسمة على 40 تبطئ الحركة لتبدو طبيعية
+        const rawX = (e.clientX - centerX) / 40;
         const rawY = (e.clientY - centerY) / 40;
         
         targetEyePos.current = {
@@ -273,7 +273,6 @@ export default function Home() {
     if (open) {
       targetEyePos.current = { x: -1.8, y: 1.8 };
       const timer = setTimeout(() => {
-        // العودة التدريجية للمركز أو تتبع الماوس بعد 2.5 ثانية
         targetEyePos.current = { x: 0, y: 0 };
       }, 2500);
       return () => clearTimeout(timer);
@@ -286,13 +285,13 @@ export default function Home() {
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const scheduleBlink = () => {
-      const randomDelay = 3000 + Math.random() * 3000; // 3000ms to 6000ms
+      const randomDelay = 3000 + Math.random() * 3000;
       blinkTimeout = setTimeout(() => {
         setIsBlinking(true);
         setTimeout(() => {
           setIsBlinking(false);
-          scheduleBlink(); // جدولة الرمشة التالية
-        }, 120); // مدة الرمشة 120ms (سريعة وطبيعية جداً)
+          scheduleBlink();
+        }, 120);
       }, randomDelay);
     };
     scheduleBlink();
@@ -350,7 +349,6 @@ export default function Home() {
     }
   }, [messages, currentSpeaker]);
 
-  // 🔴 خامساً: منطق المهلة الزمنية (300 ثانية بعد آخر رسالة من المستخدم)
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
 
@@ -485,9 +483,12 @@ export default function Home() {
     const targetAgent = findAvailableAgent(targetDept) || SUPPORT_AGENTS.find(a => a.department === targetDept);
     if (!targetAgent) return;
 
+    // رابعاً: الموظف الجديد يقرأ السياق ويكمل من نفس النقطة
+    const lastUserMsg = messages.filter(m => m.sender === 'user').pop()?.text || "استفسار عام";
+    
     const transferMsg = createMessage(
       "agent",
-      `لحظة واحدة أستاذ، سأحولك الآن إلى زميلي المختص في قسم ${targetDept === 'ads' ? 'الإعلانات' : 'الدعم الفني'} لخدمتك بشكل أفضل.`,
+      `لحظة واحدة أستاذ، سأحولك الآن إلى زميلي المختص في قسم ${targetDept === 'ads' ? 'الإعلانات' : 'الدعم الفني'}.`,
       "assistant"
     );
     
@@ -510,7 +511,7 @@ export default function Home() {
       setTimeout(() => {
         const newAgentWelcome = createMessage(
           "agent",
-          `مرحباً، أنا ${targetAgent!.name} من قسم ${targetDept === 'ads' ? 'الإعلانات' : targetDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}. اطلعت على كامل المحادثة بينك وبين الأستاذ ${currentAgentName}، وسأتابع معك من هذه النقطة مباشرة. تفضل.`,
+          `أهلاً بك، أنا ${targetAgent!.name}. اطلعت على محادثتك مع الأستاذ ${currentAgentName} بخصوص "${lastUserMsg}"، وسأتابع معك من هنا مباشرة. تفضل.`,
           "assistant"
         );
         
@@ -520,10 +521,10 @@ export default function Home() {
         lastActivityTimeRef.current = Date.now();
       }, 1000);
     }, 1500);
-  }, []);
+  }, [messages]);
 
   // ============================================================
-  // ثالثاً وسادساً: SEND MESSAGE & API HANDLING (سلوك موظف احترافي 100%)
+  // ثالثاً وسابعاً: SEND MESSAGE & API HANDLING (سلوك موظف احترافي 100%)
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -533,7 +534,6 @@ export default function Home() {
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
     
-    // إعادة ضبط المؤقت عند إرسال المستخدم لأي رسالة
     lastActivityTimeRef.current = Date.now();
     
     conversationContextRef.current.push(trimmedText);
@@ -553,7 +553,7 @@ export default function Home() {
         const currentDept = currentAgent.department;
         messageCountRef.current += 1;
 
-        // رابعاً: إنهاء المحادثة بأدب بعد تأكيد المستخدم
+        // خامساً: إنهاء المحادثة بأدب بعد تأكيد المستخدم
         const closingKeywords = ["لا", "شكرا", "شكراً", "هذا كل شيء", "انتهيت", "خلاص", "لا شكرا", "لا احتاج"];
         const isClosingRequest = closingKeywords.some(k => normalized.includes(k)) && normalized.length < 20;
 
@@ -575,12 +575,11 @@ export default function Home() {
           lastAgentMessageRef.current = agentReply;
           isSendingRef.current = false;
           
-          // إغلاق الجلسة والعودة للمساعد الذكي بعد 2.5 ثانية
           setTimeout(() => closeAgentSession(), 2500);
           return;
         }
 
-        // الإجابة المباشرة عن الأسعار بدون أسئلة مسبقة
+        // الرد المباشر والديناميكي حسب الموضوع (بدون حشو)
         if (normalized.includes("سعر") || normalized.includes("اسعار") || normalized.includes("تفاصيل") || normalized.includes("اعلان") || normalized.includes("باقه") || normalized.includes("كم")) {
           if (currentDept === 'ads') {
             if (lastHandledTopicRef.current !== 'pricing_details') {
@@ -601,7 +600,6 @@ export default function Home() {
               return;
             }
           } else {
-            // التحويل الصحيح حسب الاختصاص
             setMessages(prev => [...prev, createMessage("agent", "العفو أستاذ، هذا الطلب يخص قسم الإعلانات. سأحولك الآن إلى زميلتي المختصة.", "assistant")]);
             setTimeout(() => performInternalTransfer('ads', currentAgent.name), 1000);
             isSendingRef.current = false;
@@ -855,11 +853,11 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
-      {/* أولاً: شريط التحميل البنفسجي (ثابت أعلى الصفحة، يبدأ من اليمين ويمتلئ لليسار بسلاسة) */}
+      {/* أولاً: شريط التحميل البنفسجي (يثبت في الأعلى، يبدأ من أقصى اليمين وينمو لليسار بسلاسة) */}
       {loadingProgress > 0 && (
-        <div className="fixed top-0 right-0 left-auto z-[100] h-1 bg-gray-800/50 w-full">
+        <div className="fixed top-0 right-0 z-[100] h-1 w-full bg-gray-800/50" dir="ltr">
           <div 
-            className="h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)]"
+            className="absolute top-0 right-0 h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)]"
             style={{ 
               width: `${loadingProgress}%`,
               transition: loadingProgress === 100 ? 'width 0.5s ease-out, opacity 0.5s ease-out' : 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -973,7 +971,12 @@ export default function Home() {
             const isUser = msg.sender === "user";
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
-                {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
+                {/* ثالثاً: عرض اسم الموظف الحقيقي ووظيفته بشكل واضح وصحيح */}
+                {!isUser && (
+                  <span className="text-[10px] text-purple-300 mb-1 ml-1 font-medium">
+                    {msg.sender === "agent" && currentAgent ? `${currentAgent.name} | ${currentAgent.role}` : "المساعد الذكي"}
+                  </span>
+                )}
                 <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
                   {msg.text}
                   
