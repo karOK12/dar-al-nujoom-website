@@ -70,7 +70,6 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'technical', name: 'فريق الدعم الفني', description: 'لحل المشاكل التقنية وأخطاء الموقع' },
 ];
 
-// 🔴 أولاً: زيادة مدة انتهاء الجلسة إلى 60 ثانية
 const SESSION_TIMEOUTS = {
   IDLE_TO_CLOSED: 60, 
   QUEUE_CHECK_INTERVAL: 8000,
@@ -148,7 +147,6 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
-  // 🔴 رابعاً: متغيرات حركة العين البشرية
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
   const targetEyePos = useRef({ x: 0, y: 0 });
@@ -173,7 +171,7 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // ثانياً: شريط التحميل العلوي (RTL من اليمين لليسار)
+  // شريط التحميل العلوي (RTL من اليمين لليسار)
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -230,12 +228,11 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // رابعاً: حركة العين البشرية (Smooth Interpolation + Random Blink)
+  // حركة العين البشرية (Smooth Interpolation + Random Blink)
   // ============================================================
   useEffect(() => {
     let rafId: number;
     const animateEye = () => {
-      // Lerp (Linear Interpolation) لحركة ناعمة جداً تشبه البشر (ease-out طبيعي)
       currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.08;
       currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.08;
       setEyePos({ x: currentEyePos.current.x, y: currentEyePos.current.y });
@@ -252,7 +249,6 @@ export default function Home() {
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
         
-        // حساب الإزاحة مع تقييدها بـ 2.0 بكسل كحد أقصى لضمان بقاء البؤبؤ داخل البياض دائماً
         const maxOffset = 2.0;
         const rawX = (e.clientX - centerX) / 50;
         const rawY = (e.clientY - centerY) / 50;
@@ -268,12 +264,11 @@ export default function Home() {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, [open]);
 
-  // نظرة للأسفل عند فتح الشات ثم العودة التدريجية
   useEffect(() => {
     if (open) {
-      targetEyePos.current = { x: -1.5, y: 1.5 }; // نظر للأسفل واليسار قليلاً
+      targetEyePos.current = { x: -1.5, y: 1.5 };
       const timer = setTimeout(() => {
-        targetEyePos.current = { x: 0, y: 0 }; // عودة تدريجية للمركز/تتبع الماوس
+        targetEyePos.current = { x: 0, y: 0 };
       }, 2000);
       return () => clearTimeout(timer);
     } else {
@@ -281,17 +276,16 @@ export default function Home() {
     }
   }, [open]);
 
-  // رمش عشوائي طبيعي (كل 3 إلى 6 ثوانٍ)
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const scheduleBlink = () => {
-      const randomDelay = 3000 + Math.random() * 3000; // 3000ms to 6000ms
+      const randomDelay = 3000 + Math.random() * 3000;
       blinkTimeout = setTimeout(() => {
         setIsBlinking(true);
         setTimeout(() => {
           setIsBlinking(false);
-          scheduleBlink(); // جدولة الرمشة التالية
-        }, 150); // مدة الرمشة 150ms (طبيعية جداً)
+          scheduleBlink();
+        }, 150);
       }, randomDelay);
     };
     scheduleBlink();
@@ -349,7 +343,6 @@ export default function Home() {
     }
   }, [messages, currentSpeaker]);
 
-  // 🔴 أولاً: منطق المهلة الزمنية (60 ثانية بعد آخر رسالة من المستخدم)
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
 
@@ -522,7 +515,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // ثالثاً: SEND MESSAGE & API HANDLING (سلوك موظف طبيعي 100%)
+  // SEND MESSAGE & API HANDLING
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -532,7 +525,6 @@ export default function Home() {
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
     
-    // 🔴 أولاً: إعادة ضبط المؤقت عند إرسال المستخدم لأي رسالة
     lastActivityTimeRef.current = Date.now();
     
     conversationContextRef.current.push(trimmedText);
@@ -552,7 +544,6 @@ export default function Home() {
         const currentDept = currentAgent.department;
         messageCountRef.current += 1;
 
-        // 8. إغلاق المحادثة بأدب إذا قال المستخدم: لا، شكراً، هذا كل شيء
         const closingKeywords = ["لا", "شكرا", "شكراً", "هذا كل شيء", "انتهيت", "خلاص", "لا شكرا", "لا احتاج"];
         const isClosingRequest = closingKeywords.some(k => normalized.includes(k)) && normalized.length < 20;
 
@@ -573,11 +564,10 @@ export default function Home() {
           conversationPhaseRef.current = "ended";
           lastAgentMessageRef.current = agentReply;
           isSendingRef.current = false;
-          setTimeout(() => closeAgentSession(), 2000); // إنهاء الجلسة بعد الرسالة الختامية
+          setTimeout(() => closeAgentSession(), 2000);
           return;
         }
 
-        // 9. طلب أسعار الإعلانات: يعطي الأسعار مباشرة دون أسئلة مسبقة
         if (normalized.includes("سعر") || normalized.includes("اسعار") || normalized.includes("تفاصيل") || normalized.includes("اعلان") || normalized.includes("باقه") || normalized.includes("كم")) {
           if (currentDept === 'ads') {
             if (lastHandledTopicRef.current !== 'pricing_details') {
@@ -598,7 +588,6 @@ export default function Home() {
               return;
             }
           } else {
-            // 11. التحويل الصحيح حسب الاختصاص
             setMessages(prev => [...prev, createMessage("agent", "العفو أستاذ، هذا الطلب يخص قسم الإعلانات. سأحولك الآن إلى زميلتي المختصة.", "assistant")]);
             setTimeout(() => performInternalTransfer('ads', currentAgent.name), 1000);
             isSendingRef.current = false;
@@ -606,7 +595,6 @@ export default function Home() {
           }
         }
 
-        // 10. إذا قال المستخدم: نعم، تمام، تفضل (يكمل على آخر نقطة في الحوار)
         if ((normalized === "نعم" || normalized === "اي" || normalized === "تفضل" || normalized.includes("تمام") || normalized.includes("انتظار")) && lastHandledTopicRef.current === 'pricing_details') {
             const followUp = "ممتاز. لكي أتمكن من تجهيز العرض الأنسب لك، هل يمكنك إخباري بالميزانية التقريبية المخصصة للإعلان أو المنصة المفضلة لديك؟";
             previousAgentRepliesRef.current.add(followUp);
@@ -618,7 +606,6 @@ export default function Home() {
             return;
         }
 
-        // 7. إذا شكره المستخدم: يرد مرة واحدة فقط ثم يسأل هل تحتاج أي مساعدة أخرى؟
         const isGratitude = normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || normalized.includes("الله يعطيك") || normalized.includes("انحلت") || normalized.includes("ممتاز");
         if (isGratitude && conversationPhaseRef.current !== "closing" && conversationPhaseRef.current !== "ended") {
           const gratitudeReplies = [
@@ -648,7 +635,6 @@ export default function Home() {
           return;
         }
 
-        // 11. التحويل الصحيح للدعم الفني
         if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("معلق")) {
           if (currentDept === 'technical') {
             if (lastHandledTopicRef.current !== 'technical_details') {
@@ -675,7 +661,6 @@ export default function Home() {
           }
         }
 
-        // 12. لا يكرر نفس الجملة إطلاقاً أثناء الجلسة (Fallback آمن)
         const generalReplies = currentDept === 'ads' 
           ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب لمتجرك؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك لنبدأ منها؟"]
           : currentDept === 'technical'
@@ -694,7 +679,6 @@ export default function Home() {
       return; 
     }
 
-    // منطق المساعد الذكي (AI API)
     setChatStatus("typing");
     try {
       const apiMessages = messages
@@ -814,7 +798,6 @@ export default function Home() {
         @keyframes slide-in-right { 0% { transform: translateX(100px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
         .animate-slide-in-right { animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         
-        /* 🔴 رابعاً: رمش طبيعي جداً لا يحرك أي شيء آخر */
         @keyframes blink-human {
           0%, 100% { transform: scaleY(1); }
           50% { transform: scaleY(0.1); }
@@ -852,7 +835,6 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
-      {/* ثانياً: شريط التحميل العلوي (يبدأ من أقصى اليمين ويتحرك لليسار) */}
       {loadingProgress > 0 && (
         <div className="fixed top-0 right-0 left-auto z-[100] h-1 bg-gray-800/50 w-full">
           <div 
@@ -909,27 +891,24 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 🔴 رابعاً: أيقونة المساعد بحركة عين بشرية واقعية */}
       <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-cartoon-breathe">
-            {/* العيون مع الرمش العشوائي الطبيعي */}
             <g className={isBlinking ? "animate-blink-human" : ""}>
               <circle cx="10" cy="14" r="5" fill="white" />
-              {/* البؤبؤ يتبع الماوس بحركة ناعمة جداً ومحدودة داخل البياض */}
               <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
             </g>
             <g className={isBlinking ? "animate-blink-human" : ""} style={{ animationDelay: '0.05s' }}>
               <circle cx="22" cy="14" r="5" fill="white" />
               <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
             </g>
-            {/* الابتسامة أو التحدث */}
+            {/* 🔴 تم إصلاح الخطأ هنا بحذف المقارنة غير الضرورية بـ "user" */}
             <path 
               d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" 
               stroke="white" 
               strokeWidth="2.5" 
               strokeLinecap="round" 
-              className={chatStatus === "typing" && currentSpeaker !== "user" ? "animate-cartoon-talk" : "animate-cartoon-smile"} 
+              className={chatStatus === "typing" ? "animate-cartoon-talk" : "animate-cartoon-smile"} 
             />
           </g>
         </svg>
