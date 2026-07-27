@@ -726,7 +726,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* 🔴 صندوق الإدخال: تم تعديل ترتيب العناصر فقط */}
+        {/* 🔴 تم تعديل ترتيب عناصر صندوق الإدخال فقط */}
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           {showDepartmentSelection ? (
             <div className="space-y-2">
@@ -739,7 +739,7 @@ export default function Home() {
             </div>
           ) : (
             <div className="flex gap-2 items-end">
-              {/* 1. زر الإرسال (الجهة اليمنى في RTL) */}
+              {/* 1. زر الإرسال (الجهة اليمنى) */}
               <button 
                 onClick={sendMessage} 
                 disabled={!text.trim() || chatStatus === "typing" || isSendingRef.current} 
@@ -759,14 +759,16 @@ export default function Home() {
                 className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed"
               />
 
-              {/* 3. أيقونة المرفقات/المساعدة (الجهة اليسرى في RTL) */}
+              {/* 3. أيقونة المساعد (الجهة اليسرى) */}
               <button 
                 type="button"
                 className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-[#0b0f1a] text-gray-400 hover:text-purple-400 hover:bg-[#1f2937] border border-gray-700"
-                title="المرفقات"
+                title="مساعدة"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
                 </svg>
               </button>
             </div>
