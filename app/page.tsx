@@ -147,8 +147,6 @@ export default function Home() {
   const [showDepartmentSelection, setShowDepartmentSelection] = useState(false);
   
   const [loadingProgress, setLoadingProgress] = useState(0);
-  
-  // 🔴 حالات حركة الأيقونة
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   
   const chatButtonRef = useRef<HTMLDivElement>(null);
@@ -156,7 +154,7 @@ export default function Home() {
   const currentSpeakerRef = useRef(currentSpeaker);
   const chatStatusRef = useRef(chatStatus);
   const lastActivityTimeRef = useRef(Date.now());
-  const lastAgentMessageTimeRef = useRef(Date.now()); // لتتبع مهلة الـ 45 ثانية
+  const lastAgentMessageTimeRef = useRef(Date.now());
   const isSendingRef = useRef(false);
   const previousAgentRepliesRef = useRef<Set<string>>(new Set());
   
@@ -172,7 +170,7 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // 1. شريط التحميل الاحترافي RTL (سلس ولا يختفي إلا عند الاكتمال)
+  // 1. شريط التحميل الاحترافي RTL
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -202,10 +200,7 @@ export default function Home() {
     const t2 = setTimeout(() => updateProgress(75, 600), 600);
     const t3 = setTimeout(() => updateProgress(95, 500), 1200);
 
-    const handleReadyState = () => {
-      if (document.readyState === 'interactive') updateProgress(98, 300);
-    };
-
+    const handleReadyState = () => { if (document.readyState === 'interactive') updateProgress(98, 300); };
     const handleLoad = () => {
       isComplete = true;
       clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
@@ -222,7 +217,7 @@ export default function Home() {
         setLoadingProgress(100);
         setTimeout(() => setLoadingProgress(0), 600);
       }
-    }, 10000); // مهلة أطول لضمان اكتمال التحميل
+    }, 10000);
 
     return () => {
       document.removeEventListener('readystatechange', handleReadyState);
@@ -232,7 +227,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // 2. حركة الأيقونة الكرتونية (تنفس، رمش، تتبع ماوس، نظر للمحادثة، تحدث)
+  // 2. حركة الأيقونة الكرتونية (تم إصلاح حسابات العيون بدقة)
   // ============================================================
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -241,13 +236,15 @@ export default function Home() {
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
         
-        // إذا كانت المحادثة مفتوحة، تنظر الشخصية نحو نافذة المحادثة (أسفل اليسار)
         if (open) {
-          setEyePos({ x: -3, y: 3 });
+          // نظر طبيعي للأسفل واليسار نحو نافذة المحادثة (قيم صغيرة وآمنة)
+          setEyePos({ x: -2, y: 2 });
         } else {
-          // وإلا تتبع الماوس بحركة ناعمة ومحدودة
-          const x = Math.max(-3, Math.min(3, (e.clientX - centerX) / 30));
-          const y = Math.max(-3, Math.min(3, (e.clientY - centerY) / 30));
+          // الحد الأقصى للإزاحة هو 2.5 بكسل (نصف قطر الدائرة البيضاء 5، ونصف قطر البؤبؤ 2.5)
+          // هذا يضمن بقاء البؤبؤ داخل الدائرة البيضاء دائماً بشكل طبيعي
+          const maxOffset = 2.5;
+          const x = Math.max(-maxOffset, Math.min(maxOffset, (e.clientX - centerX) / 40));
+          const y = Math.max(-maxOffset, Math.min(maxOffset, (e.clientY - centerY) / 40));
           setEyePos({ x, y });
         }
       }
@@ -310,7 +307,6 @@ export default function Home() {
     }
   }, [messages, currentSpeaker]);
 
-  // 🔴 منطق المهلة الزمنية (45 ثانية)
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
 
@@ -319,7 +315,6 @@ export default function Home() {
       const elapsedSeconds = (now - lastAgentMessageTimeRef.current) / 1000;
 
       if (elapsedSeconds >= 45) {
-        // إنهاء الجلسة والعودة للمساعد الذكي مع الحفاظ على السجل
         const timeoutMsg = createMessage(
           "system",
           "تم إنهاء جلسة الموظف بسبب عدم وجود رد من المستخدم، ويمكنك متابعة المحادثة مع المساعد الذكي.",
@@ -346,7 +341,7 @@ export default function Home() {
       "assistant"
     );
 
-    setMessages(prev => [...prev, freshBotMessage]); // الحفاظ على السجل
+    setMessages(prev => [...prev, freshBotMessage]);
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
@@ -488,7 +483,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // SEND MESSAGE & API HANDLING (محسن وواقعي)
+  // SEND MESSAGE & API HANDLING (تم إصلاح منطق الردود جذرياً)
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -497,7 +492,7 @@ export default function Home() {
     isSendingRef.current = true;
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
-    lastActivityTimeRef.current = Date.now(); // إعادة ضبط مؤقت نشاط المستخدم
+    lastActivityTimeRef.current = Date.now();
     
     conversationContextRef.current.push(trimmedText);
     if (conversationContextRef.current.length > 5) {
@@ -516,7 +511,7 @@ export default function Home() {
         const currentDept = currentAgent.department;
         messageCountRef.current += 1;
 
-        // 1. التحقق من الختام (لا، شكراً، هذا كل شيء، انتهيت)
+        // 1. التحقق من الختام
         const closingKeywords = ["لا", "شكرا", "شكراً", "هذا كل شيء", "انتهيت", "خلاص", "لا شكرا", "لا احتاج"];
         const isClosingRequest = closingKeywords.some(k => normalized.includes(k)) && normalized.length < 20;
 
@@ -526,8 +521,6 @@ export default function Home() {
             "يسعدنا دائماً خدمتك، وإذا احتجت أي مساعدة مستقبلاً فنحن هنا.",
             "نتمنى لك كل التوفيق، وشكراً لثقتك بنا."
           ];
-          
-          // اختيار رد لم يُستخدم مسبقاً
           const availableClosings = closingReplies.filter(r => !previousAgentRepliesRef.current.has(r));
           const agentReply = availableClosings.length > 0 
             ? availableClosings[Math.floor(Math.random() * availableClosings.length)]
@@ -538,21 +531,55 @@ export default function Home() {
           setChatStatus("online");
           conversationPhaseRef.current = "ended";
           lastAgentMessageRef.current = agentReply;
+          lastAgentMessageTimeRef.current = Date.now();
           isSendingRef.current = false;
           return;
         }
 
-        // 2. التحقق من الشكر/الانتهاء (رد لطيف أولاً ثم سؤال)
-        const isGratitude = normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || normalized.includes("الله يعطيك") || normalized.includes("تم") || normalized.includes("انحلت") || normalized.includes("تمام") || normalized.includes("ممتاز");
+        // 2. إصلاح جذري: الرد المباشر والمفصل على طلبات الأسعار والتفاصيل
+        if (normalized.includes("سعر") || normalized.includes("اسعار") || normalized.includes("تفاصيل") || normalized.includes("باقه") || normalized.includes("اعلان") || normalized.includes("كم")) {
+          if (currentDept === 'ads') {
+            const pricingReply = `أهلاً بك أستاذ. إليك تفاصيل باقاتنا الإعلانية الأساسية:
 
+🔹 الباقة الأسبوعية: 135 دولار (مدة أسبوع، 50,000 ظهور، منصتين رئيسيتين).
+🔹 الباقة الشهرية: 405 دولار (مدة شهر، 200,000 ظهور، 3 منصات رئيسية).
+🔹 الباقة الاحترافية: 810 دولار (مدة شهر، 500,000+ ظهور، جميع المنصات مع مدير حساب مخصص).
+
+هل تود أن نبدأ بحجز إحدى هذه الباقات، أو لديك استفسار عن باقة مخصصة لميزانيتك؟`;
+            
+            setMessages(prev => [...prev, createMessage("agent", pricingReply, "assistant")]);
+            conversationPhaseRef.current = "ongoing";
+            lastAgentMessageRef.current = pricingReply;
+            lastAgentMessageTimeRef.current = Date.now();
+            isSendingRef.current = false;
+            return;
+          } else {
+            setMessages(prev => [...prev, createMessage("agent", "العفو أستاذ، هذا الطلب يخص قسم الإعلانات. سأحولك الآن إلى زميلتي المختصة.", "assistant")]);
+            setTimeout(() => performInternalTransfer('ads', currentAgent.name), 1000);
+            isSendingRef.current = false;
+            return;
+          }
+        }
+
+        // 3. إصلاح السياق: الرد على "نعم" أو "تمام" بعد عرض التفاصيل
+        if ((normalized === "نعم" || normalized === "اي" || normalized === "تفضل" || normalized.includes("تمام") || normalized.includes("انتظار")) && lastAgentMessageRef.current.includes("باقات")) {
+            const followUp = "ممتاز. لكي أتمكن من تجهيز العرض الأنسب لك، هل يمكنك إخباري بالميزانية التقريبية المخصصة للإعلان أو المنصة المفضلة لديك؟";
+            setMessages(prev => [...prev, createMessage("agent", followUp, "assistant")]);
+            conversationPhaseRef.current = "ongoing";
+            lastAgentMessageRef.current = followUp;
+            lastAgentMessageTimeRef.current = Date.now();
+            isSendingRef.current = false;
+            return;
+        }
+
+        // 4. التحقق من الشكر
+        const isGratitude = normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || normalized.includes("الله يعطيك") || normalized.includes("انحلت") || normalized.includes("ممتاز");
         if (isGratitude && conversationPhaseRef.current !== "closing" && conversationPhaseRef.current !== "ended") {
           const gratitudeReplies = [
             "العفو أستاذ، هذا واجبنا.",
-            "تدلل أستاذ، يسعدني أن المشكلة انحلّت.",
-            "بالعفو أستاذ، تحت أمرك بأي وقت.",
-            "يسعدني خدمتك أستاذ."
+            "تدلل أستاذ، يسعدني أن تم حل الأمر.",
+            "بالعفو أستاذ، تحت أمرك بأي وقت."
           ];
-          
           const availableGratitude = gratitudeReplies.filter(r => !previousAgentRepliesRef.current.has(r));
           const gratitudeReply = availableGratitude.length > 0 ? availableGratitude[Math.floor(Math.random() * availableGratitude.length)] : gratitudeReplies[0];
           
@@ -560,11 +587,7 @@ export default function Home() {
           setMessages(prev => [...prev, createMessage("agent", gratitudeReply, "assistant")]);
           
           setTimeout(() => {
-            const followUpQuestions = [
-              "هل تحتاج إلى أي استفسار آخر أستاذ؟",
-              "هل هناك شيء آخر أقدر أساعدك فيه؟",
-              "هل لديك أي سؤال آخر؟"
-            ];
+            const followUpQuestions = ["هل تحتاج إلى أي استفسار آخر أستاذ؟", "هل هناك شيء آخر أقدر أساعدك فيه؟"];
             const availableFollowUp = followUpQuestions.filter(q => !previousAgentRepliesRef.current.has(q));
             const followUp = availableFollowUp.length > 0 ? availableFollowUp[Math.floor(Math.random() * availableFollowUp.length)] : followUpQuestions[0];
             
@@ -580,115 +603,49 @@ export default function Home() {
           return;
         }
 
-        // 3. التحقق من طلب التوضيح (إذا كان النص قصيراً جداً وغير واضح)
-        const isVague = normalized.length < 4 && !["نعم", "اي", "لا", "شكرا"].includes(normalized);
-        if (isVague && !askedForClarificationRef.current && conversationPhaseRef.current !== "initial") {
-          askedForClarificationRef.current = true;
-          const clarificationReply = "عذراً أستاذ، لم يتضح لي طلبك تماماً. هل يمكنك تزويدي بمزيد من التفاصيل لأتمكن من مساعدتك بشكل دقيق؟";
-          previousAgentRepliesRef.current.add(clarificationReply);
-          setMessages(prev => [...prev, createMessage("agent", clarificationReply, "assistant")]);
-          setChatStatus("online");
-          lastAgentMessageTimeRef.current = Date.now();
-          isSendingRef.current = false;
-          return;
-        } else if (!isVague) {
-          askedForClarificationRef.current = false; // إعادة الضبط إذا كان السؤال واضحاً
+        // 5. المشاكل التقنية
+        if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("معلق")) {
+          if (currentDept === 'technical') {
+            const techReplies = [
+              "حاضر، يسعدني مساعدتك. لكي أتمكن من فحص الأمر بدقة، هل يمكنك تزويدي برقم الطلب أو لقطة شاشة للخطأ؟",
+              "أكيد، أنا هنا لمساعدتك. يرجى تزويدي بتفاصيل أكثر: متى بدأت المشكلة؟ وهل تظهر رسالة خطأ معينة؟"
+            ];
+            const available = techReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+            const agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : techReplies[0];
+            
+            previousAgentRepliesRef.current.add(agentReply);
+            setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
+            conversationPhaseRef.current = "ongoing";
+            lastAgentMessageTimeRef.current = Date.now();
+            isSendingRef.current = false;
+            return;
+          } else {
+            setMessages(prev => [...prev, createMessage("agent", "العفو أستاذ، هذا الطلب يخص قسم الدعم الفني. سأحولك الآن إلى زميلي المختص.", "assistant")]);
+            setTimeout(() => performInternalTransfer('technical', currentAgent.name), 1000);
+            isSendingRef.current = false;
+            return;
+          }
         }
 
-        // 4. تحديد نوع الطلب والتحويل الذكي
-        const isAdsRequest = normalized.includes("اعلان") || normalized.includes("ترويج") || normalized.includes("دعاية") || normalized.includes("سعر") || normalized.includes("باقه");
-        const isTechnicalRequest = normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("معلق");
-
-        if (isAdsRequest && currentDept !== 'ads') {
-          setMessages(prev => [...prev, createMessage("agent", "العفو أستاذ، هذا الطلب يخص قسم الإعلانات. سأحولك الآن إلى زميلتي المختصة.", "assistant")]);
-          setChatStatus("online");
-          setTimeout(() => performInternalTransfer('ads', currentAgent.name), 1000);
-          isSendingRef.current = false;
-          return;
-        }
-
-        if (isTechnicalRequest && currentDept !== 'technical') {
-          setMessages(prev => [...prev, createMessage("agent", "العفو أستاذ، هذا الطلب يخص قسم الدعم الفني. سأحولك الآن إلى زميلي المختص.", "assistant")]);
-          setChatStatus("online");
-          setTimeout(() => performInternalTransfer('technical', currentAgent.name), 1000);
-          isSendingRef.current = false;
-          return;
-        }
-
-        // 5. الردود المخصصة حسب الموضوع (بدون تكرار)
-        let agentReply = "";
+        // 6. الرد العام الآمن (Fallback)
+        const generalReplies = currentDept === 'ads' 
+          ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب لمتجرك؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك لنبدأ منها؟"]
+          : currentDept === 'technical'
+          ? ["حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية عن المشكلة.", "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح المشكلة أكثر؟"]
+          : ["بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.", "حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟"];
         
-        if (normalized.includes("غالي") || normalized.includes("كثير") || normalized.includes("مرتفع") || normalized.includes("مكلف")) {
-          lastHandledTopicRef.current = "price_objection";
-          const objectionReplies = [
-            "أتفهم ملاحظتك أستاذ. لدينا أيضاً باقات أقل تكلفة حسب مدة الإعلان، وإذا أخبرتني ميزانيتك أقدر أرشح لك أنسب باقة.",
-            "ملاحظتك في محلها أستاذ. يمكننا تخصيص باقة تناسب ميزانيتك، كم المبلغ الذي تتوقعه؟",
-            "أتفق معك أستاذ. لدينا خيارات مرنة، هل تود أن نبدأ بميزانية محددة ونبني عليها الباقة المناسبة؟"
-          ];
-          const available = objectionReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-          agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : objectionReplies[0];
-        } 
-        else if (normalized.includes("سعر") || normalized.includes("كلفه") || normalized.includes("كم")) {
-          lastHandledTopicRef.current = "pricing";
-          const pricingReplies = [
-            "الأسعار تختلف حسب نوع الإعلان، وسيتم تزويدك بالسعر المعتمد من لوحة الإدارة.",
-            "سأزودك بالأسعار المعتمدة الخاصة بمتجرك حسب الباقة المناسبة.",
-            "سيتم إرسال الأسعار حسب الباقة المناسبة لاحتياجاتك."
-          ];
-          const available = pricingReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-          agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : pricingReplies[0];
-        }
-        else if (normalized.includes("مدة") || normalized.includes("فترة") || normalized.includes("يوم") || normalized.includes("شهر")) {
-          lastHandledTopicRef.current = "duration";
-          const durationReplies = [
-            "المدة تعتمد على الباقة المخترة. لدينا خيارات مرنة تناسب احتياجاتك.",
-            "نوفر مدد مختلفة حسب نوع الحملة. سأزودك بالتفاصيل المناسبة."
-          ];
-          const available = durationReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-          agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : durationReplies[0];
-        }
-        else if (normalized.includes("ظهور") || normalized.includes("مرات") || normalized.includes("وصول")) {
-          lastHandledTopicRef.current = "reach";
-          const reachReplies = [
-            "عدد مرات الظهور يعتمد على الباقة والميزانية المخصصة. سأزودك بالتفاصيل.",
-            "نضمن وصولاً واسعاً حسب الباقة المختارة. سأرسل لك الأرقام المعتمدة."
-          ];
-          const available = reachReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-          agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : reachReplies[0];
-        }
-        else if (isTechnicalRequest) {
-          lastHandledTopicRef.current = "technical";
-          const techReplies = [
-            "حاضر، يسعدني مساعدتك في حل هذه المشكلة. لكي أتمكن من فحص الأمر بدقة، هل يمكنك تزويدي برقم الطلب أو لقطة شاشة للخطأ؟",
-            "أكيد، أنا هنا لمساعدتك. يرجى تزويدي بتفاصيل أكثر عن المشكلة: متى بدأت؟ وهل تظهر رسالة خطأ معينة؟",
-            "حاضر، سأقوم بمراجعة الأمر فوراً. هل يمكنك وصف ما يحدث بالضبط؟"
-          ];
-          const available = techReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-          agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : techReplies[0];
-        }
-        else {
-          // ردود عامة
-          const generalReplies = currentDept === 'ads' 
-            ? ["أكيد، يسعدني ذلك. هل تود أن نبدأ بتجهيز إحدى الباقات الإعلانية لمتجرك؟", "بكل سرور. أنا هنا لمساعدتك في جميع استفساراتك المتعلقة بالإعلانات.", "حاضر، أنا معك. ما الذي تود معرفته عن خدماتنا الإعلانية؟"]
-            : currentDept === 'technical'
-            ? ["حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية.", "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح المشكلة أكثر؟", "حاضر، أنا هنا. ما التفاصيل الأخرى التي تحتاجها؟"]
-            : ["بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.", "أكيد، يسعدني مساعدتك. كيف أقدر أخدمك؟", "حاضر، أنا معك. تفضل بطرح استفسارك."];
-          
-          const available = generalReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-          agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : generalReplies[0];
-        }
+        const available = generalReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+        const agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : generalReplies[0];
         
         previousAgentRepliesRef.current.add(agentReply);
         setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
         lastAgentMessageRef.current = agentReply;
         conversationPhaseRef.current = "ongoing";
-        setChatStatus("online");
         lastAgentMessageTimeRef.current = Date.now();
         
-        // طرح سؤال الختام بعد عدة رسائل فقط
         setTimeout(() => {
           if (conversationPhaseRef.current === "ongoing" && messageCountRef.current > 3 && !awaitingFinalConfirmationRef.current) {
-            const followUpQuestions = ["هل تحتاج إلى شيء آخر أستاذ؟", "هل لديك أي استفسار آخر؟", "هل هناك شيء آخر أقدر أساعدك فيه؟"];
+            const followUpQuestions = ["هل تحتاج إلى شيء آخر أستاذ؟", "هل لديك أي استفسار آخر؟"];
             const availableFollowUp = followUpQuestions.filter(q => !previousAgentRepliesRef.current.has(q));
             const followUp = availableFollowUp.length > 0 ? availableFollowUp[Math.floor(Math.random() * availableFollowUp.length)] : followUpQuestions[0];
             
@@ -863,7 +820,6 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
-      {/* شريط التحميل الاحترافي RTL (يبدأ من اليمين وينمو لليسار) */}
       {loadingProgress > 0 && (
         <div className="fixed top-0 right-0 left-auto z-[100] h-1 bg-gray-800/50 w-full">
           <div 
@@ -920,21 +876,18 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 🔴 أيقونة المساعد - شخصية كرتونية متحركة */}
+      {/* 🔴 أيقونة المساعد - شخصية كرتونية متحركة (تم إصلاح حركة العيون) */}
       <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-cartoon-breathe">
-            {/* العيون مع الرمش */}
             <g className="animate-cartoon-blink">
               <circle cx="10" cy="14" r="5" fill="white" />
-              {/* بؤبؤ العين يتحرك حسب الماوس أو اتجاه المحادثة */}
               <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.2s ease-out' }} />
             </g>
             <g className="animate-cartoon-blink" style={{ animationDelay: '0.1s' }}>
               <circle cx="22" cy="14" r="5" fill="white" />
               <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.2s ease-out' }} />
             </g>
-            {/* الابتسامة أو التحدث */}
             <path 
               d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" 
               stroke="white" 
