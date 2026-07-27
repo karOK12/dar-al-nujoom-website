@@ -58,14 +58,12 @@ interface TrendingProduct {
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
-// الأسعار الأساسية بالدولار الأمريكي فقط
 const AD_PACKAGES = {
   weekly: { usd: 50, duration: "أسبوع واحد", views: "10,000 ظهور", platforms: "Facebook, Instagram" },
   monthly: { usd: 150, duration: "شهر كامل", views: "50,000 ظهور", platforms: "Facebook, Instagram, TikTok" },
   premium: { usd: 300, duration: "حملة مخصصة", views: "150,000+ ظهور", platforms: "جميع المنصات + Website" }
 };
 
-// أسعار الصرف التقريبية للتحويل الديناميكي
 const EXCHANGE_RATES: Record<string, number> = {
   'USD': 1, 'SAR': 3.75, 'IQD': 1320, 'AED': 3.67, 
   'JOD': 0.71, 'EGP': 47.5, 'IRR': 42000, 'EUR': 0.92
@@ -83,9 +81,9 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'technical', name: 'الدعم الفني', description: 'حل المشاكل التقنية' },
 ];
 
-// 🔴 المؤقت مضبوط بدقة على 40 ثانية لإنهاء جلسة الموظف
+// 🔴 تم تغيير المدة إلى 45 ثانية
 const SESSION_TIMEOUTS = {
-  IDLE_TO_ENDED: 40, 
+  IDLE_TO_ENDED: 45, 
   QUEUE_CHECK_INTERVAL: 8000,
 };
 
@@ -142,7 +140,7 @@ export default function Home() {
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
 
   // ============================================================
-  // 1. شريط التحميل RTL
+  // 1. شريط التحميل RTL (من اليمين لليسار)
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -177,7 +175,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // 2. حركة الأيقونة الطبيعية
+  // 2. حركة الأيقونة الطبيعية مع تتبع الماوس
   // ============================================================
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -210,7 +208,7 @@ export default function Home() {
   }, [isMouseNear]);
 
   // ============================================================
-  // 3. إدارة الجلسة ومؤقت الـ 40 ثانية
+  // 3. إدارة الجلسة ومؤقت الـ 45 ثانية
   // ============================================================
   const clearAllTimers = useCallback(() => {
     if (followUpTimerRef.current) { clearTimeout(followUpTimerRef.current); followUpTimerRef.current = null; }
@@ -224,7 +222,7 @@ export default function Home() {
     }
   }, [messages, currentSpeaker]);
 
-  // 🔴 منطق الـ 40 ثانية الدقيق
+  // 🔴 منطق الـ 45 ثانية الدقيق
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
     
@@ -241,7 +239,6 @@ export default function Home() {
   const endAgentSession = useCallback(() => {
     clearAllTimers();
     
-    // إضافة رسالة نظام توضح العودة للمساعد الذكي
     const endMsg = createMessage("system", "تم إنهاء جلسة الدعم مؤقتاً بسبب عدم النشاط. عاد المساعد الذكي لخدمتك.", "assistant");
     setMessages(prev => [...prev, endMsg]);
     
@@ -358,7 +355,7 @@ export default function Home() {
           const formatPrice = (usd: number) => `${Math.round(usd * rate)} ${symbol}`;
           
           if (currentAgent.department === 'ads') {
-            agentReply = `أسعار باقاتنا الأساسية (بالدولار الأمريكي كمرجع):\n🔹 الأسبوعية: ${formatPrice(AD_PACKAGES.weekly.usd)}\n🔹 الشهرية: ${formatPrice(AD_PACKAGES.monthly.usd)}\n🔹 الاحترافية: ${formatPrice(AD_PACKAGES.premium.usd)}\n${currency !== 'USD' ? `\n(ملاحظة: الأسعار أعلاه هي التقريبية بالعملة المطلوبة بناءً على سعر الصرف الحالي)` : ''}`;
+            agentReply = `أسعار باقاتنا الأساسية (بالدولار الأمريكي كمرجع):\n🔹 الأسبوعية: ${formatPrice(AD_PACKAGES.weekly.usd)}\n الشهرية: ${formatPrice(AD_PACKAGES.monthly.usd)}\n🔹 الاحترافية: ${formatPrice(AD_PACKAGES.premium.usd)}\n${currency !== 'USD' ? `\n(ملاحظة: الأسعار أعلاه هي التقريبية بالعملة المطلوبة بناءً على سعر الصرف الحالي)` : ''}`;
             triggerFollowUp = true;
           } else {
             performInternalTransfer('ads', currentAgent.name, "استفسار عن أسعار الإعلانات");
@@ -484,6 +481,7 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
+      {/* شريط التحميل RTL - يبدأ من اليمين */}
       {loadingProgress > 0 && (
         <div className="fixed top-0 right-0 left-auto z-[100] h-1 bg-gray-800/50">
           <div className="h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)]"
@@ -512,6 +510,7 @@ export default function Home() {
         <p className="text-gray-400 text-lg max-w-2xl mx-auto">منصتكم الإعلامية الأولى لعالم المشاهير والمحتوى الحصري.</p>
       </main>
 
+      {/* أيقونة المحادثة - تظهر من اليمين مع حركة العيون والفم */}
       <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-gentle-breathe">
@@ -587,7 +586,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 🔴 تم استعادة قسم الفوتر بالكامل مع جميع الروابط المطلوبة */}
+      {/* 🔴 الفوتر الكامل مع جميع الروابط */}
       <footer className="bg-[#0b0f1a] border-t border-gray-800 text-gray-400 mt-auto">
         <div className="container mx-auto px-4 py-8">
           <div className="flex flex-col items-center gap-6">
