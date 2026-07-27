@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ============================================================
-// TYPES & INTERFACES (محفوظة كما هي)
+// TYPES & INTERFACES
 // ============================================================
 
 type Sender = "user" | "bot" | "agent" | "system";
@@ -80,7 +80,6 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'technical', name: 'فريق الدعم الفني', description: 'لحل المشاكل التقنية وأخطاء الموقع' },
 ];
 
-// 🔴 تم ضبط المهلة على 45 ثانية بالضبط لإنهاء الجلسة
 const SESSION_TIMEOUTS = {
   IDLE_TO_CLOSED: 45,
   QUEUE_CHECK_INTERVAL: 8000,
@@ -104,7 +103,7 @@ const normalizeArabicText = (text: string): string => {
     .replace(/[أإآ]/g, "ا")
     .replace(/ة/g, "ه")
     .replace(/ى/g, "ي")
-    .replace(/گ/g, "ك").replace(/چ/g, "ج").replace(/پ/g, "ب").replace(/ڤ/g, "ف") // دعم اللهجات
+    .replace(/گ/g, "ك").replace(/چ/g, "ج").replace(/پ/g, "ب").replace(/ڤ/g, "ف")
     .replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -164,7 +163,7 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // 1. شريط التحميل الاحترافي (RTL + Glow + Fade Out)
+  // شريط التحميل الاحترافي (RTL)
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -199,7 +198,7 @@ export default function Home() {
       isComplete = true;
       clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
       setLoadingProgress(100);
-      setTimeout(() => setLoadingProgress(0), 600); // Fade out
+      setTimeout(() => setLoadingProgress(0), 600);
     };
 
     document.addEventListener('readystatechange', handleReadyState);
@@ -300,7 +299,7 @@ export default function Home() {
   }, [clearAllTimers]);
 
   // ============================================================
-  // ESCALATION & TRANSFER LOGIC (Smart Routing)
+  // ESCALATION & TRANSFER LOGIC
   // ============================================================
   const handleHumanRequest = useCallback(() => {
     setShowDepartmentSelection(true); setChatStatus("online");
@@ -354,13 +353,13 @@ export default function Home() {
         setMessages(prev => [...prev, createMessage("agent", `مرحباً، أنا ${targetAgent!.name} من قسم ${targetDept === 'ads' ? 'الإعلانات' : 'الدعم الفني'}. اطلعت على محادثتك السابقة بخصوص: "${userQuery}" مع الأستاذ ${currentAgentName}، وسأتابع معك من هذه النقطة مباشرة. تفضل.`, "assistant")]);
         setChatStatus("online");
         isSendingRef.current = false;
-        lastActivityTimeRef.current = Date.now(); // إعادة ضبط المؤقت
+        lastActivityTimeRef.current = Date.now();
       }, 1200);
     }, 1000);
   }, []);
 
   // ============================================================
-  // SEND MESSAGE & API HANDLING (Realistic Agent Behavior)
+  // SEND MESSAGE & API HANDLING
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -370,7 +369,7 @@ export default function Home() {
     isSendingRef.current = true;
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
-    lastActivityTimeRef.current = Date.now(); // إعادة ضبط مؤقت الـ 45 ثانية
+    lastActivityTimeRef.current = Date.now();
 
     if (checkAndPerformEscalation(trimmedText)) { isSendingRef.current = false; return; }
 
@@ -380,7 +379,6 @@ export default function Home() {
         const normalized = normalizeArabicText(trimmedText);
         const currentDept = currentAgent.department;
 
-        // 1. التحقق من الختام
         if (awaitingFinalConfirmationRef.current) {
           const isDeclining = ["لا", "خلاص", "كفى", "ما احتاج", "لا شكرا", "انتهى", "هذا كل شيء", "شكرا", "شكراً"].some(k => normalized.includes(k));
           if (isDeclining) {
@@ -394,7 +392,6 @@ export default function Home() {
           awaitingFinalConfirmationRef.current = false;
         }
 
-        // 2. التحقق من الشكر
         if (["شكر", "تسلم", "الله يعطيك", "تمام", "مشكور", "يعطيك العافيه"].some(k => normalized.includes(k))) {
           const thanksReplies = ["العفو أستاذ، هذا واجبنا.", "تدلل أستاذ، يسعدني أن تم حل الأمر.", "بالعفو أستاذ، تحت أمرك بأي وقت."];
           const reply = thanksReplies.find(r => !previousAgentRepliesRef.current.has(r)) || thanksReplies[0];
@@ -407,7 +404,6 @@ export default function Home() {
           return;
         }
 
-        // 3. منطق أسعار الإعلانات (موظف الإعلانات فقط)
         if (["سعر", "باقه", "اعلان", "ترويج", "تكلفه"].some(k => normalized.includes(k))) {
           if (currentDept === 'ads') {
             let targetCurrency = 'USD', currencySymbol = 'دولار', rate = 1;
@@ -430,7 +426,6 @@ export default function Home() {
           }
         }
 
-        // 4. الاستفسار التقني (موظف الدعم الفني فقط)
         if (["مشكله", "خطأ", "لا يعمل", "عطل", "شكوى", "معلق", "ما يشتغل"].some(k => normalized.includes(k))) {
           if (currentDept === 'technical') {
             const techReplies = ["حاضر أستاذ، يسعدني مساعدتك. لكي أتمكن من فحص الأمر بدقة، هل يمكنك تزويدي برقم الطلب أو لقطة شاشة للخطأ؟", "أكيد، أنا هنا لمساعدتك. يرجى تزويدي بتفاصيل أكثر: متى بدأت المشكلة؟ وهل تظهر رسالة خطأ معينة؟"];
@@ -444,7 +439,6 @@ export default function Home() {
           }
         }
 
-        // 5. ردود عامة طبيعية (بدون تكرار)
         const generalReplies = currentDept === 'ads' 
           ? ["أكيد أستاذ، تفضل كيف أقدر أساعدك؟", "حاضر، أنا معك. ما الذي تود معرفته عن خدماتنا؟", "بكل سرور، أنا جاهز لمساعدتك في اختيار الأنسب."]
           : currentDept === 'technical'
@@ -463,7 +457,6 @@ export default function Home() {
       return; 
     }
 
-    // منطق المساعد الذكي
     setChatStatus("typing");
     try {
       const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: (m.sender === "bot" || m.sender === "agent") ? "assistant" : "user", content: m.text }));
@@ -542,7 +535,7 @@ export default function Home() {
   };
 
   // ============================================================
-  // JSX (التصميم محفوظ بالكامل كما طلبت)
+  // JSX
   // ============================================================
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col" dir="rtl">
@@ -560,7 +553,6 @@ export default function Home() {
         @keyframes micro-smile { 0%, 100% { d: path("M 10 22 C 10 22, 14 25, 16 25 C 18 25, 22 22, 22 22"); } 50% { d: path("M 10 22 C 10 22, 14 26, 16 26 C 18 26, 22 22, 22 22"); } }
         .animate-micro-smile { animation: micro-smile 5s ease-in-out infinite; }
 
-        /* 🔴 حركة الفم عند الكتابة */
         @keyframes talking-mouth {
           0%, 100% { d: path("M 10 22 C 10 22, 14 25, 16 25 C 18 25, 22 22, 22 22"); }
           50% { d: path("M 10 21 C 10 21, 14 27.5, 16 27.5 C 18 27.5, 22 21, 22 21"); }
@@ -574,7 +566,6 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
-      {/* 1. شريط التحميل RTL مع Glow بنفسجي وتأثير Fade Out */}
       {loadingProgress > 0 && (
         <div className="fixed top-0 right-0 left-auto z-[100] h-1 bg-gray-800/50 w-full">
           <div 
@@ -590,9 +581,10 @@ export default function Home() {
 
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
         <div className="w-full px-2 md:px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-2 md:gap-4">
+          {/* تم عكس الترتيب ليظهر الاسم في اليمين والشعار في اليسار في واجهة RTL */}
           <a href="/" className="flex items-center gap-2 md:gap-3 shrink-0">
-            <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover border-2 border-purple-500 shadow-md" />
             <span className="text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">قناة مجلة دار النجوم</span>
+            <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover border-2 border-purple-500 shadow-md" />
           </a>
           <div className="flex-1 max-w-md mx-2 hidden md:block">
             <input type="text" placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
@@ -629,7 +621,6 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 2. أيقونة المحادثة المتحركة (دخول من اليمين، تتبع الماوس، رمش، تنفس، فتح الفم عند الكتابة) */}
       <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-fade-in-right" title="مركز المساعدة">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-gentle-float">
@@ -641,7 +632,6 @@ export default function Home() {
               <circle cx="22" cy="14" r="5" fill="white" />
               <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${isMouseMoving ? mousePos.x : Math.sin(Date.now() / 1000) * 2}px, ${isMouseMoving ? mousePos.y : Math.cos(Date.now() / 1000) * 2}px)`, transition: 'transform 0.3s ease-out' }} />
             </g>
-            {/* الفم يتغير ديناميكياً حسب حالة الكتابة */}
             <path 
               className={chatStatus === "typing" ? "animate-talking-mouth" : "animate-micro-smile"} 
               d={chatStatus === "typing" ? "M 10 22 C 10 22, 14 27, 16 27 C 18 27, 22 22, 22 22" : "M 10 22 C 10 22, 14 25, 16 25 C 18 25, 22 22, 22 22"} 
@@ -652,13 +642,27 @@ export default function Home() {
       </div>
 
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
+        
+        {/* 🔴 تم عكس ترتيب العناصر هنا: الاسم أصبح أولاً (يمين في RTL) والصورة ثانياً (يسار في RTL) */}
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
+          
+          {/* 1. اسم المستخدم في الجهة اليمنى */}
+          <div className="flex-1 min-w-0 text-right">
+            <h4 className="font-bold text-white text-sm truncate">{sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name}</h4>
+            <p className="text-xs flex items-center justify-end gap-1 truncate">
+              <span className="truncate">{getStatusText()}</span>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor()}`}></span>
+            </p>
+          </div>
+          
+          {/* 2. الصورة والإشعار في الجهة اليسرى */}
           <div className="flex items-center gap-2 flex-shrink-0">
             {sessionAgents.length === 0 ? (
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="4" y="8" width="16" height="12" rx="3" fill="white" opacity="0.95"/><circle cx="9" cy="14" r="1.5" fill="#7c3aed"/><circle cx="15" cy="14" r="1.5" fill="#7c3aed"/><path d="M9 17 Q12 19 15 17" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" fill="none"/><line x1="12" y1="8" x2="12" y2="5" stroke="white" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="4" r="1.5" fill="white"/></svg>
                 </div>
+                {/* 3. الإشعار تم تثبيته في الجهة اليمنى (right-0) */}
                 <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] bg-green-500"></span>
               </div>
             ) : (
@@ -668,13 +672,6 @@ export default function Home() {
                 ))}
               </div>
             )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h4 className="font-bold text-white text-sm truncate">{sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name}</h4>
-            <p className="text-xs flex items-center gap-1 truncate">
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor()}`}></span>
-              <span className="truncate">{getStatusText()}</span>
-            </p>
           </div>
         </div>
 
