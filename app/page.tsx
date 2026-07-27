@@ -581,17 +581,18 @@ export default function Home() {
 
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
         <div className="w-full px-2 md:px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-2 md:gap-4">
+          {/* تم عكس الترتيب ليظهر الاسم في اليمين والشعار في اليسار في واجهة RTL */}
+          <a href="/" className="flex items-center gap-2 md:gap-3 shrink-0">
+            <span className="text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">قناة مجلة دار النجوم</span>
+            <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover border-2 border-purple-500 shadow-md" />
+          </a>
+          <div className="flex-1 max-w-md mx-2 hidden md:block">
+            <input type="text" placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
+          </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
             <a href="/upgrade" className="hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg transition">ترقية 👑</a>
             <a href="/login" className="px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg transition">اشتراك</a>
           </div>
-          <div className="flex-1 max-w-md mx-2 hidden md:block">
-            <input type="text" placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
-          </div>
-          <a href="/" className="flex items-center gap-2 md:gap-3 shrink-0">
-            <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover border-2 border-purple-500 shadow-md" />
-            <span className="text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">قناة مجلة دار النجوم</span>
-          </a>
         </div>
         <div className="md:hidden px-2 pb-3">
           <input type="text" placeholder="🔎 ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
@@ -641,13 +642,27 @@ export default function Home() {
       </div>
 
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
+        
+        {/* 🔴 تم عكس ترتيب العناصر هنا: الاسم أصبح أولاً (يمين في RTL) والصورة ثانياً (يسار في RTL) */}
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
+          
+          {/* 1. اسم المستخدم في الجهة اليمنى */}
+          <div className="flex-1 min-w-0 text-right">
+            <h4 className="font-bold text-white text-sm truncate">{sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name}</h4>
+            <p className="text-xs flex items-center justify-end gap-1 truncate">
+              <span className="truncate">{getStatusText()}</span>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor()}`}></span>
+            </p>
+          </div>
+          
+          {/* 2. الصورة والإشعار في الجهة اليسرى */}
           <div className="flex items-center gap-2 flex-shrink-0">
             {sessionAgents.length === 0 ? (
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="4" y="8" width="16" height="12" rx="3" fill="white" opacity="0.95"/><circle cx="9" cy="14" r="1.5" fill="#7c3aed"/><circle cx="15" cy="14" r="1.5" fill="#7c3aed"/><path d="M9 17 Q12 19 15 17" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" fill="none"/><line x1="12" y1="8" x2="12" y2="5" stroke="white" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="4" r="1.5" fill="white"/></svg>
                 </div>
+                {/* 3. الإشعار تم تثبيته في الجهة اليمنى (right-0) */}
                 <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] bg-green-500"></span>
               </div>
             ) : (
@@ -657,13 +672,6 @@ export default function Home() {
                 ))}
               </div>
             )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h4 className="font-bold text-white text-sm truncate">{sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name}</h4>
-            <p className="text-xs flex items-center gap-1 truncate">
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor()}`}></span>
-              <span className="truncate">{getStatusText()}</span>
-            </p>
           </div>
         </div>
 
@@ -726,53 +734,26 @@ export default function Home() {
           )}
         </div>
 
-        {/* 🔴 تم تعديل ترتيب عناصر صندوق الإدخال فقط */}
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
-          {showDepartmentSelection ? (
-            <div className="space-y-2">
-              {DEPARTMENT_OPTIONS.map((dept) => (
-                <button key={dept.id} onClick={() => initiateDepartmentTransfer(dept.id)} className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group">
-                  <div className="font-bold text-sm text-purple-300 group-hover:text-purple-200">{dept.name}</div>
-                  <div className="text-xs text-gray-400 mt-1">{dept.description}</div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="flex gap-2 items-end">
-              {/* 1. زر الإرسال (الجهة اليمنى) */}
-              <button 
-                onClick={sendMessage} 
-                disabled={!text.trim() || chatStatus === "typing" || isSendingRef.current} 
-                className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
-              </button>
-
-              {/* 2. حقل كتابة الرسالة (الوسط) */}
-              <textarea
-                id="chat-input"
-                value={text}
-                placeholder="اكتب رسالتك هنا..."
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                rows={1}
-                className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed"
-              />
-
-              {/* 3. أيقونة المساعد (الجهة اليسرى) */}
-              <button 
-                type="button"
-                className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-[#0b0f1a] text-gray-400 hover:text-purple-400 hover:bg-[#1f2937] border border-gray-700"
-                title="مساعدة"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-              </button>
-            </div>
-          )}
+          <div className="flex gap-2 items-end">
+            <textarea
+              id="chat-input"
+              value={text}
+              placeholder={showDepartmentSelection ? "يرجى اختيار قسم من الأعلى..." : "اكتب رسالتك هنا..."}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              rows={1}
+              disabled={showDepartmentSelection}
+              className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <button 
+              onClick={sendMessage} 
+              disabled={!text.trim() || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
+              className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+            </button>
+          </div>
         </div>
       </div>
 
