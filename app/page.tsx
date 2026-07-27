@@ -81,7 +81,6 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'technical', name: 'الدعم الفني', description: 'حل المشاكل التقنية' },
 ];
 
-// 🔴 تم تغيير المدة إلى 45 ثانية
 const SESSION_TIMEOUTS = {
   IDLE_TO_ENDED: 45, 
   QUEUE_CHECK_INTERVAL: 8000,
@@ -90,6 +89,8 @@ const SESSION_TIMEOUTS = {
 const TRENDING_PRODUCTS: TrendingProduct[] = [
   { id: 1, name: "كاميرا تصوير احترافية", desc: "خصم 25% لفترة محدودة", img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=150&h=150&fit=crop", shape: "circle" },
   { id: 2, name: "سماعات استوديو", desc: "عزل ضوضاء فائق الجودة", img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&h=150&fit=crop", shape: "rectangle" },
+  { id: 3, name: "إضاءة Ring Light", desc: "مثالية لصناع المحتوى", img: "https://images.unsplash.com/photo-1615469062329-5f23633c1182?w=150&h=150&fit=crop", shape: "square" },
+  { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=150&h=200&fit=crop", shape: "portrait" },
 ];
 
 // ============================================================
@@ -134,13 +135,12 @@ export default function Home() {
   const isFirstMessageRef = useRef(true);
   const awaitingFollowUpRef = useRef(false);
   const followUpTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const endSessionTimerRef = useRef<NodeJS.Timeout | null>(null);
   const randomLookTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
 
   // ============================================================
-  // 1. شريط التحميل RTL (من اليمين لليسار)
+  // 1. شريط التحميل RTL
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -175,7 +175,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // 2. حركة الأيقونة الطبيعية مع تتبع الماوس
+  // 2. حركة الأيقونة الطبيعية
   // ============================================================
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -212,7 +212,6 @@ export default function Home() {
   // ============================================================
   const clearAllTimers = useCallback(() => {
     if (followUpTimerRef.current) { clearTimeout(followUpTimerRef.current); followUpTimerRef.current = null; }
-    if (endSessionTimerRef.current) { clearTimeout(endSessionTimerRef.current); endSessionTimerRef.current = null; }
   }, []);
 
   useEffect(() => {
@@ -222,7 +221,6 @@ export default function Home() {
     }
   }, [messages, currentSpeaker]);
 
-  // 🔴 منطق الـ 45 ثانية الدقيق
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
     
@@ -249,18 +247,7 @@ export default function Home() {
     isFirstMessageRef.current = true;
     awaitingFollowUpRef.current = false;
     lastActivityTimeRef.current = Date.now();
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem("dar-alnujum-chat-state", JSON.stringify({
-        messages: [...messages, endMsg],
-        currentSpeaker: "bot",
-        currentAgent: null,
-        sessionAgents: [],
-        chatStatus: "online",
-        isQueued: false
-      }));
-    }
-  }, [clearAllTimers, messages]);
+  }, [clearAllTimers]);
 
   const startAgentSession = useCallback((agent: Agent) => {
     clearAllTimers();
@@ -355,7 +342,7 @@ export default function Home() {
           const formatPrice = (usd: number) => `${Math.round(usd * rate)} ${symbol}`;
           
           if (currentAgent.department === 'ads') {
-            agentReply = `أسعار باقاتنا الأساسية (بالدولار الأمريكي كمرجع):\n🔹 الأسبوعية: ${formatPrice(AD_PACKAGES.weekly.usd)}\n الشهرية: ${formatPrice(AD_PACKAGES.monthly.usd)}\n🔹 الاحترافية: ${formatPrice(AD_PACKAGES.premium.usd)}\n${currency !== 'USD' ? `\n(ملاحظة: الأسعار أعلاه هي التقريبية بالعملة المطلوبة بناءً على سعر الصرف الحالي)` : ''}`;
+            agentReply = `أسعار باقاتنا الأساسية (بالدولار الأمريكي كمرجع):\n🔹 الأسبوعية: ${formatPrice(AD_PACKAGES.weekly.usd)}\n🔹 الشهرية: ${formatPrice(AD_PACKAGES.monthly.usd)}\n الاحترافية: ${formatPrice(AD_PACKAGES.premium.usd)}\n${currency !== 'USD' ? `\n(ملاحظة: الأسعار أعلاه هي التقريبية بالعملة المطلوبة بناءً على سعر الصرف الحالي)` : ''}`;
             triggerFollowUp = true;
           } else {
             performInternalTransfer('ads', currentAgent.name, "استفسار عن أسعار الإعلانات");
@@ -481,7 +468,7 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
-      {/* شريط التحميل RTL - يبدأ من اليمين */}
+      {/* شريط التحميل RTL */}
       {loadingProgress > 0 && (
         <div className="fixed top-0 right-0 left-auto z-[100] h-1 bg-gray-800/50">
           <div className="h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)]"
@@ -489,28 +476,54 @@ export default function Home() {
         </div>
       )}
 
+      {/* 🔴 الهيدر الكامل مع الشعار والبحث والأزرار */}
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
-        <div className="w-full px-4 py-3 flex justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-10 h-10 rounded-full object-cover border-2 border-purple-500" />
-            <span className="text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span>
+        <div className="w-full px-2 md:px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-2 md:gap-4">
+          {/* الشعار واسم الموقع على اليمين */}
+          <a href="/" className="flex items-center gap-2 md:gap-3 shrink-0">
+            <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover border-2 border-purple-500 shadow-md" />
+            <span className="text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">قناة مجلة دار النجوم</span>
+          </a>
+          
+          {/* شريط البحث في الوسط */}
+          <div className="flex-1 max-w-md mx-2 hidden md:block">
+            <input type="text" placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
           </div>
-          <input type="text" placeholder="🔎 ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="hidden md:block flex-1 max-w-md bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:ring-2 focus:ring-purple-500 text-sm" />
+          
+          {/* أزرار الترقية والاشتراك على اليسار */}
+          <div className="flex items-center gap-2 md:gap-3 shrink-0">
+            <a href="/upgrade" className="hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg transition">ترقية 👑</a>
+            <a href="/login" className="px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg transition">اشتراك</a>
+          </div>
+        </div>
+        <div className="md:hidden px-2 pb-3">
+          <input type="text" placeholder=" ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
         </div>
       </header>
 
+      {/* شريط المنتجات المتحركة */}
       <div className="bg-[#111827] border-b border-gray-800 overflow-hidden relative py-3">
         <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-[#111827] to-transparent z-10 pointer-events-none"></div>
         <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-[#111827] to-transparent z-10 pointer-events-none"></div>
         <div className="flex animate-seamless-scroll w-max">{renderSeamlessItems()}</div>
       </div>
 
+      {/* المحتوى الرئيسي */}
       <main className="container mx-auto px-4 py-12 flex-1 text-center">
-        <h1 className="text-5xl font-black mb-4">مرحبًا بكم في <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span></h1>
-        <p className="text-gray-400 text-lg max-w-2xl mx-auto">منصتكم الإعلامية الأولى لعالم المشاهير والمحتوى الحصري.</p>
+        <div className="youtube-ad-marquee bg-purple-900/30 border border-purple-500/30 rounded-full py-2.5 mb-8 overflow-hidden relative max-w-4xl mx-auto">
+          <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[#0b0f1a] to-transparent z-10 pointer-events-none rounded-r-full"></div>
+          <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[#0b0f1a] to-transparent z-10 pointer-events-none rounded-l-full"></div>
+          <div className="flex whitespace-nowrap animate-seamless-scroll w-max">
+            {[...Array(10), ...Array(10)].map((_, i) => (
+              <span key={i} className="mx-8 text-purple-300 text-sm font-semibold flex items-center gap-2"> إعلان حصري: تابعوا أحدث البرامج واللقاءات على قناة مجلة دار النجوم</span>
+            ))}
+          </div>
+        </div>
+        <h1 className="text-4xl md:text-6xl font-black mb-4 leading-tight">مرحبًا بكم في <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span></h1>
+        <p className="text-gray-400 text-lg mb-8 max-w-2xl mx-auto">منصتكم الإعلامية الأولى لعالم المشاهير والمحتوى الحصري.</p>
       </main>
 
-      {/* أيقونة المحادثة - تظهر من اليمين مع حركة العيون والفم */}
+      {/* أيقونة المحادثة الحية */}
       <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-gentle-breathe">
@@ -527,6 +540,7 @@ export default function Home() {
         </svg>
       </div>
 
+      {/* نافذة الدردشة */}
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="relative">
