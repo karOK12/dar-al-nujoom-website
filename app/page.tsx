@@ -58,7 +58,7 @@ interface TrendingProduct {
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
-// سادساً: زيادة مدة انتهاء الجلسة إلى 300 ثانية (5 دقائق)
+// خامساً: مدة انتهاء الجلسة (300 ثانية = 5 دقائق) - قابلة للتعديل بسهولة
 const SESSION_TIMEOUTS = {
   IDLE_TO_CLOSED: 300, 
   QUEUE_CHECK_INTERVAL: 8000,
@@ -148,7 +148,7 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
-  // ثانياً: متغيرات حركة العين البشرية الواقعية
+  // ثانياً: متغيرات حركة العين البشرية
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
   const targetEyePos = useRef({ x: 0, y: 0 });
@@ -173,7 +173,7 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // أولاً: شريط التحميل البنفسجي (RTL حقيقي من اليمين لليسار)
+  // أولاً: شريط التحميل البنفسجي (RTL حقيقي - يبدأ من اليمين وينمو لليسار)
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -230,14 +230,14 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // ثانياً: حركة العين البشرية الواقعية (Smooth + Random Blink)
+  // ثانياً: حركة العين البشرية الواقعية (Lerp + Random Blink)
   // ============================================================
   useEffect(() => {
     let rafId: number;
     const animateEye = () => {
-      // Lerp لحركة ناعمة جداً تشبه البشر
-      currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.1;
-      currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.1;
+      // Lerp لحركة ناعمة جداً تشبه البشر (ease-out طبيعي)
+      currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.08;
+      currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.08;
       setEyePos({ x: currentEyePos.current.x, y: currentEyePos.current.y });
       rafId = requestAnimationFrame(animateEye);
     };
@@ -254,8 +254,8 @@ export default function Home() {
         
         // حد أقصى 2.2 بكسل لضمان بقاء البؤبؤ داخل دائرة البياض (نصف القطر 5) دائماً
         const maxOffset = 2.2;
-        const rawX = (e.clientX - centerX) / 40;
-        const rawY = (e.clientY - centerY) / 40;
+        const rawX = (e.clientX - centerX) / 45;
+        const rawY = (e.clientY - centerY) / 45;
         
         targetEyePos.current = {
           x: Math.max(-maxOffset, Math.min(maxOffset, rawX)),
@@ -483,7 +483,7 @@ export default function Home() {
     const targetAgent = findAvailableAgent(targetDept) || SUPPORT_AGENTS.find(a => a.department === targetDept);
     if (!targetAgent) return;
 
-    // رابعاً: الموظف الجديد يقرأ السياق ويكمل من نفس النقطة
+    // ثالثاً: الموظف الجديد يقرأ السياق ويكمل من نفس النقطة
     const lastUserMsg = messages.filter(m => m.sender === 'user').pop()?.text || "استفسار عام";
     
     const transferMsg = createMessage(
@@ -553,7 +553,7 @@ export default function Home() {
         const currentDept = currentAgent.department;
         messageCountRef.current += 1;
 
-        // خامساً: إنهاء المحادثة بأدب بعد تأكيد المستخدم
+        // رابعاً: إنهاء المحادثة بأدب بعد تأكيد المستخدم
         const closingKeywords = ["لا", "شكرا", "شكراً", "هذا كل شيء", "انتهيت", "خلاص", "لا شكرا", "لا احتاج"];
         const isClosingRequest = closingKeywords.some(k => normalized.includes(k)) && normalized.length < 20;
 
@@ -815,7 +815,6 @@ export default function Home() {
         @keyframes slide-in-right { 0% { transform: translateX(100px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
         .animate-slide-in-right { animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         
-        /* رمش طبيعي جداً لا يحرك أي شيء آخر في الوجه */
         @keyframes blink-human {
           0%, 100% { transform: scaleY(1); }
           50% { transform: scaleY(0.1); }
@@ -853,9 +852,9 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
-      {/* أولاً: شريط التحميل البنفسجي (يثبت في الأعلى، يبدأ من أقصى اليمين وينمو لليسار بسلاسة) */}
+      {/* أولاً: شريط التحميل البنفسجي - RTL حقيقي يبدأ من اليمين وينمو لليسار */}
       {loadingProgress > 0 && (
-        <div className="fixed top-0 right-0 z-[100] h-1 w-full bg-gray-800/50" dir="ltr">
+        <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-gray-800/50">
           <div 
             className="absolute top-0 right-0 h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)]"
             style={{ 
@@ -914,17 +913,14 @@ export default function Home() {
       <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-cartoon-breathe">
-            {/* العيون مع الرمش العشوائي الطبيعي المعزول */}
             <g className={isBlinking ? "animate-blink-human" : ""}>
               <circle cx="10" cy="14" r="5" fill="white" />
-              {/* البؤبؤ يتبع الماوس بحركة ناعمة جداً ومحدودة داخل البياض */}
               <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
             </g>
             <g className={isBlinking ? "animate-blink-human" : ""} style={{ animationDelay: '0.05s' }}>
               <circle cx="22" cy="14" r="5" fill="white" />
               <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
             </g>
-            {/* الابتسامة الثابتة اللطيفة، تتحرك فقط أثناء الكتابة */}
             <path 
               d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" 
               stroke="white" 
