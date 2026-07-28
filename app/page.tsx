@@ -173,7 +173,7 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // شريط التحميل البنفسجي (RTL حقيقي)
+  // شريط التحميل البنفسجي (RTL حقيقي يبدأ من اليمين وينمو لليسار)
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -230,16 +230,16 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // حركة العين البشرية الواقعية (مثل Binance - تتبع الماوس من كل الجهات)
+  // حركة العين البشرية الواقعية (مثل Binance - تتبع الماوس من كل الجهات وتعود للمنتصف)
   // ============================================================
   useEffect(() => {
     let rafId: number;
     const animateEye = () => {
-      // Lerp لحركة ناعمة جداً (معامل 0.15 = سرعة متوسطة)
+      // Lerp مع معامل 0.15 لحركة سريعة وناعمة جداً
       currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.15;
       currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.15;
       
-      // تقريب للأرقام العشرية لتجنب الاهتزاز
+      // تقريب للأرقام العشرية لتجنب الاهتزاز (Sub-pixel jitter)
       const x = Math.round(currentEyePos.current.x * 100) / 100;
       const y = Math.round(currentEyePos.current.y * 100) / 100;
       
@@ -257,23 +257,17 @@ export default function Home() {
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
         
-        // حساب المسافة من مركز الأيقونة
-        const deltaX = e.clientX - centerX;
-        const deltaY = e.clientY - centerY;
-        
-        // حد أقصى 2.5 بكسل (نصف قطر البؤبؤ) لضمان عدم الخروج من دائرة البياض
+        // حد أقصى 2.5 بكسل (نصف قطر البؤبؤ) لضمان عدم الخروج من دائرة البياض أبداً
         const maxOffset = 2.5;
-        
-        // القسمة على 25 لجعل الحركة سريعة وطبيعية
-        const rawX = deltaX / 25;
-        const rawY = deltaY / 25;
+        const rawX = (e.clientX - centerX) / 30; // حساسية الحركة
+        const rawY = (e.clientY - centerY) / 30;
         
         targetEyePos.current = {
           x: Math.max(-maxOffset, Math.min(maxOffset, rawX)),
           y: Math.max(-maxOffset, Math.min(maxOffset, rawY))
         };
         
-        // إعادة ضبط مؤقت العودة للمنتصف
+        // إعادة ضبط المؤقت عند كل حركة ماوس جديدة
         if (mouseStopTimerRef.current) {
           clearTimeout(mouseStopTimerRef.current);
         }
@@ -292,10 +286,12 @@ export default function Home() {
     };
   }, [open]);
 
-  // نظرة للأسفل واليسار عند فتح الشات
+  // نظرة للأسفل واليسار عند فتح الشات (باتجاه صندوق المحادثة)
   useEffect(() => {
     if (open) {
       targetEyePos.current = { x: -2.0, y: 2.0 };
+      if (mouseStopTimerRef.current) clearTimeout(mouseStopTimerRef.current);
+      
       const timer = setTimeout(() => {
         targetEyePos.current = { x: 0, y: 0 };
       }, 2500);
