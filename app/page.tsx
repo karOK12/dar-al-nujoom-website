@@ -23,7 +23,7 @@ interface Agent {
 
 const supportAgents: Agent[] = [
   { employeeId: "EMP-TEMP-001", name: "خالد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support' },
-  { employeeId: "TEMP-002", name: "نورة", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical' },
+  { employeeId: "EMP-TEMP-002", name: "نورة", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical' },
   { employeeId: "EMP-TEMP-003", name: "سارة", img: "https://i.pravatar.cc/150?img=47", role: "مسؤولة الإعلانات", department: 'ads' }
 ];
 
@@ -52,7 +52,7 @@ const agentWelcomeMessages: Record<string, string[]> = {
     "مرحباً، خالد معك. تفضل ما تحتاجه.",
     "هلا، خالد بخدمتك. شو استفسارك؟"
   ],
-  "TEMP-002": [
+  "EMP-TEMP-002": [
     "أهلاً، أنا نورة من الدعم الفني. شو المشكلة اللي تواجهها؟",
     "مرحباً، نورة معك. خلني أساعدك تحل المشكلة.",
     "هلا، نورة من الدعم الفني. تفضل اشرح لي المشكلة."
@@ -89,32 +89,48 @@ const pricingSystem: Record<string, PricingInfo> = {
   "general-inquiry": { needsDetails: true, detailsQuestions: ["ممكن توضيح أكثر عن الخدمة المطلوبة؟"] }
 };
 
-// 🔴 تتبع الرسائل المستخدمة لتجنب التكرار
-const usedMessagesTracker: Record<string, Set<number>> = {
+// 🔴 تتبع الرسائل المستخدمة لتجنب التكرار (تم تصحيح نوع البيانات لـ TypeScript)
+interface MessagesTracker {
+  welcome: Set<number>;
+  agents: Record<string, Set<number>>;
+}
+
+const usedMessagesTracker: MessagesTracker = {
   welcome: new Set(),
   agents: {}
 };
 
-const getRandomUniqueMessage = (messages: string[], category: string, subCategory?: string): string => {
-  const key = subCategory || category;
-  if (!usedMessagesTracker[category]) usedMessagesTracker[category] = new Set();
-  if (subCategory && !usedMessagesTracker.agents[subCategory]) {
-    usedMessagesTracker.agents[subCategory] = new Set();
+const getRandomUniqueMessage = (messages: string[], category: 'welcome' | 'agents', subCategory?: string): string => {
+  if (category === 'welcome') {
+    if (usedMessagesTracker.welcome.size >= messages.length) {
+      usedMessagesTracker.welcome.clear();
+    }
+    let randomIndex: number;
+    do {
+      randomIndex = Math.floor(Math.random() * messages.length);
+    } while (usedMessagesTracker.welcome.has(randomIndex));
+    
+    usedMessagesTracker.welcome.add(randomIndex);
+    return messages[randomIndex];
+  } else {
+    const key = subCategory || 'default';
+    if (!usedMessagesTracker.agents[key]) {
+      usedMessagesTracker.agents[key] = new Set();
+    }
+    const tracker = usedMessagesTracker.agents[key];
+    
+    if (tracker.size >= messages.length) {
+      tracker.clear();
+    }
+    
+    let randomIndex: number;
+    do {
+      randomIndex = Math.floor(Math.random() * messages.length);
+    } while (tracker.has(randomIndex));
+    
+    tracker.add(randomIndex);
+    return messages[randomIndex];
   }
-  
-  const tracker = subCategory ? usedMessagesTracker.agents[subCategory] : usedMessagesTracker[category];
-  
-  if (tracker.size >= messages.length) {
-    tracker.clear();
-  }
-  
-  let randomIndex: number;
-  do {
-    randomIndex = Math.floor(Math.random() * messages.length);
-  } while (tracker.has(randomIndex));
-  
-  tracker.add(randomIndex);
-  return messages[randomIndex];
 };
 
 export default function Home() {
@@ -136,7 +152,6 @@ export default function Home() {
   
   const eyeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const blinkTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const headTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState(false);
@@ -182,18 +197,15 @@ export default function Home() {
 
   // 🔴 حركة الأيقونة الطبيعية (تنفس، رأس، نظر، رمش عشوائي)
   useEffect(() => {
-    // حركة النظر العشوائية مع تحريك الرأس
     const moveEyesAndHead = () => {
-      const randomX = (Math.random() - 0.5) * 5;
-      const randomY = (Math.random() - 0.5) * 3;
+      const randomX = (Math.random() - 0.5) * 6;
+      const randomY = (Math.random() - 0.5) * 4;
       setEyePos({ x: randomX, y: randomY });
-      // تحريك الرأس بشكل طفيف مع النظر
-      setHeadTilt(randomX * 0.3);
+      setHeadTilt(randomX * 0.5); // تحريك الرأس بشكل طفيف ومتناسق مع النظر
     };
 
-    // رمش عشوائي (كل 3-7 ثواني)
     const scheduleBlink = () => {
-      const delay = 3000 + Math.random() * 4000;
+      const delay = 3000 + Math.random() * 4000; // رمش عشوائي كل 3-7 ثواني
       blinkTimerRef.current = setTimeout(() => {
         setIsBlinking(true);
         setTimeout(() => {
@@ -203,7 +215,6 @@ export default function Home() {
       }, delay);
     };
 
-    // بدء الحركات
     const startMovements = () => {
       moveEyesAndHead();
       eyeTimerRef.current = setInterval(() => {
@@ -213,7 +224,6 @@ export default function Home() {
       scheduleBlink();
     };
 
-    // تأخير بسيط للسماح بحركة الدخول
     const startTimeout = setTimeout(() => {
       startMovements();
     }, 1000);
@@ -222,11 +232,10 @@ export default function Home() {
       clearTimeout(startTimeout);
       if (eyeTimerRef.current) clearInterval(eyeTimerRef.current);
       if (blinkTimerRef.current) clearTimeout(blinkTimerRef.current);
-      if (headTimerRef.current) clearInterval(headTimerRef.current);
     };
   }, []);
 
-  // 🔴 تتبع أول ظهور للأيقونة
+  // 🔴 تتبع أول ظهور للأيقونة لمنع تكرار حركة الدخول
   useEffect(() => {
     const timer = setTimeout(() => setHasAppeared(true), 1500);
     return () => clearTimeout(timer);
@@ -374,7 +383,7 @@ export default function Home() {
     return { isPricing: true, type: "general-inquiry" };
   };
 
-  // 🔴 توليد رد التسعير المناسب
+  // 🔴 توليد رد التسعير المناسب والمرن
   const generatePricingResponse = (pricingType: string, userText: string): string => {
     const info = pricingSystem[pricingType];
     if (!info) return "ممكن توضح لي أكثر عن الخدمة اللي تبي تعرف سعرها؟";
@@ -463,7 +472,7 @@ export default function Home() {
 
     if (currentSpeaker === "agent") resetActivityTimers();
 
-    // 🔴 فحص طلب التسعير أولاً
+    // 🔴 فحص طلب التسعير أولاً قبل إرساله للـ API
     const pricingCheck = detectPricingRequest(userText);
     if (pricingCheck.isPricing) {
       const pricingResponse = generatePricingResponse(pricingCheck.type, userText);
@@ -587,10 +596,10 @@ export default function Home() {
           animation: slideInFromRight 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
 
-        /* 🔴 حركة التنفس الطبيعية */
+        /* 🔴 حركة التنفس الطبيعية (منفصلة لتجنب التعارض مع hover) */
         @keyframes breathe {
           0%, 100% { transform: scale(1) translateY(0); }
-          50% { transform: scale(1.02) translateY(-1px); }
+          50% { transform: scale(1.03) translateY(-1px); }
         }
         .animate-breathe {
           animation: breathe 3.5s ease-in-out infinite;
@@ -600,10 +609,6 @@ export default function Home() {
         @keyframes chatOpenRTL {
           0% { transform: translateX(30px) scale(0.95); opacity: 0; }
           100% { transform: translateX(0) scale(1); opacity: 1; }
-        }
-        @keyframes chatCloseRTL {
-          0% { transform: translateX(0) scale(1); opacity: 1; }
-          100% { transform: translateX(30px) scale(0.95); opacity: 0; }
         }
         .animate-chat-open-rtl {
           animation: chatOpenRTL 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
@@ -663,7 +668,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 🔴 أيقونة الدردشة مع حركات طبيعية */}
+      {/* 🔴 أيقونة الدردشة مع حركات طبيعية ومنفصلة لتجنب تعارض الأنيميشن */}
       <div 
         onClick={() => { 
           setOpen(!open); 
@@ -675,28 +680,30 @@ export default function Home() {
             setOpen(false);
           }
         }} 
-        className={`fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-xl shadow-purple-600/30 cursor-pointer transition-all duration-300 z-50 border-2 border-white/20 hover:shadow-2xl hover:shadow-purple-500/50 hover:scale-110 active:scale-95 ${!hasAppeared ? 'animate-slide-in-right-once' : 'animate-breathe'}`}
+        className={`fixed bottom-6 right-6 w-16 h-16 rounded-full cursor-pointer transition-all duration-300 z-50 border-2 border-white/20 hover:shadow-2xl hover:shadow-purple-500/50 hover:scale-110 active:scale-95 ${!hasAppeared ? 'animate-slide-in-right-once' : ''}`}
         title="مركز المساعدة والدعم"
       >
-        <div style={{ transform: `rotate(${headTilt}deg)`, transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
-            <g style={{ transform: `scaleY(${isBlinking ? 0.1 : 1})`, transformOrigin: '10px 14px', transition: 'transform 0.15s ease-in-out' }}>
-              <circle cx="10" cy="14" r="5" fill="white" />
-              <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
-            </g>
-            <g style={{ transform: `scaleY(${isBlinking ? 0.1 : 1})`, transformOrigin: '22px 14px', transition: 'transform 0.15s ease-in-out' }}>
-              <circle cx="22" cy="14" r="5" fill="white" />
-              <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
-            </g>
-            <path d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-          </svg>
+        <div className={`w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-xl shadow-purple-600/30 ${hasAppeared ? 'animate-breathe' : ''}`}>
+          <div style={{ transform: `rotate(${headTilt}deg)`, transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
+              <g style={{ transform: `scaleY(${isBlinking ? 0.1 : 1})`, transformOrigin: '10px 14px', transition: 'transform 0.15s ease-in-out' }}>
+                <circle cx="10" cy="14" r="5" fill="white" />
+                <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
+              </g>
+              <g style={{ transform: `scaleY(${isBlinking ? 0.1 : 1})`, transformOrigin: '22px 14px', transition: 'transform 0.15s ease-in-out' }}>
+                <circle cx="22" cy="14" r="5" fill="white" />
+                <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
+              </g>
+              <path d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
+          </div>
         </div>
         <div className="absolute -inset-1 rounded-full border-2 border-purple-400/30 animate-ping opacity-75 pointer-events-none"></div>
         <div className="absolute -inset-2 rounded-full border border-purple-300/20 animate-ping opacity-50 pointer-events-none" style={{ animationDelay: '0.8s' }}></div>
       </div>
 
-      {/* 🔴 نافذة الشات RTL */}
-      <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all z-50 flex flex-col ${open ? 'animate-chat-open-rtl' : 'opacity-0 translate-x-8 scale-95 pointer-events-none'}`} style={{ transition: open ? 'none' : 'opacity 0.3s, transform 0.3s' }}>
+      {/* 🔴 نافذة الشات RTL مع أنيميشن محسّن */}
+      <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl z-50 flex flex-col ${open ? 'animate-chat-open-rtl' : 'opacity-0 translate-x-8 scale-95 pointer-events-none'}`} style={{ transition: open ? 'none' : 'opacity 0.3s ease-out, transform 0.3s ease-out' }}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
             {(sessionAgents.length === 0 || chatStatus === "ended") ? (
