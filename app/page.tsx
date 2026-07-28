@@ -23,7 +23,7 @@ interface Agent {
 
 const supportAgents: Agent[] = [
   { employeeId: "EMP-TEMP-001", name: "خالد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support' },
-  { employeeId: "EMP-TEMP-002", name: "نورة", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical' },
+  { employeeId: "TEMP-002", name: "نورة", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical' },
   { employeeId: "EMP-TEMP-003", name: "سارة", img: "https://i.pravatar.cc/150?img=47", role: "مسؤولة الإعلانات", department: 'ads' }
 ];
 
@@ -36,19 +36,85 @@ const trendingProducts = [
 
 type ChatStatus = "typing" | "online" | "idle" | "ended";
 
-// 🔴 رسائل ترحيب محسنة وأكثر تفاعلية
+// 🔴 رسائل ترحيب قصيرة وطبيعية للمساعد الذكي
 const welcomeMessages = [
-  "أهلاً وسهلاً بك في قناة مجلة دار النجوم! 🌟\nأنا مساعدك الذكي، جاهز لخدمتك على مدار الساعة. كيف أقدر أساعدك اليوم؟",
-  "مرحباً بك! 😊\nسعداء بتواجدك معنا. تفضل بطرح سؤالك أو طلبك، وأنا هنا لمساعدتك في أي وقت.",
-  "أهلاً بك في دار النجوم! 💫\nمساعدك الذكي في خدمتك. أخبرني بما تحتاجه، وسأبذل قصارى جهدي لمساعدتك.",
-  "مرحباً! 🎉\nيسعدنا تواصلك معنا. كيف يمكنني خدمتك اليوم؟ لا تتردد في طرح أي سؤال."
+  "أهلاً! كيف أقدر أساعدك اليوم؟",
+  "مرحباً، تفضل كيف أخدمك؟",
+  "هلا والله، أمر؟",
+  "أهلاً وسهلاً، شو تحتاج؟",
+  "مرحبتين، أنا بخدمتك."
 ];
 
-// 🔴 رسائل تحويل محسنة للموظفين
+// 🔴 رسائل ترحيب مختلفة لكل موظف (لا تتكرر)
+const agentWelcomeMessages: Record<string, string[]> = {
+  "EMP-TEMP-001": [
+    "أهلاً، أنا خالد من خدمة العملاء. كيف أقدر أساعدك؟",
+    "مرحباً، خالد معك. تفضل ما تحتاجه.",
+    "هلا، خالد بخدمتك. شو استفسارك؟"
+  ],
+  "TEMP-002": [
+    "أهلاً، أنا نورة من الدعم الفني. شو المشكلة اللي تواجهها؟",
+    "مرحباً، نورة معك. خلني أساعدك تحل المشكلة.",
+    "هلا، نورة من الدعم الفني. تفضل اشرح لي المشكلة."
+  ],
+  "EMP-TEMP-003": [
+    "أهلاً، أنا سارة من قسم الإعلانات. كيف أقدر أخدمك؟",
+    "مرحباً، سارة معك. تفضل بخصوص الإعلان.",
+    "هلا، سارة من الإعلانات. شو نوع الخدمة اللي تبحث عنها؟"
+  ]
+};
+
+// 🔴 رسائل التحويل حسب القسم
 const transferMessages = {
-  support: "يرجى الانتظار لحظة... جاري تحويلك إلى أحد موظفي خدمة العملاء المختصين who سيسعد بخدمتك.",
-  ads: "يرجى الانتظار... جاري تحويلك إلى قسم الإعلانات والترويج. موظفونا المتخصصون جاهزون لمساعدتك.",
-  technical: "يرجى الانتظار... جاري تحويلك إلى فريق الدعم الفني المتخصص. سيقومون بحل مشكلتك في أقرب وقت."
+  support: "لحظة من فضلك، حوّلك لموظف خدمة العملاء.",
+  ads: "لحظة، حوّلك لقسم الإعلانات.",
+  technical: "لحظة، حوّلك للدعم الفني."
+};
+
+// 🔴 نظام التسعير المرن
+interface PricingInfo {
+  basePrice?: number;
+  range?: { min: number; max: number };
+  unit?: string;
+  needsDetails?: boolean;
+  detailsQuestions?: string[];
+}
+
+const pricingSystem: Record<string, PricingInfo> = {
+  "banner-ad": { range: { min: 500, max: 5000 }, unit: "ريال/أسبوع", needsDetails: true, detailsQuestions: ["المدة المطلوبة؟", "حجم البانر؟", "مكان الظهور؟"] },
+  "video-ad": { range: { min: 1500, max: 15000 }, unit: "ريال/فيديو", needsDetails: true, detailsQuestions: ["مدة الفيديو؟", "نوع الإنتاج؟"] },
+  "sponsored-post": { range: { min: 300, max: 3000 }, unit: "ريال/منشور", needsDetails: true, detailsQuestions: ["نوع المحتوى؟", "المنصة المستهدفة؟"] },
+  "full-campaign": { range: { min: 5000, max: 50000 }, unit: "ريال/حملة", needsDetails: true, detailsQuestions: ["الميزانية المتاحة؟", "الجمهور المستهدف؟", "مدة الحملة؟"] },
+  "technical-support": { basePrice: 0, unit: "مجاني" },
+  "general-inquiry": { needsDetails: true, detailsQuestions: ["ممكن توضيح أكثر عن الخدمة المطلوبة؟"] }
+};
+
+// 🔴 تتبع الرسائل المستخدمة لتجنب التكرار
+const usedMessagesTracker: Record<string, Set<number>> = {
+  welcome: new Set(),
+  agents: {}
+};
+
+const getRandomUniqueMessage = (messages: string[], category: string, subCategory?: string): string => {
+  const key = subCategory || category;
+  if (!usedMessagesTracker[category]) usedMessagesTracker[category] = new Set();
+  if (subCategory && !usedMessagesTracker.agents[subCategory]) {
+    usedMessagesTracker.agents[subCategory] = new Set();
+  }
+  
+  const tracker = subCategory ? usedMessagesTracker.agents[subCategory] : usedMessagesTracker[category];
+  
+  if (tracker.size >= messages.length) {
+    tracker.clear();
+  }
+  
+  let randomIndex: number;
+  do {
+    randomIndex = Math.floor(Math.random() * messages.length);
+  } while (tracker.has(randomIndex));
+  
+  tracker.add(randomIndex);
+  return messages[randomIndex];
 };
 
 export default function Home() {
@@ -62,10 +128,17 @@ export default function Home() {
   const [sessionAgents, setSessionAgents] = useState<Agent[]>([]);
   const [chatStatus, setChatStatus] = useState<ChatStatus>("online");
   
+  // 🔴 حركة الأيقونة الطبيعية
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
-  const eyeTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const [headTilt, setHeadTilt] = useState(0);
+  const [isBlinking, setIsBlinking] = useState(false);
+  const [hasAppeared, setHasAppeared] = useState(false);
   
+  const eyeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const blinkTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const headTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState(false);
 
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -107,31 +180,56 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [open]);
 
-  // 🔴 حركة العيون العشوائية مع تأخير ذكي
+  // 🔴 حركة الأيقونة الطبيعية (تنفس، رأس، نظر، رمش عشوائي)
   useEffect(() => {
-    const moveEyesRandomly = () => {
-      const randomX = (Math.random() - 0.5) * 8;
-      const randomY = (Math.random() - 0.5) * 5;
+    // حركة النظر العشوائية مع تحريك الرأس
+    const moveEyesAndHead = () => {
+      const randomX = (Math.random() - 0.5) * 5;
+      const randomY = (Math.random() - 0.5) * 3;
       setEyePos({ x: randomX, y: randomY });
+      // تحريك الرأس بشكل طفيف مع النظر
+      setHeadTilt(randomX * 0.3);
     };
 
-    const startEyeMovement = () => {
-      if (eyeTimerRef.current) clearInterval(eyeTimerRef.current);
-      // حركة عشوائية كل 2-4 ثواني
+    // رمش عشوائي (كل 3-7 ثواني)
+    const scheduleBlink = () => {
+      const delay = 3000 + Math.random() * 4000;
+      blinkTimerRef.current = setTimeout(() => {
+        setIsBlinking(true);
+        setTimeout(() => {
+          setIsBlinking(false);
+          scheduleBlink();
+        }, 150);
+      }, delay);
+    };
+
+    // بدء الحركات
+    const startMovements = () => {
+      moveEyesAndHead();
       eyeTimerRef.current = setInterval(() => {
-        moveEyesRandomly();
-      }, 2000 + Math.random() * 2000);
+        moveEyesAndHead();
+      }, 2500 + Math.random() * 2000);
+      
+      scheduleBlink();
     };
 
-    // تأخير 1.2 ثانية للسماح لحركة الظهور من اليمين بالانتهاء
-    setTimeout(() => {
-      startEyeMovement();
-      moveEyesRandomly();
-    }, 1200);
+    // تأخير بسيط للسماح بحركة الدخول
+    const startTimeout = setTimeout(() => {
+      startMovements();
+    }, 1000);
 
     return () => {
+      clearTimeout(startTimeout);
       if (eyeTimerRef.current) clearInterval(eyeTimerRef.current);
+      if (blinkTimerRef.current) clearTimeout(blinkTimerRef.current);
+      if (headTimerRef.current) clearInterval(headTimerRef.current);
     };
+  }, []);
+
+  // 🔴 تتبع أول ظهور للأيقونة
+  useEffect(() => {
+    const timer = setTimeout(() => setHasAppeared(true), 1500);
+    return () => clearTimeout(timer);
   }, []);
 
   const getStatusText = () => {
@@ -159,14 +257,13 @@ export default function Home() {
 
     setChatStatus("typing");
     setIsLoading(true);
-    const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
     
     setTimeout(() => {
       const welcomeMsg: Message = {
         id: "welcome-new-" + Date.now(),
         sender: "bot",
         role: "assistant",
-        text: welcomeMessages[randomIndex],
+        text: getRandomUniqueMessage(welcomeMessages, 'welcome'),
         time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
         status: "read"
       };
@@ -176,7 +273,6 @@ export default function Home() {
     }, 800);
   };
 
-  // 🔴 تحسين أوقات الـ idle والإغلاق التلقائي
   const resetActivityTimers = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
@@ -187,14 +283,12 @@ export default function Home() {
       setChatStatus("online");
     }
 
-    // 🔴 30 ثانية للـ idle (بدلاً من 20)
     idleTimerRef.current = setTimeout(() => {
       if (currentSpeaker === "agent" && chatStatus !== "ended" && chatStatus !== "typing") {
         setChatStatus("idle");
       }
     }, 30 * 1000);
 
-    // 🔴 5 دقائق للإغلاق التلقائي
     autoCloseTimerRef.current = setTimeout(() => {
       if (currentSpeaker === "agent" && chatStatus !== "ended") {
         performAutoClose();
@@ -208,11 +302,10 @@ export default function Home() {
       if (!hasSavedState) {
         setChatStatus("typing");
         setIsLoading(true);
-        const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
         setTimeout(() => {
           const welcomeMsg: Message = {
             id: "welcome-1", sender: "bot", role: "assistant",
-            text: welcomeMessages[randomIndex],
+            text: getRandomUniqueMessage(welcomeMessages, 'welcome'),
             time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
             status: "read"
           };
@@ -262,13 +355,54 @@ export default function Home() {
     return 'support'; 
   };
 
-  // 🔴 تحسين رسائل التحويل للموظفين
+  // 🔴 تحليل طلب التسعير
+  const detectPricingRequest = (text: string): { isPricing: boolean; type: string } => {
+    const t = text.toLowerCase()
+      .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
+      .replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+
+    const pricingKeywords = ["سعر", "تكلفة", "كم", "ثمن", "كم يكلف", "كم يسوى", "اسعار", "أسعار", "كم ب", "كم بـ"];
+    const isPricing = pricingKeywords.some(k => t.includes(k));
+    
+    if (!isPricing) return { isPricing: false, type: "" };
+
+    if (t.includes("بانر") || t.includes("اعلان صوره") || t.includes("banner")) return { isPricing: true, type: "banner-ad" };
+    if (t.includes("فيديو") || t.includes("اعلان فيديو") || t.includes("video")) return { isPricing: true, type: "video-ad" };
+    if (t.includes("منشور") || t.includes("بوست") || t.includes("ممول")) return { isPricing: true, type: "sponsored-post" };
+    if (t.includes("حمل") || t.includes("campaign") || t.includes("باقه") || t.includes("باقة")) return { isPricing: true, type: "full-campaign" };
+    
+    return { isPricing: true, type: "general-inquiry" };
+  };
+
+  // 🔴 توليد رد التسعير المناسب
+  const generatePricingResponse = (pricingType: string, userText: string): string => {
+    const info = pricingSystem[pricingType];
+    if (!info) return "ممكن توضح لي أكثر عن الخدمة اللي تبي تعرف سعرها؟";
+
+    if (pricingType === "general-inquiry") {
+      return "تحتاج تفاصيل أكثر عشان أقدر أعطيك السعر المناسب. شو نوع الخدمة اللي تبحث عنها؟ (بانر، فيديو، منشور ممول، حملة كاملة؟)";
+    }
+
+    if (info.needsDetails && info.detailsQuestions) {
+      const questions = info.detailsQuestions.join(" • ");
+      if (info.range) {
+        return `أسعار ${pricingType === 'banner-ad' ? 'الإعلانات البانر' : pricingType === 'video-ad' ? 'إعلانات الفيديو' : pricingType === 'sponsored-post' ? 'المنشورات الممولة' : 'الحملات'} تبدأ من ${info.range.min} إلى ${info.range.max} ${info.unit}.\n\nعشان أعطيك سعر دقيق، أحتاج أعرف:\n${questions}`;
+      }
+      return `عشان أحدد لك السعر، أحتاج تفاصيل:\n${questions}`;
+    }
+
+    if (info.basePrice !== undefined) {
+      return info.basePrice === 0 ? "هذه الخدمة مجانية تماماً، كيف أقدر أساعدك؟" : `السعر ${info.basePrice} ${info.unit}.`;
+    }
+
+    return "ممكن توضح لي أكثر؟";
+  };
+
   const checkAndPerformEscalation = (userText: string): boolean => {
     if (!wantsHumanContact(userText)) return false;
     
     setChatStatus("typing");
     const targetDept = detectDepartment(userText);
-    
     const transferMsg = transferMessages[targetDept];
 
     setMessages((prev) => [...prev, {
@@ -290,23 +424,18 @@ export default function Home() {
         }
         setCurrentSpeaker("agent");
         
-        // 🔴 رسائل ترحيب محسنة من الموظفين
-        const agentWelcomeMessages = [
-          `أهلاً بك! أنا ${assignedAgent.name}، ${assignedAgent.role}. يسعدني خدمتك، كيف أقدر أساعدك؟`,
-          `مرحباً! ${assignedAgent.name} هنا، ${assignedAgent.role}. تفضل بطرح طلبك، أنا جاهز لمساعدتك.`,
-          `أهلاً وسهلاً! ${assignedAgent.name} - ${assignedAgent.role} في خدمتك. أخبرني بما تحتاجه.`
-        ];
-        const randomWelcome = agentWelcomeMessages[Math.floor(Math.random() * agentWelcomeMessages.length)];
+        const agentMessages = agentWelcomeMessages[assignedAgent.employeeId] || ["أهلاً، كيف أقدر أساعدك؟"];
+        const welcomeText = getRandomUniqueMessage(agentMessages, 'agents', assignedAgent.employeeId);
         
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
-          text: randomWelcome,
+          text: welcomeText,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
         }]);
       } else {
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
-          text: `أنا هنا بالفعل! ${currentAgent.name} جاهز لخدمتك. تفضل بطرح طلبك.`,
+          text: `أنا هنا! ${currentAgent.name} جاهز. تفضل.`,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
         }]);
       }
@@ -333,6 +462,23 @@ export default function Home() {
     }]);
 
     if (currentSpeaker === "agent") resetActivityTimers();
+
+    // 🔴 فحص طلب التسعير أولاً
+    const pricingCheck = detectPricingRequest(userText);
+    if (pricingCheck.isPricing) {
+      const pricingResponse = generatePricingResponse(pricingCheck.type, userText);
+      setTimeout(() => {
+        setMessages((prev) => [...prev, {
+          id: (Date.now() + 1).toString(), sender: currentSpeaker, role: "assistant",
+          text: pricingResponse,
+          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
+        }]);
+        setChatStatus("online");
+        setIsLoading(false);
+        if (currentSpeaker === "agent") resetActivityTimers();
+      }, 500);
+      return;
+    }
 
     if (checkAndPerformEscalation(userText)) {
       setIsLoading(false);
@@ -391,77 +537,87 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
+    <div dir="rtl" className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
       <style jsx global>{`
-        /* 🔴 شريط تحميل بأسلوب جوجل */
+        /* 🔴 شريط تحميل Google RTL */
         .google-loader {
           position: fixed;
           top: 0;
-          left: 0;
+          right: 0;
           width: 100%;
           height: 3px;
           z-index: 9999;
           pointer-events: none;
+          overflow: hidden;
         }
-        .google-loader::after {
+        .google-loader::before {
           content: '';
           position: absolute;
           top: 0;
-          left: 0;
+          right: 0;
           height: 100%;
-          width: 0%;
-          background: linear-gradient(90deg, #7c3aed, #3b82f6, #8b5cf6);
-          box-shadow: 0 0 10px rgba(124, 58, 237, 0.8);
+          width: 40%;
+          background: linear-gradient(90deg, transparent, #7c3aed, #3b82f6, #8b5cf6, transparent);
+          box-shadow: 0 0 10px rgba(124, 58, 237, 0.6);
         }
-        .google-loader.loading::after {
-          animation: google-loading 2.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+        .google-loader.loading::before {
+          animation: google-slide-rtl 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
         }
-        .google-loader.done::after {
-          animation: google-finish 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-
-        @keyframes google-loading {
-          0% { width: 0%; left: 0; }
-          30% { width: 40%; left: 0; }
-          60% { width: 65%; left: 10%; }
-          80% { width: 85%; left: 5%; }
-          100% { width: 90%; left: 5%; }
-        }
-        @keyframes google-finish {
-          0% { width: 85%; left: 5%; opacity: 1; }
-          50% { width: 95%; left: 2%; opacity: 1; }
-          100% { width: 100%; left: 0; opacity: 0; }
+        .google-loader.done::before {
+          animation: google-finish-rtl 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
 
-        /* 🔴 حركة الأيقونة من اليمين */
+        @keyframes google-slide-rtl {
+          0% { right: -40%; opacity: 0; }
+          20% { opacity: 1; }
+          100% { right: 100%; opacity: 1; }
+        }
+        @keyframes google-finish-rtl {
+          0% { right: 60%; width: 40%; opacity: 1; }
+          100% { right: 0%; width: 100%; opacity: 0; }
+        }
+
+        /* 🔴 حركة الدخول من اليمين (أول مرة فقط) */
         @keyframes slideInFromRight {
           0% { transform: translateX(200%) scale(0.5); opacity: 0; }
-          60% { transform: translateX(-15px) scale(1.1); opacity: 1; }
+          60% { transform: translateX(-10px) scale(1.05); opacity: 1; }
           100% { transform: translateX(0) scale(1); opacity: 1; }
         }
-        .animate-slide-in-right {
+        .animate-slide-in-right-once {
           animation: slideInFromRight 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        /* 🔴 حركة التنفس الطبيعية */
+        @keyframes breathe {
+          0%, 100% { transform: scale(1) translateY(0); }
+          50% { transform: scale(1.02) translateY(-1px); }
+        }
+        .animate-breathe {
+          animation: breathe 3.5s ease-in-out infinite;
+        }
+
+        /* 🔴 حركة فتح/إغلاق النافذة من اليمين */
+        @keyframes chatOpenRTL {
+          0% { transform: translateX(30px) scale(0.95); opacity: 0; }
+          100% { transform: translateX(0) scale(1); opacity: 1; }
+        }
+        @keyframes chatCloseRTL {
+          0% { transform: translateX(0) scale(1); opacity: 1; }
+          100% { transform: translateX(30px) scale(0.95); opacity: 0; }
+        }
+        .animate-chat-open-rtl {
+          animation: chatOpenRTL 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
 
         @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
         .animate-seamless-scroll:hover { animation-play-state: paused; }
         
-        @keyframes float-pulse {
-          0% { transform: scale(1) rotate(0deg); }
-          50% { transform: scale(1.05) rotate(2deg); }
-          100% { transform: scale(1) rotate(0deg); }
-        }
-        .animate-float-pulse { animation: float-pulse 3s ease-in-out infinite; }
-        .animate-float-pulse:hover { animation-duration: 0.5s; transform: scale(1.1); }
-
-        @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
-        .animate-blink { animation: blink 4s infinite; transform-origin: center; }
-        
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
+      {/* 🔴 شريط التحميل RTL */}
       <div className={`google-loader ${isLoading ? 'loading' : 'done'}`}></div>
 
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
@@ -507,7 +663,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 🔴 أيقونة الدردشة تظهر من اليمين */}
+      {/* 🔴 أيقونة الدردشة مع حركات طبيعية */}
       <div 
         onClick={() => { 
           setOpen(!open); 
@@ -519,25 +675,28 @@ export default function Home() {
             setOpen(false);
           }
         }} 
-        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-xl shadow-purple-600/30 cursor-pointer transition-all duration-300 z-50 border-2 border-white/20 animate-float-pulse hover:shadow-2xl hover:shadow-purple-500/50 hover:scale-110 active:scale-95 animate-slide-in-right"
+        className={`fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-xl shadow-purple-600/30 cursor-pointer transition-all duration-300 z-50 border-2 border-white/20 hover:shadow-2xl hover:shadow-purple-500/50 hover:scale-110 active:scale-95 ${!hasAppeared ? 'animate-slide-in-right-once' : 'animate-breathe'}`}
         title="مركز المساعدة والدعم"
       >
-        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
-          <g className="animate-blink">
-            <circle cx="10" cy="14" r="5" fill="white" />
-            <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
-          </g>
-          <g className="animate-blink">
-            <circle cx="22" cy="14" r="5" fill="white" />
-            <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
-          </g>
-          <path d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-        </svg>
+        <div style={{ transform: `rotate(${headTilt}deg)`, transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
+            <g style={{ transform: `scaleY(${isBlinking ? 0.1 : 1})`, transformOrigin: '10px 14px', transition: 'transform 0.15s ease-in-out' }}>
+              <circle cx="10" cy="14" r="5" fill="white" />
+              <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
+            </g>
+            <g style={{ transform: `scaleY(${isBlinking ? 0.1 : 1})`, transformOrigin: '22px 14px', transition: 'transform 0.15s ease-in-out' }}>
+              <circle cx="22" cy="14" r="5" fill="white" />
+              <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
+            </g>
+            <path d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
+        </div>
         <div className="absolute -inset-1 rounded-full border-2 border-purple-400/30 animate-ping opacity-75 pointer-events-none"></div>
         <div className="absolute -inset-2 rounded-full border border-purple-300/20 animate-ping opacity-50 pointer-events-none" style={{ animationDelay: '0.8s' }}></div>
       </div>
 
-      <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
+      {/* 🔴 نافذة الشات RTL */}
+      <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all z-50 flex flex-col ${open ? 'animate-chat-open-rtl' : 'opacity-0 translate-x-8 scale-95 pointer-events-none'}`} style={{ transition: open ? 'none' : 'opacity 0.3s, transform 0.3s' }}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
             {(sessionAgents.length === 0 || chatStatus === "ended") ? (
@@ -565,19 +724,19 @@ export default function Home() {
               </div>
             )}
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 text-right">
             <h4 className="font-bold text-white text-sm truncate">
               {chatStatus === "ended" ? "المحادثة منتهية" : (sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name)}
             </h4>
-            <p className={`text-xs flex items-center gap-1 truncate ${
+            <p className={`text-xs flex items-center gap-1 justify-end truncate ${
               chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : 
               chatStatus === "idle" ? "text-yellow-400" : chatStatus === "ended" ? "text-red-400 font-bold" : "text-gray-400"
             }`}>
+              <span className="truncate">{getStatusText()}</span>
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                 chatStatus === "online" ? "bg-green-400 animate-pulse" : chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : 
                 chatStatus === "idle" ? "bg-yellow-400" : chatStatus === "ended" ? "bg-red-400" : "bg-gray-400"
               }`}></span>
-              <span className="truncate">{getStatusText()}</span>
             </p>
           </div>
         </div>
@@ -591,8 +750,8 @@ export default function Home() {
             }
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
-                {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent && chatStatus !== "ended" ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
-                <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative whitespace-pre-line ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
+                {!isUser && <span className="text-[10px] text-gray-400 mb-1 mr-1">{msg.sender === "agent" && currentAgent && chatStatus !== "ended" ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
+                <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative whitespace-pre-line ${isUser ? "bg-purple-600 text-white rounded-tl-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tr-sm"}`}>
                   {msg.text}
                 </div>
                 <span className="text-[10px] text-gray-500 mt-1 px-1 flex items-center gap-1">
@@ -604,8 +763,8 @@ export default function Home() {
           
           {chatStatus === "typing" && (
             <div className="flex flex-col items-start">
-              <span className="text-[10px] text-gray-400 mb-1 ml-1">{currentSpeaker === "agent" && currentAgent ? currentAgent.name : "المساعد الذكي"}</span>
-              <div className="bg-[#1f2937] border border-purple-500/30 rounded-2xl rounded-tl-sm p-3 flex gap-1.5 items-center h-10">
+              <span className="text-[10px] text-gray-400 mb-1 mr-1">{currentSpeaker === "agent" && currentAgent ? currentAgent.name : "المساعد الذكي"}</span>
+              <div className="bg-[#1f2937] border border-purple-500/30 rounded-2xl rounded-tr-sm p-3 flex gap-1.5 items-center h-10">
                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '0ms' }}></span>
                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '200ms' }}></span>
                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '400ms' }}></span>
@@ -631,11 +790,10 @@ export default function Home() {
                 
                 setChatStatus("typing");
                 setIsLoading(true);
-                const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
                 setTimeout(() => {
                   const welcomeMsg: Message = {
                     id: "welcome-new", sender: "bot", role: "assistant",
-                    text: welcomeMessages[randomIndex],
+                    text: getRandomUniqueMessage(welcomeMessages, 'welcome'),
                     time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
                     status: "read"
                   };
@@ -665,14 +823,14 @@ export default function Home() {
                     if (currentSpeaker === "agent") resetActivityTimers();
                   }} 
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                  rows={1} className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed" />
+                  rows={1} className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed text-right" dir="rtl" />
               )}
               
               <button onClick={sendMessage} disabled={!text.trim() || chatStatus === "typing" || chatStatus === "idle"} 
                 className={`p-3 rounded-xl text-sm font-bold transition mb-0.5 ${
                   chatStatus === "idle" ? "bg-gray-700 text-gray-500 cursor-not-allowed" : "bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 }`}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'scaleX(-1)' }}><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
               </button>
             </div>
           )}
@@ -693,3 +851,5 @@ export default function Home() {
         </div>
       </footer>
     </div>
+  );
+}
