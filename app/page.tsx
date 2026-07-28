@@ -21,7 +21,6 @@ interface Agent {
   department: 'support' | 'ads' | 'technical';
 }
 
-// فريق الدعم بأقسامه المتعددة
 const supportAgents: Agent[] = [
   { employeeId: "EMP-TEMP-001", name: "خالد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support' },
   { employeeId: "EMP-TEMP-002", name: "نورة", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical' },
@@ -37,7 +36,6 @@ const trendingProducts = [
 
 type ChatStatus = "typing" | "online" | "idle" | "ended";
 
-// رسائل الترحيب المتعددة للبوت
 const welcomeMessages = [
   "أهلاً وسهلاً بك في قناة مجلة دار النجوم! 🌟 كيف يمكنني خدمتك اليوم؟",
   "مرحباً! سعداء بتواجدك معنا. تفضل بطرح سؤالك، أنا هنا لمساعدتك. 😊",
@@ -53,36 +51,17 @@ export default function Home() {
   const [currentSpeaker, setCurrentSpeaker] = useState<"bot" | "agent">("bot");
   const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
   const [sessionAgents, setSessionAgents] = useState<Agent[]>([]);
-  
   const [chatStatus, setChatStatus] = useState<ChatStatus>("online");
   
-  // حركة العيون الطبيعية والعشوائية
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const eyeTimerRef = useRef<NodeJS.Timeout | null>(null);
-  
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
-  const [endTime, setEndTime] = useState<Date | null>(null);
   
-  // حالة التحميل للشريط العلوي (مثل جوجل)
+  // 🔴 حالة التحميل البسيطة لشريط جوجل (بدون نسبة مئوية)
   const [isLoading, setIsLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
 
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  const saveStateToStorage = () => {
-    if (typeof window !== 'undefined') {
-      // 🔴 تعديل: إذا كانت الحالة منتهية، نحذف التخزين ولا نحفظ أي شيء
-      if (chatStatus === "ended") {
-        localStorage.removeItem('dar-alnujum-chat-state');
-        return;
-      }
-      
-      localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-        messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, endTime
-      }));
-    }
-  };
 
   const loadStateFromStorage = () => {
     if (typeof window !== 'undefined') {
@@ -90,18 +69,26 @@ export default function Home() {
       if (savedState) {
         try {
           const parsedState = JSON.parse(savedState);
+          // نتجاهل التحميل إذا كانت الحالة منتهية أو إذا كان المساعد فارغاً
+          if (parsedState.chatStatus === "ended" || (parsedState.currentSpeaker === "bot" && (!parsedState.messages || parsedState.messages.length === 0))) {
+            localStorage.removeItem('dar-alnujum-chat-state');
+            return false;
+          }
+
           setMessages(parsedState.messages || []);
           setCurrentSpeaker(parsedState.currentSpeaker || "bot");
           setCurrentAgent(parsedState.currentAgent || null);
           setSessionAgents(parsedState.sessionAgents || []);
           setChatStatus(parsedState.chatStatus || "online");
-          setEndTime(parsedState.endTime ? new Date(parsedState.endTime) : null);
           
           if ((parsedState.chatStatus === "online" || parsedState.chatStatus === "idle") && parsedState.currentSpeaker === "agent") {
             resetActivityTimers();
           }
           return true; 
-        } catch (e) { console.error("Error loading chat state:", e); }
+        } catch (e) { 
+          console.error("Error loading chat state:", e); 
+          localStorage.removeItem('dar-alnujum-chat-state');
+        }
       }
     }
     return false; 
@@ -113,7 +100,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [open]);
 
-  // حركة العيون العشوائية (طبيعية مثل الإنسان)
   useEffect(() => {
     const moveEyesRandomly = () => {
       const randomX = (Math.random() - 0.5) * 6;
@@ -140,43 +126,33 @@ export default function Home() {
     if (chatStatus === "typing") return "يكتب الآن...";
     if (chatStatus === "online") return "متصل الآن";
     if (chatStatus === "idle") return "انتهى مؤقتاً";
-    
-    if (chatStatus === "ended" && endTime) {
-      const diffSeconds = Math.floor((currentTime.getTime() - endTime.getTime()) / 1000);
-      if (diffSeconds < 60) return `انتهت منذ ${diffSeconds} ثانية`;
-      if (diffSeconds < 120) return "انتهت منذ دقيقة";
-      if (diffSeconds < 180) return "انتهت منذ دقيقتين";
-      if (diffSeconds < 3600) return `انتهت منذ ${Math.floor(diffSeconds / 60)} دقائق`;
-      return `انتهت منذ ${Math.floor(diffSeconds / 3600)} ساعات`;
-    }
+    if (chatStatus === "ended") return "انتهت المحادثة";
     return "غير نشط";
   };
 
-  // دالة إنهاء المحادثة مع الموظف (تعود للمساعد مع تصفير المحادثة)
+  // 🔴 دالة إنهاء المحادثة وحذف التخزين تماماً
   const performAutoClose = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-
-    // فقط إذا كان هناك موظف (وليس بوت)
     if (currentSpeaker !== "agent") return;
 
-    // 1. تصفير المحادثة والعودة للمساعد
+    // 1. تصفير الحالة فوراً
     setMessages([]);
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
     setChatStatus("online");
-    setEndTime(null);
 
-    // 🔴 2. حذف حالة التخزين المحلي تماماً بدلاً من حفظها (لأننا لا نريد تخزين جلسة الموظف بعد انتهائها)
+    // 2. حذف التخزين المحلي قسراً لضمان عدم بقاء أي أثر
     if (typeof window !== 'undefined') {
       localStorage.removeItem('dar-alnujum-chat-state');
     }
 
-    // 3. إظهار رسالة ترحيب جديدة للمساعد
+    // 3. إظهار رسالة الترحيب الجديدة مع شريط تحميل جوجل
     setChatStatus("typing");
     setIsLoading(true);
     const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
+    
     setTimeout(() => {
       const welcomeMsg: Message = {
         id: "welcome-new-" + Date.now(),
@@ -188,62 +164,31 @@ export default function Home() {
       };
       setMessages([welcomeMsg]);
       setChatStatus("online");
-      setIsLoading(false);
-    }, 600);
+      setIsLoading(false); // إنهاء شريط التحميل
+    }, 800);
   };
 
-  // دالة إعادة ضبط المؤقتات (خاصة بالموظف فقط)
   const resetActivityTimers = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
-    // المؤقتات تعمل فقط مع الموظف (وليست مع البوت)
     if (currentSpeaker !== "agent") return;
 
     if (chatStatus !== "ended") {
       setChatStatus("online");
-      saveStateToStorage();
     }
 
-    // المؤقت الأول: بعد 20 ثانية من عدم النشاط → حالة "انتهى مؤقتاً" (idle)
     idleTimerRef.current = setTimeout(() => {
       if (currentSpeaker === "agent" && chatStatus !== "ended" && chatStatus !== "typing") {
         setChatStatus("idle");
-        saveStateToStorage();
       }
     }, 20 * 1000);
 
-    // المؤقت الثاني: بعد 5 دقائق من عدم النشاط → إنهاء المحادثة (العودة للمساعد مع تصفير)
     autoCloseTimerRef.current = setTimeout(() => {
       if (currentSpeaker === "agent" && chatStatus !== "ended") {
         performAutoClose();
       }
-    }, 5 * 60 * 1000); // 5 دقائق
-  };
-
-  // شريط التحميل مثل جوجل
-  const startLoading = () => {
-    setIsLoading(true);
-    setProgress(0);
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 90) {
-          clearInterval(interval);
-          return 90;
-        }
-        const increment = Math.random() * 10 + 5;
-        return Math.min(prev + increment, 90);
-      });
-    }, 200);
-    return () => clearInterval(interval);
-  };
-
-  const stopLoading = () => {
-    setProgress(100);
-    setTimeout(() => {
-      setIsLoading(false);
-      setProgress(0);
-    }, 300);
+    }, 5 * 60 * 1000);
   };
 
   useEffect(() => {
@@ -251,7 +196,7 @@ export default function Home() {
       const hasSavedState = loadStateFromStorage();
       if (!hasSavedState) {
         setChatStatus("typing");
-        startLoading();
+        setIsLoading(true); // تشغيل شريط جوجل
         const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
         setTimeout(() => {
           const welcomeMsg: Message = {
@@ -262,8 +207,8 @@ export default function Home() {
           };
           setMessages([welcomeMsg]);
           setChatStatus("online");
-          stopLoading();
-        }, 600);
+          setIsLoading(false); // إيقاف شريط جوجل
+        }, 800);
       }
     }
     return () => {
@@ -272,11 +217,17 @@ export default function Home() {
     };
   }, [open]);
 
+  // حفظ الحالة فقط إذا كان هناك موظف نشط ومحادثة جارية
   useEffect(() => {
-    if (messages.length > 0 || currentAgent) saveStateToStorage();
-  }, [messages, currentAgent, sessionAgents, currentSpeaker, chatStatus, endTime]);
+    if (typeof window !== 'undefined') {
+      if (currentSpeaker === "agent" && chatStatus !== "ended" && messages.length > 0) {
+        localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
+          messages, currentSpeaker, currentAgent, sessionAgents, chatStatus
+        }));
+      }
+    }
+  }, [messages, currentAgent, sessionAgents, currentSpeaker, chatStatus]);
 
-  // 🔴 1. هل يريد المستخدم بشراً صراحة؟
   const wantsHumanContact = (text: string): boolean => {
     const t = text.toLowerCase()
       .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
@@ -288,11 +239,9 @@ export default function Home() {
       "اريد اتواصل", "ممكن اتواصل", "اكلم الدعم", "اكلم شخص", "اكلم موظف", "احد يرد علي",
       "رد بشري", "دعم بشري", "مساعده بشريه", "مو روبوت", "ما اريد روبوت"
     ];
-
     return explicitKeywords.some(k => t.includes(k));
   };
 
-  // 🔴 2. ما هو القسم المطلوب؟
   const detectDepartment = (userText: string): 'support' | 'ads' | 'technical' => {
     const text = userText.toLowerCase();
     const adKeywords = ["إعلان", "اعلان", "ترويج", "سبونسر", "بانر", "فيديو ترويجي", "اسعار الاعلان", "حجز اعلان"];
@@ -303,7 +252,6 @@ export default function Home() {
     return 'support'; 
   };
 
-  // 🔴 3. محرك التحويل الرئيسي
   const checkAndPerformEscalation = (userText: string): boolean => {
     if (!wantsHumanContact(userText)) return false;
     
@@ -356,7 +304,7 @@ export default function Home() {
     if (!text.trim() || chatStatus === "ended") return; 
     
     setChatStatus("typing");
-    const stopLoadingFn = startLoading(); // بدء شريط التحميل
+    setIsLoading(true); // تشغيل شريط جوجل
     const userText = text;
     setText("");
 
@@ -366,13 +314,10 @@ export default function Home() {
       status: "sent"
     }]);
 
-    if (currentSpeaker === "agent") {
-      resetActivityTimers();
-    }
+    if (currentSpeaker === "agent") resetActivityTimers();
 
     if (checkAndPerformEscalation(userText)) {
-      stopLoadingFn();
-      stopLoading(); // إيقاف التحميل
+      setIsLoading(false);
       return;
     }
 
@@ -386,7 +331,6 @@ export default function Home() {
       });
 
       const data = await response.json();
-      
       await new Promise(resolve => setTimeout(resolve, 400));
       
       setMessages((prev) => [...prev, {
@@ -395,9 +339,7 @@ export default function Home() {
         time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
       }]);
       setChatStatus("online");
-      if (currentSpeaker === "agent") {
-        resetActivityTimers();
-      }
+      if (currentSpeaker === "agent") resetActivityTimers();
     } catch (error) {
       setMessages((prev) => [...prev, {
         id: Date.now().toString(), sender: "system",
@@ -406,7 +348,7 @@ export default function Home() {
       }]);
       setChatStatus("online");
     } finally {
-      stopLoading(); // إكمال التحميل
+      setIsLoading(false); // إيقاف شريط جوجل
     }
   };
 
@@ -433,33 +375,8 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
       <style jsx global>{`
-        @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-        .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
-        .animate-seamless-scroll:hover { animation-play-state: paused; }
-        
-        @keyframes slide-in-right { 0% { transform: translateX(100px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
-        .animate-slide-in-right { animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-
-        @keyframes float-pulse {
-          0% { transform: scale(1) rotate(0deg); }
-          50% { transform: scale(1.05) rotate(2deg); }
-          100% { transform: scale(1) rotate(0deg); }
-        }
-        .animate-float-pulse {
-          animation: float-pulse 3s ease-in-out infinite;
-        }
-        .animate-float-pulse:hover {
-          animation-duration: 0.5s;
-          transform: scale(1.1);
-        }
-
-        @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
-        .animate-blink { animation: blink 4s infinite; transform-origin: center; }
-        @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
-        .animate-typing { animation: typing 1.4s infinite ease-in-out; }
-
-        /* شريط التحميل العلوي مثل جوجل */
-        .progress-bar-container {
+        /* 🔴 شريط تحميل بأسلوب جوجل (NProgress Style) */
+        .google-progress-bar {
           position: fixed;
           top: 0;
           left: 0;
@@ -467,29 +384,67 @@ export default function Home() {
           height: 3px;
           z-index: 9999;
           background: transparent;
+          pointer-events: none;
         }
-        .progress-bar {
+        .google-progress-bar::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
           height: 100%;
           width: 0%;
           background: linear-gradient(to right, #7c3aed, #3b82f6, #8b5cf6);
-          border-radius: 2px;
-          transition: width 0.3s ease;
+          border-radius: 0 2px 2px 0;
+          box-shadow: 0 0 10px rgba(124, 58, 237, 0.6);
         }
-        .progress-bar.animate {
-          width: 100%;
-          transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        .google-progress-bar.loading::after {
+          animation: google-loading 2.5s ease-in-out infinite;
         }
-        .progress-bar.done {
-          width: 100%;
-          transition: width 0.4s ease;
-          opacity: 0;
+        .google-progress-bar.done::after {
+          animation: google-done 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
+
+        @keyframes google-loading {
+          0% { width: 0%; left: 0; }
+          40% { width: 40%; left: 0; }
+          70% { width: 70%; left: 15%; }
+          100% { width: 100%; left: 100%; }
+        }
+        @keyframes google-done {
+          0% { width: 70%; left: 30%; opacity: 1; }
+          100% { width: 100%; left: 100%; opacity: 0; }
+        }
+
+        @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
+        .animate-seamless-scroll:hover { animation-play-state: paused; }
+        
+        @keyframes float-pulse {
+          0% { transform: scale(1) rotate(0deg); }
+          50% { transform: scale(1.05) rotate(2deg); }
+          100% { transform: scale(1) rotate(0deg); }
+        }
+        .animate-float-pulse { animation: float-pulse 3s ease-in-out infinite; }
+        .animate-float-pulse:hover { animation-duration: 0.5s; transform: scale(1.1); }
+
+        /* 🔴 حركة الدخول من اليمين مع ارتداد خفيف */
+        @keyframes slide-in-bounce-right {
+          0% { transform: translateX(150%); opacity: 0; }
+          60% { transform: translateX(-10px); opacity: 1; }
+          100% { transform: translateX(0); opacity: 1; }
+        }
+        .animate-slide-in-bounce-right {
+          animation: slide-in-bounce-right 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+        .animate-blink { animation: blink 4s infinite; transform-origin: center; }
+        @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+        .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
-      {/* شريط التحميل العلوي (مثل جوجل) */}
-      <div className="progress-bar-container">
-        <div className={`progress-bar ${isLoading ? 'animate' : ''}`} style={{ width: isLoading ? `${progress}%` : '0%', opacity: isLoading ? 1 : 0 }}></div>
-      </div>
+      {/* 🔴 شريط التحميل العلوي بأسلوب جوجل */}
+      <div className={`google-progress-bar ${isLoading ? 'loading' : 'done'}`}></div>
 
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
         <div className="w-full px-2 md:px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-2 md:gap-4">
@@ -534,7 +489,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* أيقونة الدردشة مع حركة عيون طبيعية وعشوائية */}
+      {/* 🔴 أيقونة الدردشة مع حركة الدخول من اليمين */}
       <div 
         onClick={() => { 
           setOpen(!open); 
@@ -546,7 +501,7 @@ export default function Home() {
             setOpen(false);
           }
         }} 
-        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-xl shadow-purple-600/30 cursor-pointer transition-all duration-300 z-50 border-2 border-white/20 animate-float-pulse hover:shadow-2xl hover:shadow-purple-500/50 hover:scale-110 active:scale-95"
+        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-xl shadow-purple-600/30 cursor-pointer transition-all duration-300 z-50 border-2 border-white/20 animate-float-pulse hover:shadow-2xl hover:shadow-purple-500/50 hover:scale-110 active:scale-95 animate-slide-in-bounce-right"
         title="مركز المساعدة والدعم"
       >
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
@@ -645,23 +600,21 @@ export default function Home() {
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           {chatStatus === "ended" ? (
             <button onClick={() => {
+                // 🔴 إعادة ضبط كاملة وحذف التخزين قسراً
                 setMessages([]); 
                 setChatStatus("online"); 
-                setEndTime(null); 
-                setOpen(true);
                 setCurrentSpeaker("bot");
                 setCurrentAgent(null);
                 setSessionAgents([]);
                 if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
                 if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
                 
-                // 🔴 حذف التخزين المحلي تماماً عند بدء محادثة جديدة يدوياً
                 if (typeof window !== 'undefined') {
                   localStorage.removeItem('dar-alnujum-chat-state');
                 }
                 
                 setChatStatus("typing");
-                startLoading();
+                setIsLoading(true); // تشغيل شريط جوجل
                 const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
                 setTimeout(() => {
                   const welcomeMsg: Message = {
@@ -672,8 +625,8 @@ export default function Home() {
                   };
                   setMessages([welcomeMsg]);
                   setChatStatus("online");
-                  stopLoading();
-                }, 600);
+                  setIsLoading(false); // إيقاف شريط جوجل
+                }, 800);
               }} 
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" /><path d="M3 3v9h9" /></svg>
@@ -683,9 +636,7 @@ export default function Home() {
             <div className="flex gap-2 items-end">
               {chatStatus === "idle" ? (
                 <div onClick={() => { 
-                    if (currentSpeaker === "agent") {
-                      resetActivityTimers();
-                    }
+                    if (currentSpeaker === "agent") resetActivityTimers();
                     document.getElementById('chat-input')?.focus(); 
                   }}
                   className="flex-1 bg-[#0b0f1a]/50 border border-dashed border-yellow-500/50 rounded-xl p-3 text-center cursor-pointer hover:bg-[#0b0f1a] hover:border-yellow-500 transition-colors group">
@@ -695,9 +646,7 @@ export default function Home() {
                 <textarea id="chat-input" value={text} placeholder="اكتب رسالتك هنا..." 
                   onChange={(e) => { 
                     setText(e.target.value); 
-                    if (currentSpeaker === "agent") {
-                      resetActivityTimers();
-                    }
+                    if (currentSpeaker === "agent") resetActivityTimers();
                   }} 
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   rows={1} className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed" />
