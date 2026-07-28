@@ -153,6 +153,8 @@ export default function Home() {
   const [isBlinking, setIsBlinking] = useState(false);
   const targetEyePos = useRef({ x: 0, y: 0 });
   const currentEyePos = useRef({ x: 0, y: 0 });
+  const mouseStopTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const idleLookTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   const chatButtonRef = useRef<HTMLDivElement>(null);
 
@@ -173,7 +175,7 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // أولاً: شريط التحميل البنفسجي (RTL سلس وثابت)
+  // أولاً: شريط التحميل البنفسجي (RTL حقيقي - يبدأ من اليمين وينمو لليسار)
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -188,7 +190,7 @@ export default function Home() {
         if (isComplete) return;
         const elapsed = currentTime - startTime;
         const progressRatio = Math.min(elapsed / duration, 1);
-        const eased = 1 - Math.pow(1 - progressRatio, 3); // Smooth easing
+        const eased = 1 - Math.pow(1 - progressRatio, 3);
         
         progress = startProgress + (target - startProgress) * eased;
         setLoadingProgress(Math.min(progress, 99));
@@ -230,15 +232,20 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // ثانياً: حركة العين البشرية الواقعية (Smooth + Random Blink)
+  // ثانياً: حركة العين البشرية الواقعية (Smooth + Random Blink + Idle Looks)
   // ============================================================
   useEffect(() => {
     let rafId: number;
     const animateEye = () => {
-      // Lerp لحركة ناعمة جداً تشبه البشر (ease-out طبيعي)
-      currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.1;
-      currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.1;
-      setEyePos({ x: currentEyePos.current.x, y: currentEyePos.current.y });
+      // Lerp لحركة ناعمة جداً (معامل 0.15 = سرعة طبيعية)
+      currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.15;
+      currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.15;
+      
+      // 🔴 منع الاهتزاز: تقريب الأرقام العشرية
+      const x = Math.round(currentEyePos.current.x * 100) / 100;
+      const y = Math.round(currentEyePos.current.y * 100) / 100;
+      
+      setEyePos({ x, y });
       rafId = requestAnimationFrame(animateEye);
     };
     rafId = requestAnimationFrame(animateEye);
@@ -252,28 +259,81 @@ export default function Home() {
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
         
-        // حد أقصى 2.2 بكسل لضمان بقاء البؤبؤ داخل دائرة البياض (نصف القطر 5) دائماً
+        // حد أقصى 2.2 بكسل لضمان بقاء البؤبؤ داخل دائرة البياض دائماً
         const maxOffset = 2.2;
-        const rawX = (e.clientX - centerX) / 40; // القسمة على 40 تبطئ الحركة لتبدو طبيعية
+        const rawX = (e.clientX - centerX) / 40;
         const rawY = (e.clientY - centerY) / 40;
         
         targetEyePos.current = {
           x: Math.max(-maxOffset, Math.min(maxOffset, rawX)),
           y: Math.max(-maxOffset, Math.min(maxOffset, rawY))
         };
+        
+        // إيقاف أي نظرة عشوائية عند تحريك الماوس
+        if (idleLookTimerRef.current) clearTimeout(idleLookTimerRef.current);
+        
+        // إعادة ضبط مؤقت العودة للمنتصف
+        if (mouseStopTimerRef.current) clearTimeout(mouseStopTimerRef.current);
+        mouseStopTimerRef.current = setTimeout(() => {
+          targetEyePos.current = { x: 0, y: 0 };
+        }, 1500);
       }
     };
     
     window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      if (mouseStopTimerRef.current) clearTimeout(mouseStopTimerRef.current);
+      if (idleLookTimerRef.current) clearTimeout(idleLookTimerRef.current);
+    };
+  }, [open]);
+
+  // 🔴 ثانياً: نظرات عشوائية طبيعية عند الخمول (مثل البشر)
+  useEffect(() => {
+    if (open) return; // لا نظرات عشوائية عند فتح الشات
+    
+    const scheduleIdleLook = () => {
+      const delay = 3000 + Math.random() * 5000; // 3-8 ثوانٍ
+      idleLookTimerRef.current = setTimeout(() => {
+        // فقط إذا كانت العين في المنتصف (لا تتبع ماوس)
+        if (Math.abs(targetEyePos.current.x) < 0.3 && Math.abs(targetEyePos.current.y) < 0.3) {
+          // نظرة عشوائية صغيرة في أي اتجاه
+          const directions = [
+            { x: -1.5, y: -1.0 }, // أعلى يسار
+            { x: 1.5, y: -1.0 },  // أعلى يمين
+            { x: -1.5, y: 1.0 },  // أسفل يسار
+            { x: 1.5, y: 1.0 },   // أسفل يمين
+            { x: 0, y: -1.5 },    // أعلى
+            { x: 0, y: 1.5 },     // أسفل
+          ];
+          const randomDir = directions[Math.floor(Math.random() * directions.length)];
+          targetEyePos.current = randomDir;
+          
+          // العودة للمنتصف بعد 0.8-1.5 ثانية
+          setTimeout(() => {
+            targetEyePos.current = { x: 0, y: 0 };
+            scheduleIdleLook(); // جدولة النظرة التالية
+          }, 800 + Math.random() * 700);
+        } else {
+          scheduleIdleLook(); // إعادة الجدولة إذا كانت العين تتحرك
+        }
+      }, delay);
+    };
+    
+    scheduleIdleLook();
+    return () => {
+      if (idleLookTimerRef.current) clearTimeout(idleLookTimerRef.current);
+    };
   }, [open]);
 
   // نظرة للأسفل واليسار عند فتح الشات (باتجاه صندوق المحادثة)
   useEffect(() => {
     if (open) {
       targetEyePos.current = { x: -1.8, y: 1.8 };
+      if (mouseStopTimerRef.current) clearTimeout(mouseStopTimerRef.current);
+      if (idleLookTimerRef.current) clearTimeout(idleLookTimerRef.current);
+      
       const timer = setTimeout(() => {
-        // العودة التدريجية للمركز أو تتبع الماوس بعد 2.5 ثانية
         targetEyePos.current = { x: 0, y: 0 };
       }, 2500);
       return () => clearTimeout(timer);
@@ -286,13 +346,13 @@ export default function Home() {
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const scheduleBlink = () => {
-      const randomDelay = 3000 + Math.random() * 3000; // 3000ms to 6000ms
+      const randomDelay = 3000 + Math.random() * 3000;
       blinkTimeout = setTimeout(() => {
         setIsBlinking(true);
         setTimeout(() => {
           setIsBlinking(false);
-          scheduleBlink(); // جدولة الرمشة التالية
-        }, 120); // مدة الرمشة 120ms (سريعة وطبيعية جداً)
+          scheduleBlink();
+        }, 120);
       }, randomDelay);
     };
     scheduleBlink();
@@ -350,7 +410,6 @@ export default function Home() {
     }
   }, [messages, currentSpeaker]);
 
-  // 🔴 خامساً: منطق المهلة الزمنية (300 ثانية بعد آخر رسالة من المستخدم)
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
 
@@ -481,10 +540,14 @@ export default function Home() {
     return false;
   }, [currentSpeaker, showDepartmentSelection, handleHumanRequest]);
 
+  // 🔴 ثالثاً: التحويل الذكي مع قراءة السياق
   const performInternalTransfer = useCallback((targetDept: Department, currentAgentName: string) => {
     const targetAgent = findAvailableAgent(targetDept) || SUPPORT_AGENTS.find(a => a.department === targetDept);
     if (!targetAgent) return;
 
+    // قراءة آخر رسالة للمستخدم لاستخدامها في السياق
+    const lastUserMsg = messages.filter(m => m.sender === 'user').pop()?.text || "استفسار عام";
+    
     const transferMsg = createMessage(
       "agent",
       `لحظة واحدة أستاذ، سأحولك الآن إلى زميلي المختص في قسم ${targetDept === 'ads' ? 'الإعلانات' : 'الدعم الفني'} لخدمتك بشكل أفضل.`,
@@ -501,16 +564,17 @@ export default function Home() {
       
       setCurrentAgent(targetAgent);
       awaitingFinalConfirmationRef.current = false;
-      conversationContextRef.current = [];
-      lastHandledTopicRef.current = null;
-      conversationPhaseRef.current = "initial";
+      // 🔴 الحفاظ على السياق عند التحويل
+      lastHandledTopicRef.current = targetDept === 'ads' ? 'transferred_ads' : 'transferred_tech';
+      conversationPhaseRef.current = "ongoing";
       lastAgentMessageRef.current = "";
       messageCountRef.current = 0;
       
       setTimeout(() => {
+        // 🔴 الموظف الجديد يقرأ السياق ويكمل من نفس النقطة
         const newAgentWelcome = createMessage(
           "agent",
-          `مرحباً، أنا ${targetAgent!.name} من قسم ${targetDept === 'ads' ? 'الإعلانات' : targetDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}. اطلعت على كامل المحادثة بينك وبين الأستاذ ${currentAgentName}، وسأتابع معك من هذه النقطة مباشرة. تفضل.`,
+          `أهلاً بك أستاذ، أنا ${targetAgent!.name} من قسم ${targetDept === 'ads' ? 'الإعلانات' : 'الدعم الفني'}. اطلعت على محادثتك مع الأستاذ ${currentAgentName} بخصوص "${lastUserMsg.substring(0, 50)}"، وسأتابع معك من هنا مباشرة. تفضل.`,
           "assistant"
         );
         
@@ -520,10 +584,10 @@ export default function Home() {
         lastActivityTimeRef.current = Date.now();
       }, 1000);
     }, 1500);
-  }, []);
+  }, [messages]);
 
   // ============================================================
-  // ثالثاً وسادساً: SEND MESSAGE & API HANDLING (سلوك موظف احترافي 100%)
+  // ثالثاً ورابعاً: SEND MESSAGE & API HANDLING (سلوك موظف بشري 100%)
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -533,7 +597,6 @@ export default function Home() {
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
     
-    // إعادة ضبط المؤقت عند إرسال المستخدم لأي رسالة
     lastActivityTimeRef.current = Date.now();
     
     conversationContextRef.current.push(trimmedText);
@@ -553,7 +616,7 @@ export default function Home() {
         const currentDept = currentAgent.department;
         messageCountRef.current += 1;
 
-        // رابعاً: إنهاء المحادثة بأدب بعد تأكيد المستخدم
+        // 🔴 خامساً: إنهاء المحادثة بأدب بعد تأكيد المستخدم
         const closingKeywords = ["لا", "شكرا", "شكراً", "هذا كل شيء", "انتهيت", "خلاص", "لا شكرا", "لا احتاج"];
         const isClosingRequest = closingKeywords.some(k => normalized.includes(k)) && normalized.length < 20;
 
@@ -575,12 +638,12 @@ export default function Home() {
           lastAgentMessageRef.current = agentReply;
           isSendingRef.current = false;
           
-          // إغلاق الجلسة والعودة للمساعد الذكي بعد 2.5 ثانية
-          setTimeout(() => closeAgentSession(), 2500);
+          // 🔴 إغلاق الجلسة والعودة للمساعد الذكي بعد 3 ثوانٍ
+          setTimeout(() => closeAgentSession(), 3000);
           return;
         }
 
-        // الإجابة المباشرة عن الأسعار بدون أسئلة مسبقة
+        // 🔴 ثالثاً: الإجابة المباشرة عن الأسعار بدون أسئلة مسبقة
         if (normalized.includes("سعر") || normalized.includes("اسعار") || normalized.includes("تفاصيل") || normalized.includes("اعلان") || normalized.includes("باقه") || normalized.includes("كم")) {
           if (currentDept === 'ads') {
             if (lastHandledTopicRef.current !== 'pricing_details') {
@@ -601,7 +664,6 @@ export default function Home() {
               return;
             }
           } else {
-            // التحويل الصحيح حسب الاختصاص
             setMessages(prev => [...prev, createMessage("agent", "العفو أستاذ، هذا الطلب يخص قسم الإعلانات. سأحولك الآن إلى زميلتي المختصة.", "assistant")]);
             setTimeout(() => performInternalTransfer('ads', currentAgent.name), 1000);
             isSendingRef.current = false;
@@ -609,7 +671,7 @@ export default function Home() {
           }
         }
 
-        // المتابعة الذكية إذا قال المستخدم "نعم" أو "تمام" بعد عرض التفاصيل
+        // 🔴 رابعاً: المتابعة الذكية بناءً على السياق
         if ((normalized === "نعم" || normalized === "اي" || normalized === "تفضل" || normalized.includes("تمام") || normalized.includes("انتظار")) && lastHandledTopicRef.current === 'pricing_details') {
             const followUp = "ممتاز. لكي أتمكن من تجهيز العرض الأنسب لك، هل يمكنك إخباري بالميزانية التقريبية المخصصة للإعلان أو المنصة المفضلة لديك؟";
             previousAgentRepliesRef.current.add(followUp);
@@ -621,7 +683,7 @@ export default function Home() {
             return;
         }
 
-        // الرد على الشكر بسؤال واحد فقط عن الحاجة لمساعدة أخرى
+        // 🔴 خامساً: الرد على الشكر بسؤال واحد فقط
         const isGratitude = normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || normalized.includes("الله يعطيك") || normalized.includes("انحلت") || normalized.includes("ممتاز");
         if (isGratitude && conversationPhaseRef.current !== "closing" && conversationPhaseRef.current !== "ended") {
           const gratitudeReplies = [
@@ -651,7 +713,7 @@ export default function Home() {
           return;
         }
 
-        // التحويل الصحيح للدعم الفني
+        // 🔴 ثالثاً: التحويل الصحيح للدعم الفني
         if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("معلق")) {
           if (currentDept === 'technical') {
             if (lastHandledTopicRef.current !== 'technical_details') {
@@ -678,12 +740,12 @@ export default function Home() {
           }
         }
 
-        // ردود عامة احترافية ومختصرة (Fallback آمن بدون تكرار)
+        // 🔴 رابعاً: ردود بشرية ذكية حسب القسم (بدون تكرار)
         const generalReplies = currentDept === 'ads' 
-          ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب لمتجرك؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك لنبدأ منها؟"]
+          ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب لمتجرك؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك لنبدأ منها؟", "تفضل أستاذ، ما نوع النشاط التجاري الذي تريد الترويج له؟"]
           : currentDept === 'technical'
-          ? ["حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية عن المشكلة.", "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح المشكلة أكثر؟"]
-          : ["بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.", "حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟"];
+          ? ["حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية عن المشكلة.", "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح المشكلة أكثر؟", "مفهوم. هل ظهرت هذه المشكلة بعد تحديث معين أو إجراء محدد؟"]
+          : ["بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.", "حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟", "تفضل أستاذ، أنا معك خطوة بخطوة."];
         
         const available = generalReplies.filter(r => !previousAgentRepliesRef.current.has(r));
         const agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : generalReplies[0];
@@ -817,7 +879,6 @@ export default function Home() {
         @keyframes slide-in-right { 0% { transform: translateX(100px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
         .animate-slide-in-right { animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         
-        /* رمش طبيعي جداً لا يحرك أي شيء آخر في الوجه */
         @keyframes blink-human {
           0%, 100% { transform: scaleY(1); }
           50% { transform: scaleY(0.1); }
@@ -855,11 +916,11 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
-      {/* أولاً: شريط التحميل البنفسجي (ثابت أعلى الصفحة، يبدأ من اليمين ويمتلئ لليسار بسلاسة) */}
+      {/* 🔴 أولاً: شريط التحميل البنفسجي (RTL حقيقي - يبدأ من اليمين وينمو لليسار) */}
       {loadingProgress > 0 && (
-        <div className="fixed top-0 right-0 left-auto z-[100] h-1 bg-gray-800/50 w-full">
+        <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-gray-800/50" dir="ltr">
           <div 
-            className="h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)]"
+            className="h-full ml-auto bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)]"
             style={{ 
               width: `${loadingProgress}%`,
               transition: loadingProgress === 100 ? 'width 0.5s ease-out, opacity 0.5s ease-out' : 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -912,21 +973,19 @@ export default function Home() {
         </section>
       </main>
 
-      {/* ثانياً: أيقونة المساعد بحركة عين بشرية واقعية ومتقنة */}
+      {/* 🔴 ثانياً: أيقونة المساعد بحركة عين بشرية واقعية */}
       <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-cartoon-breathe">
-            {/* العيون مع الرمش العشوائي الطبيعي المعزول */}
             <g className={isBlinking ? "animate-blink-human" : ""}>
               <circle cx="10" cy="14" r="5" fill="white" />
-              {/* البؤبؤ يتبع الماوس بحركة ناعمة جداً ومحدودة داخل البياض */}
-              <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+              {/* 🔴 منع الاهتزاز: إزالة transition والاعتماد على requestAnimationFrame فقط */}
+              <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)` }} />
             </g>
             <g className={isBlinking ? "animate-blink-human" : ""} style={{ animationDelay: '0.05s' }}>
               <circle cx="22" cy="14" r="5" fill="white" />
-              <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+              <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)` }} />
             </g>
-            {/* الابتسامة الثابتة اللطيفة، تتحرك فقط أثناء الكتابة */}
             <path 
               d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" 
               stroke="white" 
