@@ -648,11 +648,14 @@ export default function Home() {
           0% { right: 0%; width: 100%; opacity: 1; }
           100% { right: 0%; width: 100%; opacity: 0; }
         }
-        @keyframes chatOpenRTL {
-          0% { transform: translateX(30px) scale(0.95); opacity: 0; }
-          100% { transform: translateX(0) scale(1); opacity: 1; }
+
+        @keyframes chatSlideIn {
+          0% { opacity: 0; transform: translateY(24px) scale(0.95); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
         }
-        .animate-chat-open-rtl { animation: chatOpenRTL 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        .animate-chat-slide-in { 
+          animation: chatSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
+        }
 
         @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
@@ -688,13 +691,12 @@ export default function Home() {
           scrollbar-color: rgba(139, 92, 246, 0.3) transparent;
         }
 
-        .msg-bubble-user {
-          background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-          box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25), 0 1px 2px rgba(0,0,0,0.1);
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
         }
-        .msg-bubble-bot {
-          background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0,0,0,0.15);
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
       `}</style>
 
@@ -758,6 +760,7 @@ export default function Home() {
         </section>
       </main>
 
+      {/* 🔴 أيقونة الدردشة العائمة - ثابتة في أسفل اليمين */}
       <div 
         onMouseMove={handleIconMouseMove}
         onMouseLeave={handleIconMouseLeave}
@@ -765,7 +768,7 @@ export default function Home() {
           setOpen(!open); 
           if (!open) resetIdleTimer();
         }} 
-        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-xl shadow-purple-600/30 cursor-pointer transition-all duration-300 z-50 border-2 border-white/20 hover:shadow-2xl hover:shadow-purple-500/50 hover:scale-110 active:scale-95"
+        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-xl shadow-purple-600/30 cursor-pointer transition-all duration-300 z-[9999] border-2 border-white/20 hover:shadow-2xl hover:shadow-purple-500/50 hover:scale-110 active:scale-95 group"
         title="مركز المساعدة والدعم"
       >
         <div style={{ 
@@ -793,17 +796,21 @@ export default function Home() {
             />
           </svg>
         </div>
-        <div className="absolute -inset-1 rounded-full border-2 border-purple-400/30 animate-ping opacity-75 pointer-events-none"></div>
-        <div className="absolute -inset-2 rounded-full border border-purple-300/20 animate-ping opacity-50 pointer-events-none" style={{ animationDelay: '0.8s' }}></div>
+        <div className="absolute -inset-1 rounded-full border-2 border-purple-400/30 animate-ping opacity-75 pointer-events-none group-hover:opacity-100"></div>
+        <div className="absolute -inset-2 rounded-full border border-purple-300/20 animate-ping opacity-50 pointer-events-none group-hover:opacity-100" style={{ animationDelay: '0.8s' }}></div>
       </div>
 
-      <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl z-50 flex flex-col ${open ? 'animate-chat-open-rtl' : 'opacity-0 translate-x-8 scale-95 pointer-events-none'}`} style={{ transition: open ? 'none' : 'opacity 0.3s ease-out, transform 0.3s ease-out' }}>
-        <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
-          <div className="flex items-center gap-2 flex-shrink-0">
+      {/* 🔴 صندوق الدردشة الحديث - يفتح من اليمين بسلاسة */}
+      <div 
+        className={`fixed bottom-24 right-6 w-[calc(100vw-3rem)] md:w-96 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-xl border border-gray-200 dark:border-gray-700 rounded-3xl shadow-2xl shadow-black/20 z-[9999] flex flex-col origin-bottom-right transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${open ? 'opacity-100 translate-y-0 scale-100 animate-chat-slide-in' : 'opacity-0 translate-y-8 scale-95 pointer-events-none'}`}
+      >
+        {/* رأس المحادثة المحسن */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3 bg-white/50 dark:bg-[#1f2937]/50 backdrop-blur-md rounded-t-3xl">
+          <div className="flex items-center gap-3 flex-shrink-0">
             {(sessionAgents.length === 0 || chatStatus === "ended") ? (
               <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400 shadow-md">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <rect x="4" y="8" width="16" height="12" rx="3" fill="white" opacity="0.95"/>
                     <circle cx="9" cy="14" r="1.5" fill="#7c3aed"/><circle cx="15" cy="14" r="1.5" fill="#7c3aed"/>
                     <path d="M9 17 Q12 19 15 17" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
@@ -811,32 +818,33 @@ export default function Home() {
                     <circle cx="12" cy="4" r="1.5" fill="white"/>
                   </svg>
                 </div>
-                <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] ${chatStatus === "online" ? "bg-green-500" : chatStatus === "typing" ? "bg-yellow-500 animate-pulse" : chatStatus === "ended" ? "bg-red-500" : "bg-gray-500"}`}></span>
+                <span className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-[#111827] ${chatStatus === "online" ? "bg-green-500" : chatStatus === "typing" ? "bg-yellow-500 animate-pulse" : chatStatus === "ended" ? "bg-red-500" : "bg-gray-500"}`}></span>
               </div>
             ) : (
               <div className="flex -space-x-3 rtl:space-x-reverse">
                 {sessionAgents.map((agent, idx) => (
-                  <div key={agent.employeeId} className="relative group" title={`${agent.name} - ${agent.role}`}>
-                    <img src={agent.img} alt={agent.name} className={`w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-[#111827] object-cover transition-all ${idx === sessionAgents.length - 1 ? "border-purple-500 z-10 ring-2 ring-purple-500/30" : "border-gray-500 z-0 opacity-60 grayscale"}`} />
+                  <div key={agent.employeeId} className="relative group/agent" title={`${agent.name} - ${agent.role}`}>
+                    <img src={agent.img} alt={agent.name} className={`w-11 h-11 rounded-full border-2 border-white dark:border-[#111827] object-cover transition-all shadow-md ${idx === sessionAgents.length - 1 ? "border-purple-500 z-10 ring-2 ring-purple-500/30" : "border-gray-500 z-0 opacity-60 grayscale"}`} />
                   </div>
                 ))}
               </div>
             )}
           </div>
           <div className="flex-1 min-w-0 text-right">
-            <h4 className="font-bold text-white text-sm truncate">
+            <h4 className="font-bold text-gray-900 dark:text-white text-sm truncate">
               {chatStatus === "ended" ? "المحادثة منتهية" : (sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name)}
             </h4>
-            <p className={`text-xs flex items-center gap-1 justify-end truncate ${chatStatus === "online" || chatStatus === "typing" ? "text-green-400" : chatStatus === "idle" ? "text-yellow-400" : chatStatus === "ended" ? "text-red-400 font-bold" : "text-gray-400"}`}>
-              <span className="truncate">{chatStatus === "typing" ? "يكتب الآن..." : chatStatus === "online" ? "متصل الآن" : chatStatus === "idle" ? "سينتهي قريباً..." : "انتهت المحادثة"}</span>
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${chatStatus === "online" ? "bg-green-400 animate-pulse" : chatStatus === "typing" ? "bg-yellow-400 animate-pulse" : chatStatus === "idle" ? "bg-yellow-400" : chatStatus === "ended" ? "bg-red-400" : "bg-gray-400"}`}></span>
+            <p className={`text-xs flex items-center gap-1.5 justify-end truncate font-medium ${chatStatus === "online" || chatStatus === "typing" ? "text-green-600 dark:text-green-400" : chatStatus === "idle" ? "text-amber-600 dark:text-amber-400" : chatStatus === "ended" ? "text-red-500 font-bold" : "text-gray-500"}`}>
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${chatStatus === "online" ? "bg-green-500 animate-pulse" : chatStatus === "typing" ? "bg-yellow-500 animate-pulse" : chatStatus === "idle" ? "bg-amber-500" : chatStatus === "ended" ? "bg-red-500" : "bg-gray-500"}`}></span>
+              <span className="truncate">{chatStatus === "typing" ? "يكتب الآن..." : chatStatus === "online" ? "متصل الآن" : chatStatus === "idle" ? "في انتظار ردك..." : "انتهت المحادثة"}</span>
             </p>
           </div>
         </div>
 
+        {/* منطقة الرسائل المحسنة */}
         <div 
           ref={chatContainerRef}
-          className="h-80 overflow-y-auto p-4 space-y-3 chat-scroll bg-[#0b0f1a]/50" 
+          className="h-96 overflow-y-auto p-4 space-y-4 chat-scroll bg-transparent" 
           onClick={resetIdleTimer}
           dir="rtl"
         >
@@ -844,8 +852,8 @@ export default function Home() {
             const isUser = msg.sender === "user";
             const isSystem = msg.sender === "system";
             if (isSystem) return (
-              <div key={msg.id} className="flex justify-center my-2 message-appear">
-                <span className="text-[10px] bg-gray-800/80 text-gray-400 px-3 py-1.5 rounded-full border border-gray-700 text-center max-w-[90%] leading-relaxed">
+              <div key={msg.id} className="flex justify-center my-3 message-appear">
+                <span className="text-[11px] bg-gray-100 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 px-4 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 text-center max-w-[90%] leading-relaxed shadow-sm">
                   {msg.text}
                 </span>
               </div>
@@ -853,40 +861,44 @@ export default function Home() {
             return (
               <div key={msg.id} className={`flex flex-col message-appear ${isUser ? "items-end" : "items-start"}`}>
                 {!isUser && (
-                  <span className="text-[10px] text-gray-400 mb-1 mr-1">
-                    {msg.sender === "agent" && currentAgent && chatStatus !== "ended" ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400 mb-1.5 mr-1 font-medium">
+                    {msg.sender === "agent" && currentAgent && chatStatus !== "ended" ? `${currentAgent.name} • ${currentAgent.role}` : "المساعد الذكي"}
                   </span>
                 )}
-                <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative whitespace-pre-line break-words ${isUser ? "msg-bubble-user text-white rounded-tl-sm" : "msg-bubble-bot text-gray-200 border border-purple-500/20 rounded-tr-sm"}`}>
+                <div className={`max-w-[85%] p-3.5 rounded-2xl text-sm leading-relaxed relative whitespace-pre-line break-words shadow-sm ${isUser ? "bg-gradient-to-br from-purple-600 to-blue-600 text-white rounded-br-sm" : "bg-gray-100 dark:bg-[#1f2937] text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-bl-sm"}`}>
                   {msg.text}
                 </div>
-                <span className="text-[10px] text-gray-500 mt-1 px-1 flex items-center gap-1">
-                  {msg.time}{isUser && <span>{msg.status === "read" ? "✓✓" : "✓"}</span>}
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1.5 px-1 flex items-center gap-1 font-medium">
+                  {msg.time}
+                  {isUser && <span className="text-purple-500">{msg.status === "read" ? "✓✓" : "✓"}</span>}
                 </span>
               </div>
             );
           })}
           
+          {/* مؤشر الكتابة المحسن */}
           {chatStatus === "typing" && (
-            <div className="flex items-start gap-2 message-appear">
+            <div className="flex items-start gap-3 message-appear">
               {currentSpeaker === "agent" && currentAgent ? (
-                <img src={currentAgent.img} alt={currentAgent.name} className="w-7 h-7 rounded-full border border-purple-500/50 flex-shrink-0" />
+                <img src={currentAgent.img} alt={currentAgent.name} className="w-8 h-8 rounded-full border-2 border-purple-500/30 flex-shrink-0 mt-1 shadow-sm" />
               ) : (
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0 mt-1 shadow-md">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                     <rect x="4" y="8" width="16" height="12" rx="3" fill="white" opacity="0.95"/>
                     <circle cx="9" cy="14" r="1.5" fill="#7c3aed"/><circle cx="15" cy="14" r="1.5" fill="#7c3aed"/>
                   </svg>
                 </div>
               )}
               <div className="flex flex-col">
-                <span className="text-[10px] text-gray-400 mb-1 mr-1">
-                  {currentSpeaker === "agent" && currentAgent ? `${currentAgent.name} • يكتب الآن...` : "المساعد الذكي • يكتب الآن..."}
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 mr-1">
+                  {currentSpeaker === "agent" && currentAgent ? currentAgent.name : "المساعد الذكي"}
+                  <span className="text-purple-500 mx-1">•</span>
+                  يكتب الآن
                 </span>
-                <div className="bg-[#1f2937] border border-purple-500/20 rounded-2xl rounded-tr-sm px-4 py-3 flex gap-1.5 items-center">
-                  <span className="w-2 h-2 bg-purple-400 rounded-full animate-typing" style={{ animationDelay: '0ms' }}></span>
-                  <span className="w-2 h-2 bg-purple-400 rounded-full animate-typing" style={{ animationDelay: '200ms' }}></span>
-                  <span className="w-2 h-2 bg-purple-400 rounded-full animate-typing" style={{ animationDelay: '400ms' }}></span>
+                <div className="bg-gray-100 dark:bg-[#1f2937] border border-gray-200 dark:border-gray-700 rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1.5 items-center shadow-sm">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full animate-typing" style={{ animationDelay: '0ms' }}></span>
+                  <span className="w-2 h-2 bg-purple-500 rounded-full animate-typing" style={{ animationDelay: '200ms' }}></span>
+                  <span className="w-2 h-2 bg-purple-500 rounded-full animate-typing" style={{ animationDelay: '400ms' }}></span>
                 </div>
               </div>
             </div>
@@ -894,7 +906,8 @@ export default function Home() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
+        {/* منطقة الإدخال المحسنة */}
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-[#1f2937]/80 backdrop-blur-xl rounded-b-3xl">
           {chatStatus === "ended" ? (
             <button onClick={() => {
                 setMessages([]); setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
@@ -905,24 +918,41 @@ export default function Home() {
                   setMessages([{ id: "welcome-new", sender: "bot", role: "assistant", text: getRandomUniqueMessage(welcomeMessages, 'welcome'), time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read" }]);
                   setChatStatus("online"); setIsLoading(false);
                 }, 800);
-              }} className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" /><path d="M3 3v9h9" /></svg>
+              }} className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-sm font-bold transition-all duration-300 shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98]">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" /><path d="M3 3v9h9" /></svg>
               بدء محادثة جديدة
             </button>
           ) : (
             <div className="flex gap-2 items-end">
               {chatStatus === "idle" ? (
-                <div onClick={resetIdleTimer} className="flex-1 bg-[#0b0f1a]/50 border border-dashed border-yellow-500/50 rounded-xl p-3 text-center cursor-pointer hover:bg-[#0b0f1a] hover:border-yellow-500 transition-colors group">
-                  <p className="text-yellow-400 text-sm font-medium group-hover:text-yellow-300">⚡ انقر هنا للعودة للمحادثة</p>
+                <div onClick={resetIdleTimer} className="flex-1 bg-amber-500/10 border border-dashed border-amber-500/50 rounded-2xl p-3.5 text-center cursor-pointer hover:bg-amber-500/20 hover:border-amber-500 transition-all duration-300 group">
+                  <p className="text-amber-600 dark:text-amber-400 text-sm font-semibold group-hover:scale-105 transition-transform">⚡ انقر هنا أو اكتب للعودة للمحادثة</p>
                 </div>
               ) : (
-                <textarea value={text} placeholder="اكتب رسالتك هنا..." 
-                  onChange={(e) => { setText(e.target.value); resetIdleTimer(); }} 
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                  rows={1} className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed text-right" dir="rtl" />
+                <div className="flex-1 relative group">
+                  <textarea 
+                    id="chat-input" 
+                    value={text} 
+                    placeholder="اكتب رسالتك هنا..." 
+                    onChange={(e) => { setText(e.target.value); resetIdleTimer(); }} 
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                    rows={1} 
+                    className="w-full bg-gray-50 dark:bg-[#0b0f1a] text-gray-900 dark:text-white px-4 py-3.5 pr-4 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 border border-gray-200 dark:border-gray-700 placeholder-gray-400 dark:placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[48px] leading-relaxed transition-all duration-300 scrollbar-hide" 
+                    dir="rtl" 
+                  />
+                </div>
               )}
-              <button onClick={sendMessage} disabled={!text.trim() || chatStatus === "typing" || chatStatus === "idle"} className={`p-3 rounded-xl text-sm font-bold transition mb-0.5 ${chatStatus === "idle" ? "bg-gray-700 text-gray-500 cursor-not-allowed" : "bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"}`}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'scaleX(-1)' }}><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+              
+              <button 
+                onClick={sendMessage} 
+                disabled={!text.trim() || chatStatus === "typing" || chatStatus === "idle"} 
+                className={`p-3.5 rounded-2xl text-sm font-bold transition-all duration-300 flex items-center justify-center ${
+                  chatStatus === "idle" || !text.trim() 
+                    ? "bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed" 
+                    : "bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:shadow-lg hover:shadow-purple-500/30 hover:scale-105 active:scale-95"
+                }`}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="rtl:rotate-180"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
               </button>
             </div>
           )}
