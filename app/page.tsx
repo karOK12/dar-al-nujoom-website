@@ -891,6 +891,7 @@ export default function Home() {
         </section>
       </main>
 
+      {/* زر الدردشة - تم تعديله ليكون على اليمين */}
       <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-cartoon-breathe">
@@ -902,7 +903,6 @@ export default function Home() {
               <circle cx="22" cy="14" r="5" fill="white" />
               <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
             </g>
-            {/* 🔴 تم إصلاح الخطأ هنا بحذف المقارنة غير الضرورية بـ "user" */}
             <path 
               d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" 
               stroke="white" 
@@ -914,6 +914,7 @@ export default function Home() {
         </svg>
       </div>
 
+      {/* صندوق الدردشة - تم تعديله ليكون على اليمين */}
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
