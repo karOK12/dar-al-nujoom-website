@@ -522,24 +522,20 @@ export default function Home() {
       <div className={`google-loader ${isLoading ? 'loading' : 'done'}`}></div>
 
       {/* ========================================== */}
-      {/* 🔴 إعادة تصميم الهيدر (RTL احترافي) */}
+      {/* 🔴 الهيدر - ترتيب RTL: [أزرار] [بحث] [شعار] */}
       {/* ========================================== */}
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
         <div className="w-full px-4 md:px-6 py-3 flex items-center justify-between gap-4">
           
-          {/* 1. الجهة اليمنى: أزرار الاشتراك والترقية */}
-          <div className="flex items-center gap-2 md:gap-3 shrink-0 order-1">
-            <a href="/upgrade" className="btn upgrade flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-orange-500/30 transition whitespace-nowrap">
-              ترقية 👑
-            </a>
-            <a href="/login" className="btn subscribe px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-purple-500/30 transition whitespace-nowrap">
-              اشتراك
-            </a>
+          {/* أقصى اليمين (بداية السطر في RTL): أزرار الاشتراك والترقية */}
+          <div className="flex items-center gap-2 md:gap-3 shrink-0">
+            <a href="/upgrade" className="btn upgrade flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-orange-500/30 transition whitespace-nowrap">ترقية 👑</a>
+            <a href="/login" className="btn subscribe px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-purple-500/30 transition whitespace-nowrap">اشتراك</a>
           </div>
 
-          {/* 2. الجهة الوسطى: مربع البحث (يظهر في الشاشات المتوسطة والكبيرة) */}
-          <div className="search-box flex-1 max-w-md mx-2 hidden md:block order-2">
-            <div className="relative">
+          {/* منتصف الهيدر (في الشاشات المتوسطة والكبيرة): مربع البحث */}
+          <div className="search-box flex-1 max-w-md hidden md:flex justify-center">
+            <div className="relative w-full">
               <input 
                 type="text" 
                 placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." 
@@ -550,18 +546,16 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 3. الجهة اليسرى: الشعار واسم الموقع */}
-          <a href="/" className="logo-container flex items-center gap-2 md:gap-3 shrink-0 order-3">
-            <span className="brand-name text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent whitespace-nowrap">
-              قناة مجلة دار النجوم
-            </span>
+          {/* أقصى اليسار (نهاية السطر في RTL): الشعار واسم الموقع */}
+          <a href="/" className="logo-container flex items-center gap-2 md:gap-3 shrink-0">
+            <span className="brand-name text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent whitespace-nowrap">قناة مجلة دار النجوم</span>
             <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover border-2 border-purple-500 shadow-md" />
           </a>
 
         </div>
 
-        {/* مربع البحث للهواتف والأجهزة اللوحية الصغيرة (يظهر أسفل الشعار والأزرار) */}
-        <div className="md:hidden px-4 pb-3 order-4">
+        {/* مربع البحث للهواتف (يظهر أسفل الهيدر بعرض كامل) */}
+        <div className="md:hidden px-4 pb-3">
           <input 
             type="text" 
             placeholder="🔎 ابحث عن محتوى..." 
