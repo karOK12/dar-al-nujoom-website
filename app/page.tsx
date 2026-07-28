@@ -56,13 +56,15 @@ export default function Home() {
   
   const [chatStatus, setChatStatus] = useState<ChatStatus>("online");
   
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const chatButtonRef = useRef<HTMLDivElement>(null);
+  // حركة العيون الطبيعية والعشوائية
+  const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
+  const eyeTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [endTime, setEndTime] = useState<Date | null>(null);
-  const [welcomeIndex, setWelcomeIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(false); // حالة التحميل للشريط العلوي
+  
+  // حالة التحميل للشريط العلوي
+  const [isLoading, setIsLoading] = useState(false);
 
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -103,6 +105,33 @@ export default function Home() {
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, [open]);
+
+  // حركة العيون العشوائية (طبيعية مثل الإنسان)
+  useEffect(() => {
+    const moveEyesRandomly = () => {
+      // نطاق الحركة بين -3 و 3 بكسل (حركة خفيفة طبيعية)
+      const randomX = (Math.random() - 0.5) * 6;
+      const randomY = (Math.random() - 0.5) * 4;
+      setEyePos({ x: randomX, y: randomY });
+    };
+
+    // حركة عشوائية كل 3-5 ثوانٍ (محاكاة حركة العين الطبيعية)
+    const startEyeMovement = () => {
+      if (eyeTimerRef.current) clearInterval(eyeTimerRef.current);
+      eyeTimerRef.current = setInterval(() => {
+        moveEyesRandomly();
+      }, 3000 + Math.random() * 2000); // عشوائي بين 3-5 ثوانٍ
+    };
+
+    startEyeMovement();
+
+    // تحريك العينين فوراً عند تحميل المكون
+    setTimeout(() => moveEyesRandomly(), 100);
+
+    return () => {
+      if (eyeTimerRef.current) clearInterval(eyeTimerRef.current);
+    };
+  }, []);
 
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
@@ -190,26 +219,12 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (chatButtonRef.current) {
-        const rect = chatButtonRef.current.getBoundingClientRect();
-        const deltaX = Math.max(-4, Math.min(4, (e.clientX - (rect.left + rect.width / 2)) / 30));
-        const deltaY = Math.max(-4, Math.min(4, (e.clientY - (rect.top + rect.height / 2)) / 30));
-        setMousePos({ x: deltaX, y: deltaY });
-      }
-    };
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
-
-  useEffect(() => {
     if (open && messages.length === 0) {
       const hasSavedState = loadStateFromStorage();
       if (!hasSavedState) {
         setChatStatus("typing");
-        const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
-        setWelcomeIndex(randomIndex);
         setIsLoading(true);
+        const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
         setTimeout(() => {
           const welcomeMsg: Message = {
             id: "welcome-1", sender: "bot", role: "assistant",
@@ -220,7 +235,7 @@ export default function Home() {
           setMessages([welcomeMsg]);
           setChatStatus("online");
           setIsLoading(false);
-        }, 1000);
+        }, 800);
       }
     }
     return () => {
@@ -321,7 +336,7 @@ export default function Home() {
       
       setChatStatus("online");
       resetActivityTimers();
-    }, 100);
+    }, 150);
 
     return true;
   };
@@ -359,6 +374,10 @@ export default function Home() {
       });
 
       const data = await response.json();
+      
+      // تأخير بسيط لجعل التحميل يظهر بوضوح
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       setMessages((prev) => [...prev, {
         id: (Date.now() + 1).toString(), sender: currentSpeaker, role: "assistant",
         text: data.text || "عذراً، لم أتمكن من الرد حالياً.",
@@ -412,11 +431,11 @@ export default function Home() {
 
         @keyframes float-pulse {
           0% { transform: scale(1) rotate(0deg); }
-          50% { transform: scale(1.05) rotate(3deg); }
+          50% { transform: scale(1.05) rotate(2deg); }
           100% { transform: scale(1) rotate(0deg); }
         }
         .animate-float-pulse {
-          animation: float-pulse 2.5s ease-in-out infinite;
+          animation: float-pulse 3s ease-in-out infinite;
         }
         .animate-float-pulse:hover {
           animation-duration: 0.5s;
@@ -428,32 +447,44 @@ export default function Home() {
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
 
-        /* شريط التحميل العلوي على نمط جوجل */
-        .progress-bar {
+        /* شريط التحميل العلوي على نمط جوجل - محسّن */
+        .progress-bar-container {
           position: fixed;
           top: 0;
           left: 0;
           right: 0;
           height: 3px;
-          background: linear-gradient(to right, #7c3aed, #3b82f6);
           z-index: 9999;
-          transform-origin: 0% 50%;
-          transition: transform 0.2s;
+          overflow: hidden;
+          background: transparent;
         }
-        .progress-bar.indeterminate {
-          animation: progress-indeterminate 1.5s ease-in-out infinite;
+        .progress-bar {
+          height: 100%;
+          width: 0%;
+          background: linear-gradient(to right, #7c3aed, #3b82f6, #8b5cf6);
+          border-radius: 2px;
+          transition: width 0.3s ease;
         }
-        @keyframes progress-indeterminate {
-          0% { transform: scaleX(0); }
-          50% { transform: scaleX(0.7); }
-          100% { transform: scaleX(0); }
+        .progress-bar.loading {
+          width: 70%;
+          animation: progress-pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes progress-pulse {
+          0% { width: 30%; }
+          50% { width: 70%; }
+          100% { width: 30%; }
+        }
+        .progress-bar.done {
+          width: 100%;
+          transition: width 0.5s ease;
+          opacity: 0;
         }
       `}</style>
 
       {/* شريط التحميل العلوي (مثل جوجل) */}
-      {isLoading && (
-        <div className="progress-bar indeterminate"></div>
-      )}
+      <div className="progress-bar-container">
+        <div className={`progress-bar ${isLoading ? 'loading' : ''}`}></div>
+      </div>
 
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
         <div className="w-full px-2 md:px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-2 md:gap-4">
@@ -498,9 +529,8 @@ export default function Home() {
         </section>
       </main>
 
-      {/* أيقونة الدردشة المحسّنة (بينانس) */}
+      {/* أيقونة الدردشة مع حركة عيون طبيعية وعشوائية */}
       <div 
-        ref={chatButtonRef} 
         onClick={() => { 
           setOpen(!open); 
           if (!open && currentSpeaker === "agent" && chatStatus !== "ended") {
@@ -515,14 +545,16 @@ export default function Home() {
         title="مركز المساعدة والدعم"
       >
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
+          {/* العيون تتحرك بشكل عشوائي طبيعي (مثل الإنسان) */}
           <g className="animate-blink">
             <circle cx="10" cy="14" r="5" fill="white" />
-            <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} />
+            <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
           </g>
           <g className="animate-blink">
             <circle cx="22" cy="14" r="5" fill="white" />
-            <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} />
+            <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
           </g>
+          {/* فم مبتسم */}
           <path d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
         </svg>
         <div className="absolute -inset-1 rounded-full border-2 border-purple-400/30 animate-ping opacity-75 pointer-events-none"></div>
@@ -610,7 +642,6 @@ export default function Home() {
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           {chatStatus === "ended" ? (
             <button onClick={() => {
-                // مسح الرسائل وبدء محادثة جديدة (لأن الحالة ended تعني انتهت نهائياً)
                 setMessages([]); 
                 setChatStatus("online"); 
                 setEndTime(null); 
@@ -622,6 +653,7 @@ export default function Home() {
                 if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
                 localStorage.removeItem('dar-alnujum-chat-state');
                 setChatStatus("typing");
+                setIsLoading(true);
                 const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
                 setTimeout(() => {
                   const welcomeMsg: Message = {
@@ -632,7 +664,8 @@ export default function Home() {
                   };
                   setMessages([welcomeMsg]);
                   setChatStatus("online");
-                }, 500);
+                  setIsLoading(false);
+                }, 600);
               }} 
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" /><path d="M3 3v9h9" /></svg>
