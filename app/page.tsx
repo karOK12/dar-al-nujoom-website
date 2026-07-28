@@ -37,7 +37,7 @@ const trendingProducts = [
 
 type ChatStatus = "typing" | "online" | "idle" | "ended";
 
-// ✅ رسائل الترحيب المتنوعة للبوت (لإضفاء الحيوية)
+// رسائل الترحيب المتعددة للبوت
 const welcomeMessages = [
   "أهلاً وسهلاً بك في قناة مجلة دار النجوم! 🌟 كيف يمكنني خدمتك اليوم؟",
   "مرحباً! سعداء بتواجدك معنا. تفضل بطرح سؤالك، أنا هنا لمساعدتك. 😊",
@@ -62,6 +62,7 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [endTime, setEndTime] = useState<Date | null>(null);
   const [welcomeIndex, setWelcomeIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(false); // حالة التحميل للشريط العلوي
 
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -119,7 +120,7 @@ export default function Home() {
     return "غير نشط";
   };
 
-  // دالة إنهاء المحادثة مع الموظف (تنهي وتعود للمساعد الذكي)
+  // دالة إنهاء المحادثة مع الموظف (تعود للمساعد مع الاحتفاظ بالرسائل)
   const performAutoClose = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
@@ -127,29 +128,31 @@ export default function Home() {
     // فقط إذا كان هناك موظف (وليس بوت)
     if (currentSpeaker !== "agent") return;
 
-    setChatStatus("ended");
-    setEndTime(new Date());
+    // تغيير الحالة إلى online مع المساعد
+    setChatStatus("online");
+    setEndTime(null);
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
     
-    const closeMsg: Message = {
+    // إضافة رسالة نظام توضح التحول للمساعد
+    const switchMsg: Message = {
       id: Date.now().toString(),
       sender: "system",
-      text: "⚠️ تم إنهاء المحادثة تلقائياً بسبب عدم النشاط. يمكنك بدء محادثة جديدة مع المساعد الذكي.",
+      text: "🔄 تم تحويلك تلقائياً إلى المساعد الذكي. يمكنك متابعة المحادثة أو طلب موظف جديد.",
       time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
       status: "read"
     };
 
     setMessages((prev) => {
-      const newMessages = [...prev, closeMsg];
+      const newMessages = [...prev, switchMsg];
       setTimeout(() => {
         localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
           messages: newMessages,
           currentSpeaker: "bot",
           currentAgent: null,
           sessionAgents: [],
-          chatStatus: "online", // العودة إلى online للبوت
+          chatStatus: "online",
           endTime: null
         }));
       }, 0);
@@ -170,6 +173,7 @@ export default function Home() {
       saveStateToStorage();
     }
 
+    // المؤقت الأول: بعد 20 ثانية من عدم النشاط → حالة "انتهى مؤقتاً" (idle)
     idleTimerRef.current = setTimeout(() => {
       if (currentSpeaker === "agent" && chatStatus !== "ended" && chatStatus !== "typing") {
         setChatStatus("idle");
@@ -177,11 +181,12 @@ export default function Home() {
       }
     }, 20 * 1000);
 
+    // المؤقت الثاني: بعد 5 دقائق من عدم النشاط → إنهاء المحادثة (العودة للمساعد)
     autoCloseTimerRef.current = setTimeout(() => {
       if (currentSpeaker === "agent" && chatStatus !== "ended") {
         performAutoClose();
       }
-    }, 10 * 60 * 1000);
+    }, 5 * 60 * 1000); // 5 دقائق
   };
 
   useEffect(() => {
@@ -202,10 +207,9 @@ export default function Home() {
       const hasSavedState = loadStateFromStorage();
       if (!hasSavedState) {
         setChatStatus("typing");
-        // اختيار رسالة ترحيب عشوائية
         const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
         setWelcomeIndex(randomIndex);
-        
+        setIsLoading(true);
         setTimeout(() => {
           const welcomeMsg: Message = {
             id: "welcome-1", sender: "bot", role: "assistant",
@@ -215,6 +219,7 @@ export default function Home() {
           };
           setMessages([welcomeMsg]);
           setChatStatus("online");
+          setIsLoading(false);
         }, 1000);
       }
     }
@@ -301,7 +306,6 @@ export default function Home() {
           setSessionAgents(prev => [...prev, assignedAgent!]);
         }
         setCurrentSpeaker("agent");
-        // ✅ رد الترحيب المحسن للموظف
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
           text: `حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟ (${assignedAgent.name} - ${assignedAgent.role})`,
@@ -326,6 +330,7 @@ export default function Home() {
     if (!text.trim() || chatStatus === "ended") return; 
     
     setChatStatus("typing");
+    setIsLoading(true);
     const userText = text;
     setText("");
 
@@ -339,7 +344,10 @@ export default function Home() {
       resetActivityTimers();
     }
 
-    if (checkAndPerformEscalation(userText)) return;
+    if (checkAndPerformEscalation(userText)) {
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: m.role || "user", content: m.text }));
@@ -367,6 +375,8 @@ export default function Home() {
         time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
       }]);
       setChatStatus("online");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -400,7 +410,6 @@ export default function Home() {
         @keyframes slide-in-right { 0% { transform: translateX(100px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
         .animate-slide-in-right { animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
-        // 🟢 حركة الأيقونة الجديدة (مثل بينانس - نبض خفيف مع دوران طفيف)
         @keyframes float-pulse {
           0% { transform: scale(1) rotate(0deg); }
           50% { transform: scale(1.05) rotate(3deg); }
@@ -418,7 +427,33 @@ export default function Home() {
         .animate-blink { animation: blink 4s infinite; transform-origin: center; }
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
+
+        /* شريط التحميل العلوي على نمط جوجل */
+        .progress-bar {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: linear-gradient(to right, #7c3aed, #3b82f6);
+          z-index: 9999;
+          transform-origin: 0% 50%;
+          transition: transform 0.2s;
+        }
+        .progress-bar.indeterminate {
+          animation: progress-indeterminate 1.5s ease-in-out infinite;
+        }
+        @keyframes progress-indeterminate {
+          0% { transform: scaleX(0); }
+          50% { transform: scaleX(0.7); }
+          100% { transform: scaleX(0); }
+        }
       `}</style>
+
+      {/* شريط التحميل العلوي (مثل جوجل) */}
+      {isLoading && (
+        <div className="progress-bar indeterminate"></div>
+      )}
 
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
         <div className="w-full px-2 md:px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-2 md:gap-4">
@@ -463,7 +498,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 🔵 أيقونة الدردشة المحسّنة (مثل بينانس) */}
+      {/* أيقونة الدردشة المحسّنة (بينانس) */}
       <div 
         ref={chatButtonRef} 
         onClick={() => { 
@@ -480,7 +515,6 @@ export default function Home() {
         title="مركز المساعدة والدعم"
       >
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
-          {/* عيون متحركة (تبقى كما هي) */}
           <g className="animate-blink">
             <circle cx="10" cy="14" r="5" fill="white" />
             <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} />
@@ -489,14 +523,13 @@ export default function Home() {
             <circle cx="22" cy="14" r="5" fill="white" />
             <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)`, transition: 'transform 0.1s ease-out' }} />
           </g>
-          {/* فم مبتسم */}
           <path d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
         </svg>
-        {/* جسيمات صغيرة (تأثير بينانس) */}
         <div className="absolute -inset-1 rounded-full border-2 border-purple-400/30 animate-ping opacity-75 pointer-events-none"></div>
         <div className="absolute -inset-2 rounded-full border border-purple-300/20 animate-ping opacity-50 pointer-events-none" style={{ animationDelay: '0.8s' }}></div>
       </div>
 
+      {/* نافذة الشات */}
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -577,6 +610,7 @@ export default function Home() {
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           {chatStatus === "ended" ? (
             <button onClick={() => {
+                // مسح الرسائل وبدء محادثة جديدة (لأن الحالة ended تعني انتهت نهائياً)
                 setMessages([]); 
                 setChatStatus("online"); 
                 setEndTime(null); 
