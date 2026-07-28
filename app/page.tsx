@@ -72,6 +72,12 @@ export default function Home() {
 
   const saveStateToStorage = () => {
     if (typeof window !== 'undefined') {
+      // 🔴 تعديل: إذا كانت الحالة منتهية، نحذف التخزين ولا نحفظ أي شيء
+      if (chatStatus === "ended") {
+        localStorage.removeItem('dar-alnujum-chat-state');
+        return;
+      }
+      
       localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
         messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, endTime
       }));
@@ -154,7 +160,7 @@ export default function Home() {
     // فقط إذا كان هناك موظف (وليس بوت)
     if (currentSpeaker !== "agent") return;
 
-    // تصفير المحادثة والعودة للمساعد
+    // 1. تصفير المحادثة والعودة للمساعد
     setMessages([]);
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
@@ -162,7 +168,12 @@ export default function Home() {
     setChatStatus("online");
     setEndTime(null);
 
-    // إظهار رسالة ترحيب جديدة للمساعد
+    // 🔴 2. حذف حالة التخزين المحلي تماماً بدلاً من حفظها (لأننا لا نريد تخزين جلسة الموظف بعد انتهائها)
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('dar-alnujum-chat-state');
+    }
+
+    // 3. إظهار رسالة ترحيب جديدة للمساعد
     setChatStatus("typing");
     setIsLoading(true);
     const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
@@ -179,18 +190,6 @@ export default function Home() {
       setChatStatus("online");
       setIsLoading(false);
     }, 600);
-
-    // حفظ الحالة في التخزين المحلي
-    setTimeout(() => {
-      localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-        messages: [],
-        currentSpeaker: "bot",
-        currentAgent: null,
-        sessionAgents: [],
-        chatStatus: "online",
-        endTime: null
-      }));
-    }, 0);
   };
 
   // دالة إعادة ضبط المؤقتات (خاصة بالموظف فقط)
@@ -226,14 +225,12 @@ export default function Home() {
   const startLoading = () => {
     setIsLoading(true);
     setProgress(0);
-    // محاكاة تقدم شريط التحميل (0-100)
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 90) {
           clearInterval(interval);
           return 90;
         }
-        // زيادة غير منتظمة (تسارع وتباطؤ)
         const increment = Math.random() * 10 + 5;
         return Math.min(prev + increment, 90);
       });
@@ -286,27 +283,10 @@ export default function Home() {
       .replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
 
     const explicitKeywords = [
-      "حولني لموظف",
-      "حولني لشخص",
-      "حولني للدعم",
-      "اتواصل مع الدعم",
-      "اتواصل مع فريق الدعم",
-      "التواصل مع الدعم",
-      "التواصل مع فريق الدعم",
-      "اقدر اتواصل",
-      "هل اقدر اتواصل",
-      "اريد التواصل",
-      "اريد اتواصل",
-      "ممكن اتواصل",
-      "اكلم الدعم",
-      "اكلم شخص",
-      "اكلم موظف",
-      "احد يرد علي",
-      "رد بشري",
-      "دعم بشري",
-      "مساعده بشريه",
-      "مو روبوت",
-      "ما اريد روبوت"
+      "حولني لموظف", "حولني لشخص", "حولني للدعم", "اتواصل مع الدعم", "اتواصل مع فريق الدعم",
+      "التواصل مع الدعم", "التواصل مع فريق الدعم", "اقدر اتواصل", "هل اقدر اتواصل", "اريد التواصل",
+      "اريد اتواصل", "ممكن اتواصل", "اكلم الدعم", "اكلم شخص", "اكلم موظف", "احد يرد علي",
+      "رد بشري", "دعم بشري", "مساعده بشريه", "مو روبوت", "ما اريد روبوت"
     ];
 
     return explicitKeywords.some(k => t.includes(k));
@@ -407,7 +387,6 @@ export default function Home() {
 
       const data = await response.json();
       
-      // تأخير بسيط لجعل التحميل يظهر بوضوح
       await new Promise(resolve => setTimeout(resolve, 400));
       
       setMessages((prev) => [...prev, {
@@ -675,7 +654,12 @@ export default function Home() {
                 setSessionAgents([]);
                 if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
                 if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-                localStorage.removeItem('dar-alnujum-chat-state');
+                
+                // 🔴 حذف التخزين المحلي تماماً عند بدء محادثة جديدة يدوياً
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('dar-alnujum-chat-state');
+                }
+                
                 setChatStatus("typing");
                 startLoading();
                 const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
