@@ -68,7 +68,6 @@ const closingMessages = [
   "كل التوفيق لك، يومك سعيد."
 ];
 
-// 🔴 ردود طبيعية عند الشكر
 const thanksResponses = [
   "العفو، سعدت بخدمتك. هل يوجد أي شيء آخر أستطيع مساعدتك به؟",
   "لا شكر على واجب. هل تحتاج مساعدة في شيء آخر؟",
@@ -76,7 +75,6 @@ const thanksResponses = [
   "تسلم، يسعدني خدمتك. هل عندك استفسار ثاني؟"
 ];
 
-// 🔴 ردود الختام المهذب
 const politeEndResponses = [
   "تمام، سعدت بخدمتك. مع السلامة!",
   "حسناً، نتمنى لك يوماً سعيداً. في أمان الله.",
@@ -171,7 +169,6 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState(false);
 
-  // 🔴 تمرير سلس تلقائي للرسائل الجديدة
   const scrollToBottom = useCallback((smooth: boolean = true) => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ 
@@ -217,7 +214,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [open]);
 
-  // 🔴 حركة العينين المحسّنة - أكثر واقعية
   const handleIconMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (isLookingAtUser) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -253,7 +249,6 @@ export default function Home() {
     }, 3000 + Math.random() * 2000);
   }, [open, isLookingAtUser]);
 
-  // 🔴 الرمش الطبيعي (3-6 ثواني) مع احتمالية رمشة مزدوجة
   const scheduleBlink = useCallback(() => {
     const delay = 3000 + Math.random() * 3000;
     blinkTimerRef.current = setTimeout(() => {
@@ -285,12 +280,10 @@ export default function Home() {
     };
   }, [startRandomEyeMovement, scheduleBlink]);
 
-  // 🔴 عند فتح المحادثة: تنظر الشخصية للمستخدم ثم تعود للأمام
   useEffect(() => {
     if (open) {
       setJustOpened(true);
       setIsLookingAtUser(true);
-      // النظر للأمام (باتجاه المستخدم)
       setEyePos({ x: 0, y: 0 });
       setHeadTilt(0);
       
@@ -304,17 +297,15 @@ export default function Home() {
     }
   }, [open, startRandomEyeMovement]);
 
-  // 🔴 نظام انتهاء جلسة الموظف بعد 59 ثانية
   const resetIdleTimer = useCallback(() => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (currentSpeaker === "agent" && chatStatus !== "ended") {
       idleTimerRef.current = setTimeout(() => {
-        initiateEmployeeExit(true); // true = بسبب الخمول
+        initiateEmployeeExit(true);
       }, 59000);
     }
   }, [currentSpeaker, chatStatus]);
 
-  // 🔴 إنهاء جلسة الموظف - مع الحفاظ على السجل
   const initiateEmployeeExit = useCallback((dueToInactivity: boolean = false) => {
     setChatStatus("typing");
     const closingMsg = getRandomUniqueMessage(closingMessages, 'closing');
@@ -329,7 +320,6 @@ export default function Home() {
     }]);
 
     setTimeout(() => {
-      // 🔴 إضافة رسالة نظام توضح سبب الإنهاء
       if (dueToInactivity) {
         setMessages((prev) => [...prev, {
           id: (Date.now() + 1).toString(),
@@ -340,7 +330,6 @@ export default function Home() {
         }]);
       }
 
-      // 🔴 العودة للمساعد الذكي مع الحفاظ على سجل المحادثة
       setCurrentSpeaker("bot");
       setCurrentAgent(null);
       setSessionAgents([]);
@@ -352,7 +341,6 @@ export default function Home() {
         localStorage.removeItem('dar-alnujum-chat-state');
       }
 
-      // 🔴 رسالة ترحيب جديدة من المساعد
       setChatStatus("typing");
       setIsLoading(true);
       setTimeout(() => {
@@ -430,17 +418,14 @@ export default function Home() {
     return info.basePrice === 0 ? "هذه الخدمة مجانية تماماً." : `السعر ${info.basePrice} ${info.unit}.`;
   }, []);
 
-  // 🔴 كشف الشكر والكلمات الختامية
   const detectThanksOrEnd = useCallback((text: string): { type: 'thanks' | 'end' | 'none' } => {
     const t = text.toLowerCase().replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\u0600-\u06FFa-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
     
-    // كلمات الإنهاء
     const endKeywords = ["لا", "لا شكرا", "لا شكراً", "لا شيء", "لا شي", "هذا كل شيء", "هذا كل شي", "خلاص", "يكفي", "كل شي", "كل شيء", "ما عندي شي", "ما عندي شيء", "بس كذا", "بسكذا"];
     if (endKeywords.some(k => t === k || t.includes(k))) {
       return { type: 'end' };
     }
     
-    // كلمات الشكر
     const thanksKeywords = ["شكرا", "شكراً", "مشكور", "الله يعطيك العافية", "تسلم", "يعطيك العافية", "جزاك الله خير", "ممنون", "ممتن", "thanks", "thank you", "thx"];
     if (thanksKeywords.some(k => t.includes(k))) {
       return { type: 'thanks' };
@@ -506,11 +491,9 @@ export default function Home() {
       text: userText, time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "sent"
     }]);
 
-    // 🔴 إذا كان الموظف ينتظر متابعة (بعد الشكر)
     if (currentSpeaker === "agent" && awaitingFollowUp) {
       const checkEnd = detectThanksOrEnd(userText);
       if (checkEnd.type === 'end') {
-        // إنهاء مهذب
         setAwaitingFollowUp(false);
         setChatStatus("typing");
         setTimeout(() => {
@@ -521,12 +504,10 @@ export default function Home() {
           }]);
           setChatStatus("online");
           setIsLoading(false);
-          // إنهاء الجلسة بعد ثانية
           setTimeout(() => initiateEmployeeExit(false), 1500);
         }, 600);
         return;
       } else if (checkEnd.type === 'thanks') {
-        // شكر متكرر - نعيد السؤال
         setTimeout(() => {
           setMessages((prev) => [...prev, {
             id: (Date.now() + 1).toString(), sender: "agent", role: "assistant",
@@ -539,12 +520,10 @@ export default function Home() {
         }, 600);
         return;
       } else {
-        // سؤال جديد - نكمل بشكل طبيعي
         setAwaitingFollowUp(false);
       }
     }
 
-    // 🔴 إذا كان المستخدم يتحدث مع موظف، نتحقق من الشكر/الختام
     if (currentSpeaker === "agent") {
       const checkEnd = detectThanksOrEnd(userText);
       if (checkEnd.type === 'end') {
@@ -682,7 +661,6 @@ export default function Home() {
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
 
-        /* 🔴 ظهور الرسائل بسلاسة */
         @keyframes messageFadeIn {
           0% { opacity: 0; transform: translateY(8px); }
           100% { opacity: 1; transform: translateY(0); }
@@ -691,7 +669,6 @@ export default function Home() {
           animation: messageFadeIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
 
-        /* 🔴 Scrollbar نحيف واحترافي */
         .chat-scroll::-webkit-scrollbar {
           width: 5px;
         }
@@ -711,7 +688,6 @@ export default function Home() {
           scrollbar-color: rgba(139, 92, 246, 0.3) transparent;
         }
 
-        /* 🔴 تحسين Bubble الرسائل */
         .msg-bubble-user {
           background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
           box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25), 0 1px 2px rgba(0,0,0,0.1);
@@ -782,7 +758,6 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 🔴 أيقونة الدردشة مع عيون محسّنة */}
       <div 
         onMouseMove={handleIconMouseMove}
         onMouseLeave={handleIconMouseLeave}
@@ -798,19 +773,13 @@ export default function Home() {
           transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' 
         }}>
           <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
-            {/* 🔴 العين اليسرى محسّنة - قزحية + حدقة + لمعان */}
             <g style={{ transform: `scaleY(${isBlinking ? 0.1 : 1})`, transformOrigin: '10px 14px', transition: 'transform 0.14s ease-in-out' }}>
-              {/* بياض العين */}
               <circle cx="10" cy="14" r="5" fill="white" />
-              {/* القزحية (أكبر قليلاً) */}
               <circle cx="10" cy="14" r="3.2" fill="#3b2410" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)' }} />
-              {/* الحدقة */}
               <circle cx="10" cy="14" r="1.8" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)' }} />
-              {/* لمعان العين (Eye Reflection) */}
               <circle cx="10.8" cy="13.2" r="0.9" fill="white" opacity="0.95" style={{ transform: `translate(${eyePos.x * 0.3}px, ${eyePos.y * 0.3}px)`, transition: 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)' }} />
               <circle cx="9.3" cy="15" r="0.4" fill="white" opacity="0.6" style={{ transform: `translate(${eyePos.x * 0.3}px, ${eyePos.y * 0.3}px)`, transition: 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)' }} />
             </g>
-            {/* 🔴 العين اليمنى محسّنة */}
             <g style={{ transform: `scaleY(${isBlinking ? 0.1 : 1})`, transformOrigin: '22px 14px', transition: 'transform 0.14s ease-in-out' }}>
               <circle cx="22" cy="14" r="5" fill="white" />
               <circle cx="22" cy="14" r="3.2" fill="#3b2410" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)' }} />
@@ -828,7 +797,6 @@ export default function Home() {
         <div className="absolute -inset-2 rounded-full border border-purple-300/20 animate-ping opacity-50 pointer-events-none" style={{ animationDelay: '0.8s' }}></div>
       </div>
 
-      {/* 🔴 نافذة الشات مع تحسينات */}
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl z-50 flex flex-col ${open ? 'animate-chat-open-rtl' : 'opacity-0 translate-x-8 scale-95 pointer-events-none'}`} style={{ transition: open ? 'none' : 'opacity 0.3s ease-out, transform 0.3s ease-out' }}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -866,7 +834,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* 🔴 منطقة الرسائل مع Scrollbar احترافي */}
         <div 
           ref={chatContainerRef}
           className="h-80 overflow-y-auto p-4 space-y-3 chat-scroll bg-[#0b0f1a]/50" 
@@ -900,7 +867,6 @@ export default function Home() {
             );
           })}
           
-          {/* 🔴 مؤشر الكتابة المحسّن مع صورة واسم الموظف */}
           {chatStatus === "typing" && (
             <div className="flex items-start gap-2 message-appear">
               {currentSpeaker === "agent" && currentAgent ? (
