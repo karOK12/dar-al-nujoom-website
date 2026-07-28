@@ -62,8 +62,21 @@ interface UserIntent {
 }
 
 // ============================================================
-// CONSTANTS & CONFIGURATION (سابعاً: تعديل الأسعار ومعلومات التواصل من مكان واحد)
+// CONSTANTS & CONFIGURATION
 // ============================================================
+
+const WELCOME_MESSAGES = [
+  "أهلاً بك، كيف يمكنني مساعدتك اليوم؟",
+  "مرحباً بك في دار النجوم، يسعدني مساعدتك.",
+  "أهلاً وسهلاً، أخبرني بما تحتاج وسأساعدك.",
+  "يسعدني وجودك، كيف أستطيع خدمتك؟"
+];
+
+const CLOSING_MESSAGES = [
+  "سعدنا بخدمتك، إذا احتجت أي مساعدة مستقبلاً فنحن هنا.",
+  "شكراً لتواصلك معنا، نتمنى لك يوماً سعيداً.",
+  "نتمنى أن نكون قد قدمنا لك المساعدة المطلوبة."
+];
 
 const PRICING_CONFIG = {
   weekly: { name: "الباقة الأسبوعية", price: 135, currency: "دولار", duration: "أسبوع", views: "50,000", platforms: "منصتين رئيسيتين" },
@@ -79,7 +92,7 @@ const CONTACT_INFO = {
 };
 
 const SESSION_TIMEOUTS = {
-  IDLE_TO_CLOSED: 59, // ثالثاً: 59 ثانية بالضبط
+  IDLE_TO_CLOSED: 59,
   QUEUE_CHECK_INTERVAL: 8000,
 };
 
@@ -122,7 +135,7 @@ const normalizeArabicText = (text: string): string => {
 const analyzeUserIntent = (inputText: string): UserIntent => {
   const normalized = normalizeArabicText(inputText);
   
-  if (normalized.includes("سعر") || normalized.includes("اسعار") || normalized.includes("تكلفة") || normalized.includes("باقه") || normalized.includes("اعلان")) {
+  if (normalized.includes("سعر") || normalized.includes("اسعار") || normalized.includes("تكلفة") || normalized.includes("باقه") || normalized.includes("اعلان") || normalized.includes("كم سعر")) {
     return { type: "pricing", targetDepartment: 'ads', confidence: 0.95 };
   }
   if (normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("مشكله") || normalized.includes("دخول") || normalized.includes("كلمة مرور")) {
@@ -185,10 +198,12 @@ export default function Home() {
   
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
+  const [headTilt, setHeadTilt] = useState({ x: 0, y: 0 });
   const targetEyePos = useRef({ x: 0, y: 0 });
   const currentEyePos = useRef({ x: 0, y: 0 });
   
   const chatButtonRef = useRef<HTMLDivElement>(null);
+  const loaderTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const currentSpeakerRef = useRef(currentSpeaker);
   const chatStatusRef = useRef(chatStatus);
@@ -205,68 +220,35 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // أولاً: شريط التحميل البنفسجي (سلس، يصل 100%، يختفي تدريجياً)
+  // سابعاً: شريط التحميل الاحترافي (قابل للاستدعاء في أي عملية)
   // ============================================================
+  const startLoading = useCallback(() => {
+    loaderTimersRef.current.forEach(clearTimeout);
+    loaderTimersRef.current = [];
+    setLoadingProgress(10);
+    
+    const t1 = setTimeout(() => setLoadingProgress(40), 200);
+    const t2 = setTimeout(() => setLoadingProgress(70), 500);
+    const t3 = setTimeout(() => setLoadingProgress(90), 800);
+    
+    loaderTimersRef.current.push(t1, t2, t3);
+  }, []);
+
+  const finishLoading = useCallback(() => {
+    loaderTimersRef.current.forEach(clearTimeout);
+    loaderTimersRef.current = [];
+    setLoadingProgress(100);
+    setTimeout(() => setLoadingProgress(0), 500);
+  }, []);
+
   useEffect(() => {
-    let progress = 0;
-    let isComplete = false;
-    let rafId: number;
-
-    const updateProgress = (target: number, duration: number = 400) => {
-      if (isComplete) return;
-      const startTime = performance.now();
-      const startProgress = progress;
-      
-      const animate = (currentTime: number) => {
-        if (isComplete) return;
-        const elapsed = currentTime - startTime;
-        const progressRatio = Math.min(elapsed / duration, 1);
-        const eased = 1 - Math.pow(1 - progressRatio, 3);
-        
-        progress = startProgress + (target - startProgress) * eased;
-        setLoadingProgress(Math.min(progress, 99));
-        
-        if (progressRatio < 1) rafId = requestAnimationFrame(animate);
-      };
-      rafId = requestAnimationFrame(animate);
-    };
-
-    updateProgress(15, 300);
-    const t1 = setTimeout(() => updateProgress(40, 500), 200);
-    const t2 = setTimeout(() => updateProgress(75, 600), 600);
-    const t3 = setTimeout(() => updateProgress(95, 500), 1200);
-
-    const handleReadyState = () => { if (document.readyState === 'interactive') updateProgress(98, 300); };
-    const handleLoad = () => {
-      isComplete = true;
-      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
-      if (rafId) cancelAnimationFrame(rafId);
-      setLoadingProgress(100);
-      setTimeout(() => setLoadingProgress(0), 600);
-    };
-
-    document.addEventListener('readystatechange', handleReadyState);
-    window.addEventListener('load', handleLoad);
-
-    const fallback = setTimeout(() => {
-      if (!isComplete) {
-        isComplete = true;
-        if (rafId) cancelAnimationFrame(rafId);
-        setLoadingProgress(100);
-        setTimeout(() => setLoadingProgress(0), 600);
-      }
-    }, 10000);
-
     return () => {
-      document.removeEventListener('readystatechange', handleReadyState);
-      window.removeEventListener('load', handleLoad);
-      clearTimeout(fallback); clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
-      if (rafId) cancelAnimationFrame(rafId);
+      loaderTimersRef.current.forEach(clearTimeout);
     };
   }, []);
 
   // ============================================================
-  // عاشراً: حركة العين البشرية الواقعية (Lerp + Return to Center)
+  // عاشراً: حركة العين والرأس البشرية الواقعية (GPU Accelerated)
   // ============================================================
   useEffect(() => {
     let rafId: number;
@@ -302,6 +284,12 @@ export default function Home() {
           x: Math.max(-maxOffset, Math.min(maxOffset, rawX)),
           y: Math.max(-maxOffset, Math.min(maxOffset, rawY))
         };
+        
+        // حركة رأس دقيقة ثلاثية الأبعاد (Micro Head Movement)
+        setHeadTilt({
+          x: Math.max(-5, Math.min(5, rawY * 5)),
+          y: Math.max(-5, Math.min(5, rawX * 5))
+        });
       }
     };
     
@@ -318,8 +306,16 @@ export default function Home() {
       return () => clearTimeout(timer);
     } else {
       targetEyePos.current = { x: 0, y: 0 };
+      setHeadTilt({ x: 0, y: 0 });
     }
   }, [open]);
+
+  // النظر للأعلى أثناء التفكير/الكتابة
+  useEffect(() => {
+    if (chatStatus === "typing") {
+      targetEyePos.current = { x: 0, y: -1.5 };
+    }
+  }, [chatStatus]);
 
   useEffect(() => {
     let blinkTimeout: ReturnType<typeof setTimeout>;
@@ -376,6 +372,41 @@ export default function Home() {
   }, []);
 
   // ============================================================
+  // خامساً: حذف المحادثة بعد انتهاء جلسة الموظف بالكامل
+  // ============================================================
+  const closeAgentSession = useCallback(() => {
+    const closingMsg = CLOSING_MESSAGES[Math.floor(Math.random() * CLOSING_MESSAGES.length)];
+    setMessages(prev => [...prev, createMessage("agent", closingMsg, "assistant")]);
+    
+    setTimeout(() => {
+      // حذف جميع رسائل جلسة الموظف، البيانات، الطابور، السياق
+      setMessages([]);
+      setCurrentSpeaker("bot");
+      setCurrentAgent(null);
+      setSessionAgents([]);
+      setIsQueued(false);
+      setShowDepartmentSelection(false);
+      setChatStatus("online");
+      
+      conversationContextRef.current = [];
+      lastHandledTopicRef.current = null;
+      conversationPhaseRef.current = "initial";
+      lastAgentMessageRef.current = "";
+      previousAgentRepliesRef.current.clear();
+      
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("dar-alnujum-chat-state");
+      }
+
+      // إعادة تشغيل المساعد الذكي وترحيب جديد
+      setTimeout(() => {
+        const randomWelcome = WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)];
+        setMessages([createMessage("bot", randomWelcome, "assistant")]);
+      }, 600);
+    }, 2000);
+  }, []);
+
+  // ============================================================
   // ثالثاً: انتهاء جلسة الموظف (59 ثانية)
   // ============================================================
   useEffect(() => {
@@ -386,61 +417,12 @@ export default function Home() {
       const elapsedSeconds = (now - lastActivityTimeRef.current) / 1000;
 
       if (elapsedSeconds >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
-        const timeoutMsg = createMessage(
-          "system",
-          "انتهت جلسة الموظف بسبب عدم وجود نشاط، وتم إعادتك إلى المساعد الذكي.",
-          "assistant"
-        );
-        setMessages(prev => [...prev, timeoutMsg]);
-        setCurrentSpeaker("bot");
-        setCurrentAgent(null);
-        setSessionAgents([]);
-        setChatStatus("online");
-        conversationPhaseRef.current = "initial";
-        lastHandledTopicRef.current = null;
-        lastAgentMessageRef.current = "";
-        // لا نقوم بمسح الرسائل للحفاظ على السياق
+        closeAgentSession();
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [currentSpeaker]);
-
-  const closeAgentSession = useCallback(() => {
-    const freshBotMessage = createMessage(
-      "bot",
-      "أهلاً بك مجدداً! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
-      "assistant"
-    );
-
-    setMessages(prev => [...prev, freshBotMessage]);
-    setCurrentSpeaker("bot");
-    setCurrentAgent(null);
-    setSessionAgents([]);
-    setIsQueued(false);
-    setShowDepartmentSelection(false);
-    setChatStatus("online");
-    lastActivityTimeRef.current = Date.now();
-    previousAgentRepliesRef.current.clear();
-    conversationContextRef.current = [];
-    lastHandledTopicRef.current = null;
-    conversationPhaseRef.current = "initial";
-    lastAgentMessageRef.current = "";
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem(
-        "dar-alnujum-chat-state",
-        JSON.stringify({
-          messages: [...messages, freshBotMessage],
-          currentSpeaker: "bot",
-          currentAgent: null,
-          sessionAgents: [],
-          chatStatus: "online",
-          isQueued: false
-        })
-      );
-    }
-  }, [messages]);
+  }, [currentSpeaker, closeAgentSession]);
 
   const startAgentSession = useCallback((agent: Agent) => {
     setCurrentAgent(agent);
@@ -471,6 +453,7 @@ export default function Home() {
   }, []);
 
   const initiateDepartmentTransfer = useCallback((dept: Department) => {
+    startLoading();
     setChatStatus("typing");
     const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
     
@@ -481,10 +464,12 @@ export default function Home() {
       const availableAgent = findAvailableAgent(dept);
       if (availableAgent) {
         startAgentSession(availableAgent);
+        finishLoading();
       } else {
         setIsQueued(true);
         setMessages(prev => [...prev, createMessage("system", `جميع موظفي ${deptOption?.name} مشغولون حالياً. تم وضعك في قائمة الانتظار.`)]);
         setChatStatus("waiting");
+        finishLoading();
         
         setTimeout(() => {
           const fallbackAgent = findAvailableAgent(dept) || SUPPORT_AGENTS.find(a => a.department === dept);
@@ -495,7 +480,7 @@ export default function Home() {
         }, SESSION_TIMEOUTS.QUEUE_CHECK_INTERVAL);
       }
     }, 1500);
-  }, [startAgentSession]);
+  }, [startAgentSession, startLoading, finishLoading]);
 
   const checkAndPerformEscalation = useCallback((userText: string): boolean => {
     const intent = analyzeUserIntent(userText);
@@ -518,7 +503,7 @@ export default function Home() {
     
     const transferMsg = createMessage(
       "agent",
-      `لحظة واحدة، هذا الاستفسار يخص قسم ${targetDept === 'ads' ? 'الإعلانات' : 'الدعم الفني'}. سأقوم بتحويلك الآن إلى زميلي المختص لمساعدتك بشكل أدق.`,
+      `عذراً، هذا الاستفسار خارج نطاق اختصاصي. سأقوم بتحويلك الآن إلى زميلي المختص في قسم ${targetDept === 'ads' ? 'الإعلانات' : 'الدعم الفني'} لمساعدتك بشكل أدق.`,
       "assistant"
     );
     
@@ -559,6 +544,7 @@ export default function Home() {
     if (!trimmedText || isSendingRef.current) return;
 
     isSendingRef.current = true;
+    startLoading();
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
     lastActivityTimeRef.current = Date.now();
@@ -568,11 +554,14 @@ export default function Home() {
 
     if (checkAndPerformEscalation(trimmedText)) {
       isSendingRef.current = false;
+      finishLoading();
       return;
     }
 
-    // سادساً: الرد التلقائي على طلبات التواصل
     const intent = analyzeUserIntent(trimmedText);
+    const normalized = normalizeArabicText(trimmedText);
+
+    // سادساً: الرد التلقائي على طلبات التواصل
     if (intent.type === "contact") {
       setChatStatus("typing");
       setTimeout(() => {
@@ -581,6 +570,7 @@ export default function Home() {
         setChatStatus("online");
         isSendingRef.current = false;
         lastActivityTimeRef.current = Date.now();
+        finishLoading();
       }, 800);
       return;
     }
@@ -593,45 +583,63 @@ export default function Home() {
         // فحص الخروج عن الاختصاص
         const isOutOfScope = (dept: Department, txt: string) => {
           const norm = normalizeArabicText(txt);
-          if (dept === 'technical' && (norm.includes("سعر") || norm.includes("اعلان"))) return true;
-          if (dept === 'ads' && (norm.includes("خطأ") || norm.includes("لا يعمل") || norm.includes("مشكله"))) return true;
+          if (dept === 'technical' && (norm.includes("سعر") || norm.includes("اعلان") || norm.includes("باقه"))) return true;
+          if (dept === 'ads' && (norm.includes("خطأ") || norm.includes("لا يعمل") || norm.includes("مشكله") || norm.includes("دخول"))) return true;
           return false;
         };
 
         if (isOutOfScope(currentDept, trimmedText)) {
           const targetDept = currentDept === 'technical' ? 'ads' : 'technical';
-          setMessages(prev => [...prev, createMessage("agent", `عذراً، هذا الاستفسار خارج نطاق اختصاصي. سأقوم بتحويلك الآن إلى القسم المختص لمساعدتك بشكل أفضل.`, "assistant")]);
+          setMessages(prev => [...prev, createMessage("agent", `عذراً، هذا الاستفسار يخص قسماً آخر. سأقوم بتحويلك الآن إلى القسم المختص لمساعدتك بشكل أفضل.`, "assistant")]);
           setTimeout(() => performInternalTransfer(targetDept, currentAgent.name), 1000);
           isSendingRef.current = false;
+          finishLoading();
           return;
         }
 
+        // ثالثاً: الختام الذكي
         if (intent.type === "farewell" && (conversationPhaseRef.current === "closing" || conversationPhaseRef.current === "ongoing")) {
-          const closingReplies = ["شكراً لتواصلك معنا، سعدنا بخدمتك، ونتمنى لك يوماً سعيداً.", "يسعدنا دائماً خدمتك، وإذا احتجت أي مساعدة مستقبلاً فنحن هنا.", "نتمنى لك كل التوفيق، وشكراً لثقتك بنا."];
-          const agentReply = closingReplies[Math.floor(Math.random() * closingReplies.length)];
-            
-          setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
-          setChatStatus("online");
-          conversationPhaseRef.current = "ended";
-          lastAgentMessageRef.current = agentReply;
+          closeAgentSession();
           isSendingRef.current = false;
-          setTimeout(() => closeAgentSession(), 2500);
+          finishLoading();
           return;
         }
 
-        if (intent.type === "pricing" || currentDept === 'ads') {
+        // رابعاً: التسعير الذكي حسب الطلب فقط
+        if (intent.type === "pricing") {
           if (currentDept === 'ads') {
             if (lastHandledTopicRef.current !== 'pricing_details') {
               lastHandledTopicRef.current = 'pricing_details';
-              const pricingReply = `أهلاً بك. إليك تفاصيل باقاتنا الإعلانية الأساسية:\n\n🔹 ${PRICING_CONFIG.weekly.name}: ${PRICING_CONFIG.weekly.price} ${PRICING_CONFIG.weekly.currency} (مدة ${PRICING_CONFIG.weekly.duration}، ${PRICING_CONFIG.weekly.views} ظهور، ${PRICING_CONFIG.weekly.platforms}).\n🔹 ${PRICING_CONFIG.monthly.name}: ${PRICING_CONFIG.monthly.price} ${PRICING_CONFIG.monthly.currency} (مدة ${PRICING_CONFIG.monthly.duration}، ${PRICING_CONFIG.monthly.views} ظهور، ${PRICING_CONFIG.monthly.platforms}).\n🔹 ${PRICING_CONFIG.professional.name}: ${PRICING_CONFIG.professional.price} ${PRICING_CONFIG.professional.currency} (مدة ${PRICING_CONFIG.professional.duration}، ${PRICING_CONFIG.professional.views} ظهور، ${PRICING_CONFIG.professional.platforms}).\n\nهل تود أن نبدأ بحجز إحدى هذه الباقات، أو لديك استفسار عن باقة مخصصة؟`;
+              const pricingReply = `إليك تفاصيل باقاتنا الإعلانية الأساسية:\n\n🔹 ${PRICING_CONFIG.weekly.name}: ${PRICING_CONFIG.weekly.price} ${PRICING_CONFIG.weekly.currency} (مدة ${PRICING_CONFIG.weekly.duration}، ${PRICING_CONFIG.weekly.views} ظهور، ${PRICING_CONFIG.weekly.platforms}).\n🔹 ${PRICING_CONFIG.monthly.name}: ${PRICING_CONFIG.monthly.price} ${PRICING_CONFIG.monthly.currency} (مدة ${PRICING_CONFIG.monthly.duration}، ${PRICING_CONFIG.monthly.views} ظهور، ${PRICING_CONFIG.monthly.platforms}).\n🔹 ${PRICING_CONFIG.professional.name}: ${PRICING_CONFIG.professional.price} ${PRICING_CONFIG.professional.currency} (مدة ${PRICING_CONFIG.professional.duration}، ${PRICING_CONFIG.professional.views} ظهور، ${PRICING_CONFIG.professional.platforms}).\n\nهل تود أن نبدأ بحجز إحدى هذه الباقات، أو لديك استفسار عن باقة مخصصة؟`;
               
               setMessages(prev => [...prev, createMessage("agent", pricingReply, "assistant")]);
               conversationPhaseRef.current = "ongoing";
               lastAgentMessageRef.current = pricingReply;
               isSendingRef.current = false;
+              finishLoading();
               return;
             }
+          } else {
+            setMessages(prev => [...prev, createMessage("agent", `عذراً، استفسارات الأسعار والباقات تخص قسم الإعلانات. سأقوم بتحويلك الآن إلى زميلتي المختصة.`, "assistant")]);
+            setTimeout(() => performInternalTransfer('ads', currentAgent.name), 1000);
+            isSendingRef.current = false;
+            finishLoading();
+            return;
           }
+        }
+
+        // طلب توضيح طبيعي إذا كان السؤال عاماً وغير واضح
+        if (intent.type === "general" && conversationPhaseRef.current === "initial" && normalized.length < 15) {
+            const clarificationReplies = [
+                "عذراً، لم أفهم السؤال تماماً. هل يمكنك توضيح ما تحتاجه بالضبط؟",
+                "هل يمكنك تزويدي بمزيد من التفاصيل حول استفسارك لأتمكن من مساعدتك بشكل أفضل؟"
+            ];
+            const reply = clarificationReplies[Math.floor(Math.random() * clarificationReplies.length)];
+            setMessages(prev => [...prev, createMessage("agent", reply, "assistant")]);
+            conversationPhaseRef.current = "clarifying";
+            isSendingRef.current = false;
+            finishLoading();
+            return;
         }
 
         if (intent.type === "technical" || currentDept === 'technical') {
@@ -643,6 +651,7 @@ export default function Home() {
                 conversationPhaseRef.current = "clarifying";
                 lastAgentMessageRef.current = techReply;
                 isSendingRef.current = false;
+                finishLoading();
                 return;
             }
           }
@@ -659,6 +668,7 @@ export default function Home() {
         lastAgentMessageRef.current = agentReply;
         conversationPhaseRef.current = "ongoing";
         isSendingRef.current = false;
+        finishLoading();
       }, 1500);
       return; 
     }
@@ -703,8 +713,9 @@ export default function Home() {
     } finally {
       setChatStatus("online");
       isSendingRef.current = false;
+      finishLoading();
     }
-  }, [text, currentSpeaker, currentAgent, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession]);
+  }, [text, currentSpeaker, currentAgent, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession, startLoading, finishLoading]);
 
   // ============================================================
   // EFFECTS
@@ -713,18 +724,23 @@ export default function Home() {
 
   useEffect(() => {
     if (!open || messages.length > 0) return;
+    startLoading();
     const hasSaved = loadStateFromStorage();
     if (!hasSaved) {
       setChatStatus("typing");
       setTimeout(() => {
-        setMessages([createMessage("bot", "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟ يمكنك سؤالي عن الأخبار، البرامج، أسعار الإعلانات، أو أي استفسار آخر.", "assistant")]);
+        const randomWelcome = WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)];
+        setMessages([createMessage("bot", randomWelcome, "assistant")]);
         setChatStatus("online");
+        finishLoading();
       }, 800);
+    } else {
+      finishLoading();
     }
-  }, [open, messages.length, loadStateFromStorage]);
+  }, [open, messages.length, loadStateFromStorage, startLoading, finishLoading]);
 
   // ============================================================
-  // RENDER HELPERS (محسّنة للأداء)
+  // RENDER HELPERS (محسّنة للأداء و GPU Accelerated)
   // ============================================================
   const getStatusText = useCallback(() => {
     switch (chatStatus) {
@@ -780,8 +796,8 @@ export default function Home() {
         @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
         .animate-seamless-scroll:hover { animation-play-state: paused; }
-        @keyframes slide-in-right { 0% { transform: translateX(100px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
-        .animate-slide-in-right { animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slide-in-right { 0% { transform: translateX(100px) scale(0.9); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }
+        .animate-slide-in-right { animation: slide-in-right 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         
         @keyframes blink-human {
           0%, 100% { transform: scaleY(1); }
@@ -793,40 +809,49 @@ export default function Home() {
         }
         
         @keyframes cartoon-breathe {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-2px); }
+          0%, 100% { transform: translateY(0) scale(1); }
+          50% { transform: translateY(-2px) scale(1.01); }
         }
         .animate-cartoon-breathe {
-          animation: cartoon-breathe 3s ease-in-out infinite;
+          animation: cartoon-breathe 4s ease-in-out infinite;
         }
         
         @keyframes cartoon-smile {
-          0%, 100% { d: path("M 10 22 C 10 22, 14 26, 16 26 C 18 26, 22 22, 22 22"); }
-          50% { d: path("M 10 22 C 10 22, 14 25, 16 25 C 18 25, 22 22, 22 22"); }
+          0%, 100% { d: path("M 10 22 C 10 22, 13 25, 16 25 C 19 25, 22 22, 22 22"); }
+          50% { d: path("M 10 22 C 10 22, 13 25.5, 16 25.5 C 19 25.5, 22 22, 22 22"); }
         }
         .animate-cartoon-smile {
           animation: cartoon-smile 4s ease-in-out infinite;
         }
 
         @keyframes cartoon-talk {
-          0%, 100% { d: path("M 10 22 C 10 22, 13 26.5, 16 26.5 C 19 26.5, 22 22, 22 22"); }
-          50% { d: path("M 10 22 C 10 22, 13 27.5, 16 27.5 C 19 27.5, 22 22, 22 22"); }
+          0%, 100% { d: path("M 10 22 C 10 22, 13 25, 16 25 C 19 25, 22 22, 22 22"); }
+          50% { d: path("M 10 22 C 10 22, 13 27, 16 27 C 19 27, 22 22, 22 22"); }
         }
         .animate-cartoon-talk {
-          animation: cartoon-talk 0.4s ease-in-out infinite;
+          animation: cartoon-talk 0.3s ease-in-out infinite;
         }
         
-        @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+        @keyframes typing { 0%, 100% { opacity: 0.3; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
+
+        @keyframes message-appear {
+          0% { opacity: 0; transform: translateY(10px) scale(0.98); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .message-appear {
+          animation: message-appear 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
       `}</style>
 
+      {/* سابعاً: شريط التحميل الاحترافي */}
       {loadingProgress > 0 && (
-        <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-gray-800/50">
+        <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-gray-800/50 overflow-hidden">
           <div 
             className="absolute top-0 right-0 h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)]"
             style={{ 
               width: `${loadingProgress}%`,
-              transition: loadingProgress === 100 ? 'width 0.5s ease-out, opacity 0.5s ease-out' : 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              transition: loadingProgress === 100 ? 'width 0.4s ease-out, opacity 0.4s ease-out' : 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
               opacity: loadingProgress === 100 ? 0 : 1
             }}
           />
@@ -837,25 +862,22 @@ export default function Home() {
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
         <div className="w-full px-2 md:px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-2 md:gap-4">
           
-          {/* اليمين: أزرار الاشتراك والترقية */}
           <div className="flex items-center gap-2 md:gap-3 shrink-0 order-1">
-            <a href="/login" className="px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg transition">اشتراك</a>
-            <a href="/upgrade" className="hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg transition">ترقية 👑</a>
+            <a href="/login" className="px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg transition-transform duration-200 hover:scale-105">اشتراك</a>
+            <a href="/upgrade" className="hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg transition-transform duration-200 hover:scale-105">ترقية 👑</a>
           </div>
 
-          {/* الوسط: مربع البحث */}
           <div className="flex-1 max-w-md mx-2 hidden md:block order-2">
             <input 
               type="text" 
               placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." 
               value={search} 
               onChange={(e) => setSearch(e.target.value)} 
-              className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" 
+              className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 placeholder-gray-500 text-sm" 
             />
           </div>
 
-          {/* اليسار: الشعار + اسم الموقع */}
-          <a href="/" className="flex items-center gap-2 md:gap-3 shrink-0 order-3">
+          <a href="/" className="flex items-center gap-2 md:gap-3 shrink-0 order-3 transition-transform duration-200 hover:scale-105">
             <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover border-2 border-purple-500 shadow-md" />
             <span className="text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">قناة مجلة دار النجوم</span>
           </a>
@@ -890,20 +912,38 @@ export default function Home() {
         </section>
       </main>
 
-      {/* عاشراً: أيقونة المساعد بحركة عين وفم احترافية */}
-      <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
-        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* عاشراً: أيقونة المساعد بحركة عين ورأس وفم احترافية (GPU Accelerated) */}
+      <div 
+        ref={chatButtonRef} 
+        onClick={() => {
+          setOpen(!open);
+          if (!open) startLoading();
+        }} 
+        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer transition-all duration-300 z-50 border-2 border-white/10 animate-slide-in-right hover:shadow-2xl hover:shadow-purple-500/50 hover:scale-110 active:scale-95" 
+        title="مركز المساعدة"
+      >
+        <svg 
+          width="32" 
+          height="32" 
+          viewBox="0 0 32 32" 
+          fill="none" 
+          xmlns="http://www.w3.org/2000/svg"
+          style={{
+            transform: `perspective(500px) rotateX(${headTilt.x}deg) rotateY(${headTilt.y}deg)`,
+            transition: 'transform 0.2s ease-out'
+          }}
+        >
           <g className="animate-cartoon-breathe">
             <g className={isBlinking ? "animate-blink-human" : ""}>
               <circle cx="10" cy="14" r="5" fill="white" />
-              <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+              <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)' }} />
             </g>
             <g className={isBlinking ? "animate-blink-human" : ""} style={{ animationDelay: '0.05s' }}>
               <circle cx="22" cy="14" r="5" fill="white" />
-              <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+              <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)' }} />
             </g>
             <path 
-              d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" 
+              d="M10 22C10 22 13 25 16 25C19 25 22 22 22 22" 
               stroke="white" 
               strokeWidth="2.5" 
               strokeLinecap="round" 
@@ -913,29 +953,29 @@ export default function Home() {
         </svg>
       </div>
 
-      {/* صندوق الدردشة */}
-      <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
-        <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
+      {/* تاسعاً: صندوق الدردشة بانتقالات سلسة (Cubic Bezier) */}
+      <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl z-50 flex flex-col origin-bottom-right transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${open ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-8 scale-95 pointer-events-none"}`}>
+        <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl backdrop-blur-sm">
           <div className="flex items-center gap-2 flex-shrink-0">
             {sessionAgents.length === 0 ? (
               <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400 shadow-md">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="4" y="8" width="16" height="12" rx="3" fill="white" opacity="0.95"/><circle cx="9" cy="14" r="1.5" fill="#7c3aed"/><circle cx="15" cy="14" r="1.5" fill="#7c3aed"/><path d="M9 17 Q12 19 15 17" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" fill="none"/><line x1="12" y1="8" x2="12" y2="5" stroke="white" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="4" r="1.5" fill="white"/></svg>
                 </div>
-                <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] bg-green-500"></span>
+                <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] bg-green-500 shadow-sm"></span>
               </div>
             ) : (
               <div className="flex -space-x-3 rtl:space-x-reverse">
                 {sessionAgents.map((agent, idx) => (
-                  <img key={agent.employeeId} src={agent.img} alt={agent.name} className={`w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-[#111827] object-cover ${idx === sessionAgents.length - 1 ? "border-purple-500 z-10 ring-2 ring-purple-500/30" : "border-gray-500 z-0 opacity-60 grayscale"}`} />
+                  <img key={agent.employeeId} src={agent.img} alt={agent.name} className={`w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-[#111827] object-cover shadow-md transition-all duration-300 ${idx === sessionAgents.length - 1 ? "border-purple-500 z-10 ring-2 ring-purple-500/30" : "border-gray-500 z-0 opacity-60 grayscale"}`} />
                 ))}
               </div>
             )}
           </div>
           <div className="flex-1 min-w-0">
             <h4 className="font-bold text-white text-sm truncate">{sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name}</h4>
-            <p className="text-xs flex items-center gap-1 truncate">
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor()}`}></span>
+            <p className="text-xs flex items-center gap-1.5 truncate">
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 shadow-sm ${getStatusColor()}`}></span>
               <span className="truncate">{getStatusText()}</span>
             </p>
           </div>
@@ -944,28 +984,28 @@ export default function Home() {
         <div className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50">
           {messages.map((msg) => {
             if (msg.sender === "system") {
-              return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1.5 rounded-full border border-gray-700 text-center max-w-[90%] leading-relaxed">{msg.text}</span></div>;
+              return <div key={msg.id} className="flex justify-center my-2 message-appear"><span className="text-[10px] bg-gray-800/80 text-gray-400 px-3 py-1.5 rounded-full border border-gray-700 text-center max-w-[90%] leading-relaxed">{msg.text}</span></div>;
             }
             const isUser = msg.sender === "user";
             return (
-              <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
+              <div key={msg.id} className={`flex flex-col message-appear ${isUser ? "items-end" : "items-start"}`}>
                 {!isUser && (
                   <span className="text-[10px] text-purple-300 mb-1 ml-1 font-medium">
                     {msg.sender === "agent" && currentAgent ? `${currentAgent.name} | ${currentAgent.role}` : "المساعد الذكي"}
                   </span>
                 )}
-                <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative whitespace-pre-line ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
+                <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative whitespace-pre-line shadow-sm ${isUser ? "bg-gradient-to-br from-purple-600 to-blue-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/20 rounded-tl-sm"}`}>
                   {msg.text}
                   
                   {msg.attachments && msg.attachments.length > 0 && (
                     <div className="mt-2 space-y-2">
                       {msg.attachments.map((att, idx) => {
                         if (att.type === 'image' && att.url) {
-                          return <img key={idx} src={att.url} alt="attachment" className="rounded-lg max-w-full h-auto border border-gray-600" />;
+                          return <img key={idx} src={att.url} alt="attachment" className="rounded-lg max-w-full h-auto border border-gray-600 shadow-sm" />;
                         }
                         if ((att.type === 'link' || att.type === 'card' || att.type === 'product') && att.url) {
                           return (
-                            <a key={idx} href={att.url} target="_blank" rel="noopener noreferrer" className="block bg-[#0b0f1a]/50 hover:bg-[#0b0f1a] border border-purple-500/30 rounded-lg p-2 transition-colors">
+                            <a key={idx} href={att.url} target="_blank" rel="noopener noreferrer" className="block bg-[#0b0f1a]/50 hover:bg-[#0b0f1a] border border-purple-500/30 rounded-lg p-2 transition-colors duration-200">
                               {att.title && <div className="font-bold text-xs text-purple-300 mb-1">{att.title}</div>}
                               {att.description && <div className="text-[10px] text-gray-400">{att.description}</div>}
                               <div className="text-[10px] text-blue-400 mt-1 truncate">{att.url}</div>
@@ -978,7 +1018,7 @@ export default function Home() {
                   )}
                 </div>
                 <span className="text-[10px] text-gray-500 mt-1 px-1 flex items-center gap-1">
-                  {msg.time}{isUser && <span>{msg.status === "read" ? "✓✓" : "✓"}</span>}
+                  {msg.time}{isUser && <span className="text-purple-400">{msg.status === "read" ? "✓✓" : "✓"}</span>}
                 </span>
               </div>
             );
@@ -990,7 +1030,7 @@ export default function Home() {
                 <button
                   key={dept.id}
                   onClick={() => initiateDepartmentTransfer(dept.id)}
-                  className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group"
+                  className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group shadow-sm"
                 >
                   <div className="font-bold text-sm text-purple-300 group-hover:text-purple-200">{dept.name}</div>
                   <div className="text-xs text-gray-400 mt-1">{dept.description}</div>
@@ -999,20 +1039,20 @@ export default function Home() {
             </div>
           )}
 
-          {/* رابعاً: مؤشر الكتابة الاحترافي */}
+          {/* ثامناً: مؤشر الكتابة الاحترافي داخل المحادثة */}
           {chatStatus === "typing" && !showDepartmentSelection && (
-            <div className="flex flex-col items-start">
+            <div className="flex flex-col items-start message-appear">
               <span className="text-[10px] text-gray-400 mb-1 ml-1">{currentSpeaker === "agent" && currentAgent ? currentAgent.name : "المساعد الذكي"}</span>
-              <div className="bg-[#1f2937] border border-purple-500/30 rounded-2xl rounded-tl-sm p-3 flex gap-1.5 items-center h-10">
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '0ms' }}></span>
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '200ms' }}></span>
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '400ms' }}></span>
+              <div className="bg-[#1f2937] border border-purple-500/20 rounded-2xl rounded-tl-sm p-3 flex gap-1.5 items-center h-10 shadow-sm">
+                <span className="w-2 h-2 bg-purple-400 rounded-full animate-typing" style={{ animationDelay: '0ms' }}></span>
+                <span className="w-2 h-2 bg-purple-400 rounded-full animate-typing" style={{ animationDelay: '200ms' }}></span>
+                <span className="w-2 h-2 bg-purple-400 rounded-full animate-typing" style={{ animationDelay: '400ms' }}></span>
               </div>
             </div>
           )}
         </div>
 
-        <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
+        <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl backdrop-blur-sm">
           <div className="flex gap-2 items-end">
             <textarea
               id="chat-input"
@@ -1022,13 +1062,13 @@ export default function Home() {
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               rows={1}
               disabled={showDepartmentSelection}
-              className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               dir="rtl"
             />
             <button 
               onClick={sendMessage} 
               disabled={!text.trim() || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
-              className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-3 rounded-xl text-sm font-bold transition-all duration-200 mb-0.5 bg-purple-600 text-white hover:bg-purple-700 hover:shadow-lg hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none hover:scale-105 active:scale-95"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'scaleX(-1)' }}><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
             </button>
