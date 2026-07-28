@@ -179,7 +179,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [open]);
 
-  // 1. حركة العينين المتقدمة وتتبع المؤشر
   const handleIconMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
@@ -191,7 +190,7 @@ export default function Home() {
       x: Math.max(-4, Math.min(4, deltaX * 4)), 
       y: Math.max(-4, Math.min(4, deltaY * 4)) 
     });
-    setHeadTilt(deltaX * 2); // ميلان طفيف جداً مع المؤشر
+    setHeadTilt(deltaX * 2);
   };
 
   const handleIconMouseLeave = () => {
@@ -203,7 +202,7 @@ export default function Home() {
   const startRandomEyeMovement = () => {
     if (eyeTimerRef.current) clearInterval(eyeTimerRef.current);
     eyeTimerRef.current = setInterval(() => {
-      if (!open || Math.random() > 0.3) { // 70% فرصة للحركة العشوائية عند عدم التفاعل
+      if (!open || Math.random() > 0.3) {
         setEyePos({ 
           x: (Math.random() - 0.5) * 6, 
           y: (Math.random() - 0.5) * 4 
@@ -213,14 +212,13 @@ export default function Home() {
     }, 3000 + Math.random() * 2000);
   };
 
-  // 2. الرمش الطبيعي (مع احتمالية رمشة مزدوجة)
   const scheduleBlink = () => {
     const delay = 3000 + Math.random() * 4000;
     blinkTimerRef.current = setTimeout(() => {
       setIsBlinking(true);
       setTimeout(() => {
         setIsBlinking(false);
-        if (Math.random() < 0.3) { // 30% رمشة مزدوجة
+        if (Math.random() < 0.3) {
           setTimeout(() => {
             setIsBlinking(true);
             setTimeout(() => setIsBlinking(false), 150);
@@ -248,13 +246,12 @@ export default function Home() {
     }
   }, [open]);
 
-  // 3. نظام الخمول وإنهاء جلسة الموظف (59 ثانية)
   const resetIdleTimer = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (currentSpeaker === "agent" && chatStatus !== "ended") {
       idleTimerRef.current = setTimeout(() => {
         initiateEmployeeExit();
-      }, 59000); // 59 ثانية
+      }, 59000);
     }
   };
 
@@ -297,7 +294,7 @@ export default function Home() {
         setChatStatus("online");
         setIsLoading(false);
       }, 800);
-    }, 2000); // انتظار ثانيتين بعد الرسالة الختامية
+    }, 2000);
   };
 
   useEffect(() => {
@@ -508,13 +505,6 @@ export default function Home() {
           0% { right: 0%; width: 100%; opacity: 1; }
           100% { right: 0%; width: 100%; opacity: 0; }
         }
-        @keyframes slideInFromRight {
-          0% { transform: translateX(200%) scale(0.5); opacity: 0; }
-          60% { transform: translateX(-10px) scale(1.05); opacity: 1; }
-          100% { transform: translateX(0) scale(1); opacity: 1; }
-        }
-        .animate-slide-in-right-once { animation: slideInFromRight 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-        
         @keyframes chatOpenRTL {
           0% { transform: translateX(30px) scale(0.95); opacity: 0; }
           100% { transform: translateX(0) scale(1); opacity: 1; }
@@ -531,26 +521,57 @@ export default function Home() {
 
       <div className={`google-loader ${isLoading ? 'loading' : 'done'}`}></div>
 
+      {/* ========================================== */}
+      {/* 🔴 إعادة تصميم الهيدر (RTL احترافي) */}
+      {/* ========================================== */}
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
-        <div className="w-full px-2 md:px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-2 md:gap-4">
-          <a href="/" className="logo-container flex items-center gap-2 md:gap-3 shrink-0">
-            <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover border-2 border-purple-500 shadow-md" />
-            <span className="brand-name text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">قناة مجلة دار النجوم</span>
-          </a>
-          <div className="search-box flex-1 max-w-md mx-2 hidden md:block">
+        <div className="w-full px-4 md:px-6 py-3 flex items-center justify-between gap-4">
+          
+          {/* 1. الجهة اليمنى: أزرار الاشتراك والترقية */}
+          <div className="flex items-center gap-2 md:gap-3 shrink-0 order-1">
+            <a href="/upgrade" className="btn upgrade flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-orange-500/30 transition whitespace-nowrap">
+              ترقية 👑
+            </a>
+            <a href="/login" className="btn subscribe px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-purple-500/30 transition whitespace-nowrap">
+              اشتراك
+            </a>
+          </div>
+
+          {/* 2. الجهة الوسطى: مربع البحث (يظهر في الشاشات المتوسطة والكبيرة) */}
+          <div className="search-box flex-1 max-w-md mx-2 hidden md:block order-2">
             <div className="relative">
-              <input type="text" placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
+              <input 
+                type="text" 
+                placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." 
+                value={search} 
+                onChange={(e) => setSearch(e.target.value)} 
+                className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm text-right" 
+              />
             </div>
           </div>
-          <div className="actions flex items-center gap-2 md:gap-3 shrink-0">
-            <a href="/upgrade" className="btn upgrade hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-orange-500/30 transition">ترقية 👑</a>
-            <a href="/login" className="btn subscribe px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-purple-500/30 transition">اشتراك</a>
-          </div>
+
+          {/* 3. الجهة اليسرى: الشعار واسم الموقع */}
+          <a href="/" className="logo-container flex items-center gap-2 md:gap-3 shrink-0 order-3">
+            <span className="brand-name text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent whitespace-nowrap">
+              قناة مجلة دار النجوم
+            </span>
+            <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover border-2 border-purple-500 shadow-md" />
+          </a>
+
         </div>
-        <div className="md:hidden px-2 pb-3">
-          <input type="text" placeholder="🔎 ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
+
+        {/* مربع البحث للهواتف والأجهزة اللوحية الصغيرة (يظهر أسفل الشعار والأزرار) */}
+        <div className="md:hidden px-4 pb-3 order-4">
+          <input 
+            type="text" 
+            placeholder="🔎 ابحث عن محتوى..." 
+            value={search} 
+            onChange={(e) => setSearch(e.target.value)} 
+            className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm text-right" 
+          />
         </div>
       </header>
+      {/* ========================================== */}
 
       <div className="bg-[#111827] border-b border-gray-800 overflow-hidden relative py-3">
         <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-[#111827] to-transparent z-10 pointer-events-none"></div>
@@ -581,7 +602,7 @@ export default function Home() {
           setOpen(!open); 
           if (!open) resetIdleTimer();
         }} 
-        className={`fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-xl shadow-purple-600/30 cursor-pointer transition-all duration-300 z-50 border-2 border-white/20 hover:shadow-2xl hover:shadow-purple-500/50 hover:scale-110 active:scale-95`}
+        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-xl shadow-purple-600/30 cursor-pointer transition-all duration-300 z-50 border-2 border-white/20 hover:shadow-2xl hover:shadow-purple-500/50 hover:scale-110 active:scale-95"
         title="مركز المساعدة والدعم"
       >
         <div style={{ 
