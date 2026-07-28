@@ -63,8 +63,9 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [endTime, setEndTime] = useState<Date | null>(null);
   
-  // حالة التحميل للشريط العلوي
+  // حالة التحميل للشريط العلوي (مثل جوجل)
   const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -109,23 +110,19 @@ export default function Home() {
   // حركة العيون العشوائية (طبيعية مثل الإنسان)
   useEffect(() => {
     const moveEyesRandomly = () => {
-      // نطاق الحركة بين -3 و 3 بكسل (حركة خفيفة طبيعية)
       const randomX = (Math.random() - 0.5) * 6;
       const randomY = (Math.random() - 0.5) * 4;
       setEyePos({ x: randomX, y: randomY });
     };
 
-    // حركة عشوائية كل 3-5 ثوانٍ (محاكاة حركة العين الطبيعية)
     const startEyeMovement = () => {
       if (eyeTimerRef.current) clearInterval(eyeTimerRef.current);
       eyeTimerRef.current = setInterval(() => {
         moveEyesRandomly();
-      }, 3000 + Math.random() * 2000); // عشوائي بين 3-5 ثوانٍ
+      }, 3000 + Math.random() * 2000);
     };
 
     startEyeMovement();
-
-    // تحريك العينين فوراً عند تحميل المكون
     setTimeout(() => moveEyesRandomly(), 100);
 
     return () => {
@@ -149,7 +146,7 @@ export default function Home() {
     return "غير نشط";
   };
 
-  // دالة إنهاء المحادثة مع الموظف (تعود للمساعد مع الاحتفاظ بالرسائل)
+  // دالة إنهاء المحادثة مع الموظف (تعود للمساعد مع تصفير المحادثة)
   const performAutoClose = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
@@ -157,36 +154,43 @@ export default function Home() {
     // فقط إذا كان هناك موظف (وليس بوت)
     if (currentSpeaker !== "agent") return;
 
-    // تغيير الحالة إلى online مع المساعد
-    setChatStatus("online");
-    setEndTime(null);
+    // تصفير المحادثة والعودة للمساعد
+    setMessages([]);
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
-    
-    // إضافة رسالة نظام توضح التحول للمساعد
-    const switchMsg: Message = {
-      id: Date.now().toString(),
-      sender: "system",
-      text: "🔄 تم تحويلك تلقائياً إلى المساعد الذكي. يمكنك متابعة المحادثة أو طلب موظف جديد.",
-      time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-      status: "read"
-    };
+    setChatStatus("online");
+    setEndTime(null);
 
-    setMessages((prev) => {
-      const newMessages = [...prev, switchMsg];
-      setTimeout(() => {
-        localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-          messages: newMessages,
-          currentSpeaker: "bot",
-          currentAgent: null,
-          sessionAgents: [],
-          chatStatus: "online",
-          endTime: null
-        }));
-      }, 0);
-      return newMessages;
-    });
+    // إظهار رسالة ترحيب جديدة للمساعد
+    setChatStatus("typing");
+    setIsLoading(true);
+    const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
+    setTimeout(() => {
+      const welcomeMsg: Message = {
+        id: "welcome-new-" + Date.now(),
+        sender: "bot",
+        role: "assistant",
+        text: welcomeMessages[randomIndex],
+        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+        status: "read"
+      };
+      setMessages([welcomeMsg]);
+      setChatStatus("online");
+      setIsLoading(false);
+    }, 600);
+
+    // حفظ الحالة في التخزين المحلي
+    setTimeout(() => {
+      localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
+        messages: [],
+        currentSpeaker: "bot",
+        currentAgent: null,
+        sessionAgents: [],
+        chatStatus: "online",
+        endTime: null
+      }));
+    }, 0);
   };
 
   // دالة إعادة ضبط المؤقتات (خاصة بالموظف فقط)
@@ -210,7 +214,7 @@ export default function Home() {
       }
     }, 20 * 1000);
 
-    // المؤقت الثاني: بعد 5 دقائق من عدم النشاط → إنهاء المحادثة (العودة للمساعد)
+    // المؤقت الثاني: بعد 5 دقائق من عدم النشاط → إنهاء المحادثة (العودة للمساعد مع تصفير)
     autoCloseTimerRef.current = setTimeout(() => {
       if (currentSpeaker === "agent" && chatStatus !== "ended") {
         performAutoClose();
@@ -218,12 +222,39 @@ export default function Home() {
     }, 5 * 60 * 1000); // 5 دقائق
   };
 
+  // شريط التحميل مثل جوجل
+  const startLoading = () => {
+    setIsLoading(true);
+    setProgress(0);
+    // محاكاة تقدم شريط التحميل (0-100)
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(interval);
+          return 90;
+        }
+        // زيادة غير منتظمة (تسارع وتباطؤ)
+        const increment = Math.random() * 10 + 5;
+        return Math.min(prev + increment, 90);
+      });
+    }, 200);
+    return () => clearInterval(interval);
+  };
+
+  const stopLoading = () => {
+    setProgress(100);
+    setTimeout(() => {
+      setIsLoading(false);
+      setProgress(0);
+    }, 300);
+  };
+
   useEffect(() => {
     if (open && messages.length === 0) {
       const hasSavedState = loadStateFromStorage();
       if (!hasSavedState) {
         setChatStatus("typing");
-        setIsLoading(true);
+        startLoading();
         const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
         setTimeout(() => {
           const welcomeMsg: Message = {
@@ -234,8 +265,8 @@ export default function Home() {
           };
           setMessages([welcomeMsg]);
           setChatStatus("online");
-          setIsLoading(false);
-        }, 800);
+          stopLoading();
+        }, 600);
       }
     }
     return () => {
@@ -345,7 +376,7 @@ export default function Home() {
     if (!text.trim() || chatStatus === "ended") return; 
     
     setChatStatus("typing");
-    setIsLoading(true);
+    const stopLoadingFn = startLoading(); // بدء شريط التحميل
     const userText = text;
     setText("");
 
@@ -360,7 +391,8 @@ export default function Home() {
     }
 
     if (checkAndPerformEscalation(userText)) {
-      setIsLoading(false);
+      stopLoadingFn();
+      stopLoading(); // إيقاف التحميل
       return;
     }
 
@@ -376,7 +408,7 @@ export default function Home() {
       const data = await response.json();
       
       // تأخير بسيط لجعل التحميل يظهر بوضوح
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 400));
       
       setMessages((prev) => [...prev, {
         id: (Date.now() + 1).toString(), sender: currentSpeaker, role: "assistant",
@@ -395,7 +427,7 @@ export default function Home() {
       }]);
       setChatStatus("online");
     } finally {
-      setIsLoading(false);
+      stopLoading(); // إكمال التحميل
     }
   };
 
@@ -447,7 +479,7 @@ export default function Home() {
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
 
-        /* شريط التحميل العلوي على نمط جوجل - محسّن */
+        /* شريط التحميل العلوي مثل جوجل */
         .progress-bar-container {
           position: fixed;
           top: 0;
@@ -455,7 +487,6 @@ export default function Home() {
           right: 0;
           height: 3px;
           z-index: 9999;
-          overflow: hidden;
           background: transparent;
         }
         .progress-bar {
@@ -465,25 +496,20 @@ export default function Home() {
           border-radius: 2px;
           transition: width 0.3s ease;
         }
-        .progress-bar.loading {
-          width: 70%;
-          animation: progress-pulse 1.2s ease-in-out infinite;
-        }
-        @keyframes progress-pulse {
-          0% { width: 30%; }
-          50% { width: 70%; }
-          100% { width: 30%; }
+        .progress-bar.animate {
+          width: 100%;
+          transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .progress-bar.done {
           width: 100%;
-          transition: width 0.5s ease;
+          transition: width 0.4s ease;
           opacity: 0;
         }
       `}</style>
 
       {/* شريط التحميل العلوي (مثل جوجل) */}
       <div className="progress-bar-container">
-        <div className={`progress-bar ${isLoading ? 'loading' : ''}`}></div>
+        <div className={`progress-bar ${isLoading ? 'animate' : ''}`} style={{ width: isLoading ? `${progress}%` : '0%', opacity: isLoading ? 1 : 0 }}></div>
       </div>
 
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
@@ -545,7 +571,6 @@ export default function Home() {
         title="مركز المساعدة والدعم"
       >
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
-          {/* العيون تتحرك بشكل عشوائي طبيعي (مثل الإنسان) */}
           <g className="animate-blink">
             <circle cx="10" cy="14" r="5" fill="white" />
             <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
@@ -554,7 +579,6 @@ export default function Home() {
             <circle cx="22" cy="14" r="5" fill="white" />
             <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
           </g>
-          {/* فم مبتسم */}
           <path d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
         </svg>
         <div className="absolute -inset-1 rounded-full border-2 border-purple-400/30 animate-ping opacity-75 pointer-events-none"></div>
@@ -653,7 +677,7 @@ export default function Home() {
                 if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
                 localStorage.removeItem('dar-alnujum-chat-state');
                 setChatStatus("typing");
-                setIsLoading(true);
+                startLoading();
                 const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
                 setTimeout(() => {
                   const welcomeMsg: Message = {
@@ -664,7 +688,7 @@ export default function Home() {
                   };
                   setMessages([welcomeMsg]);
                   setChatStatus("online");
-                  setIsLoading(false);
+                  stopLoading();
                 }, 600);
               }} 
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
