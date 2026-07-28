@@ -66,22 +66,23 @@ export default function Home() {
   // حالة التحميل للشريط العلوي (مثل جوجل)
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const loadingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isClosingRef = useRef<boolean>(false); // لمنع حفظ الحالة أثناء الإنهاء
 
+  // دالة حفظ الحالة في التخزين المحلي
   const saveStateToStorage = () => {
-    if (typeof window !== 'undefined') {
-      // إذا كانت الحالة منتهية، نحذف التخزين ولا نحفظ أي شيء
-      if (chatStatus === "ended") {
-        localStorage.removeItem('dar-alnujum-chat-state');
-        return;
-      }
-      
-      localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-        messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, endTime
-      }));
+    if (typeof window === 'undefined') return;
+    // إذا كانت الحالة منتهية أو جارٍ الإنهاء، لا نحفظ
+    if (chatStatus === "ended" || isClosingRef.current) {
+      localStorage.removeItem('dar-alnujum-chat-state');
+      return;
     }
+    localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
+      messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, endTime
+    }));
   };
 
   const loadStateFromStorage = () => {
@@ -113,7 +114,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [open]);
 
-  // حركة العيون العشوائية (طبيعية مثل الإنسان)
+  // حركة العيون العشوائية
   useEffect(() => {
     const moveEyesRandomly = () => {
       const randomX = (Math.random() - 0.5) * 6;
@@ -158,37 +159,46 @@ export default function Home() {
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
     // فقط إذا كان هناك موظف (وليس بوت)
-    if (currentSpeaker !== "agent") return;
+    if (currentSpeaker !== "agent" || isClosingRef.current) return;
 
-    // 1. تعيين الحالة إلى "منتهية" فوراً لمنع أي حفظ للحالة القديمة
+    // تعيين علم الإنهاء لمنع أي حفظ خلال هذه العملية
+    isClosingRef.current = true;
+
+    // 1. تعيين الحالة إلى "منتهية" فوراً
     setChatStatus("ended");
-    // 2. حذف التخزين فوراً
+    setEndTime(new Date());
+
+    // 2. حذف التخزين المحلي فوراً بعد تحديث الحالة
     if (typeof window !== 'undefined') {
       localStorage.removeItem('dar-alnujum-chat-state');
     }
+
     // 3. تصفير البيانات
     setMessages([]);
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
-    setEndTime(new Date());
 
     // 4. بعد فترة قصيرة، إعادة تعيين الحالة إلى online مع رسالة ترحيب جديدة
     setTimeout(() => {
+      // إعادة تعيين العلم
+      isClosingRef.current = false;
       setChatStatus("typing");
       setIsLoading(true);
-      const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
+      setProgress(0);
       // بدء شريط التحميل
-      const loadInterval = setInterval(() => {
+      if (loadingIntervalRef.current) clearInterval(loadingIntervalRef.current);
+      loadingIntervalRef.current = setInterval(() => {
         setProgress((prev) => {
           if (prev >= 90) {
-            clearInterval(loadInterval);
+            clearInterval(loadingIntervalRef.current!);
             return 90;
           }
           return Math.min(prev + (Math.random() * 10 + 5), 90);
         });
       }, 200);
 
+      const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
       setTimeout(() => {
         const welcomeMsg: Message = {
           id: "welcome-new-" + Date.now(),
@@ -201,12 +211,15 @@ export default function Home() {
         setMessages([welcomeMsg]);
         setChatStatus("online");
         setEndTime(null);
-        setIsLoading(false);
+        // إنهاء التحميل
         setProgress(100);
-        setTimeout(() => setProgress(0), 300);
-        clearInterval(loadInterval);
+        setTimeout(() => {
+          setIsLoading(false);
+          setProgress(0);
+          if (loadingIntervalRef.current) clearInterval(loadingIntervalRef.current);
+        }, 300);
       }, 600);
-    }, 100);
+    }, 150); // تأخير بسيط لضمان تحديث الحالة
   };
 
   // دالة إعادة ضبط المؤقتات (خاصة بالموظف فقط)
@@ -214,45 +227,45 @@ export default function Home() {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
-    // المؤقتات تعمل فقط مع الموظف (وليست مع البوت) وليس إذا كانت الحالة منتهية
-    if (currentSpeaker !== "agent" || chatStatus === "ended") return;
+    if (currentSpeaker !== "agent" || chatStatus === "ended" || isClosingRef.current) return;
 
     if (chatStatus !== "ended") {
       setChatStatus("online");
       saveStateToStorage();
     }
 
-    // المؤقت الأول: بعد 20 ثانية من عدم النشاط → حالة "انتهى مؤقتاً" (idle)
     idleTimerRef.current = setTimeout(() => {
-      if (currentSpeaker === "agent" && chatStatus !== "ended" && chatStatus !== "typing") {
+      if (currentSpeaker === "agent" && chatStatus !== "ended" && chatStatus !== "typing" && !isClosingRef.current) {
         setChatStatus("idle");
         saveStateToStorage();
       }
     }, 20 * 1000);
 
-    // المؤقت الثاني: بعد 5 دقائق من عدم النشاط → إنهاء المحادثة (العودة للمساعد مع تصفير)
     autoCloseTimerRef.current = setTimeout(() => {
-      if (currentSpeaker === "agent" && chatStatus !== "ended") {
+      if (currentSpeaker === "agent" && chatStatus !== "ended" && !isClosingRef.current) {
         performAutoClose();
       }
-    }, 5 * 60 * 1000); // 5 دقائق
+    }, 5 * 60 * 1000);
   };
 
-  // شريط التحميل مثل جوجل
+  // شريط التحميل
   const startLoading = () => {
     setIsLoading(true);
     setProgress(0);
-    const interval = setInterval(() => {
+    if (loadingIntervalRef.current) clearInterval(loadingIntervalRef.current);
+    loadingIntervalRef.current = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 90) {
-          clearInterval(interval);
+          clearInterval(loadingIntervalRef.current!);
           return 90;
         }
         const increment = Math.random() * 10 + 5;
         return Math.min(prev + increment, 90);
       });
     }, 200);
-    return () => clearInterval(interval);
+    return () => {
+      if (loadingIntervalRef.current) clearInterval(loadingIntervalRef.current);
+    };
   };
 
   const stopLoading = () => {
@@ -260,6 +273,7 @@ export default function Home() {
     setTimeout(() => {
       setIsLoading(false);
       setProgress(0);
+      if (loadingIntervalRef.current) clearInterval(loadingIntervalRef.current);
     }, 300);
   };
 
@@ -286,11 +300,14 @@ export default function Home() {
     return () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+      if (loadingIntervalRef.current) clearInterval(loadingIntervalRef.current);
     };
   }, [open]);
 
   useEffect(() => {
-    if (messages.length > 0 || currentAgent) saveStateToStorage();
+    if (messages.length > 0 || currentAgent) {
+      saveStateToStorage();
+    }
   }, [messages, currentAgent, sessionAgents, currentSpeaker, chatStatus, endTime]);
 
   // 🔴 1. هل يريد المستخدم بشراً صراحة؟
@@ -351,7 +368,6 @@ export default function Home() {
         setCurrentSpeaker("agent");
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
-          // 🔴 تم تعديل النص هنا حسب الطلب
           text: `مرحباً، كيف أستطيع مساعدتك اليوم؟`,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
         }]);
@@ -371,10 +387,10 @@ export default function Home() {
   };
 
   const sendMessage = async () => {
-    if (!text.trim() || chatStatus === "ended") return; 
+    if (!text.trim() || chatStatus === "ended" || isClosingRef.current) return; 
     
     setChatStatus("typing");
-    const stopLoadingFn = startLoading(); // بدء شريط التحميل
+    const stopLoadingFn = startLoading();
     const userText = text;
     setText("");
 
@@ -390,7 +406,7 @@ export default function Home() {
 
     if (checkAndPerformEscalation(userText)) {
       stopLoadingFn();
-      stopLoading(); // إيقاف التحميل
+      stopLoading();
       return;
     }
 
@@ -424,7 +440,7 @@ export default function Home() {
       }]);
       setChatStatus("online");
     } finally {
-      stopLoading(); // إكمال التحميل
+      stopLoading();
     }
   };
 
@@ -476,7 +492,6 @@ export default function Home() {
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
 
-        /* شريط التحميل العلوي مثل جوجل */
         .progress-bar-container {
           position: fixed;
           top: 0;
@@ -485,6 +500,7 @@ export default function Home() {
           height: 3px;
           z-index: 9999;
           background: transparent;
+          pointer-events: none;
         }
         .progress-bar {
           height: 100%;
@@ -497,14 +513,9 @@ export default function Home() {
           width: 100%;
           transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .progress-bar.done {
-          width: 100%;
-          transition: width 0.4s ease;
-          opacity: 0;
-        }
       `}</style>
 
-      {/* شريط التحميل العلوي (مثل جوجل) */}
+      {/* شريط التحميل العلوي */}
       <div className="progress-bar-container">
         <div className={`progress-bar ${isLoading ? 'animate' : ''}`} style={{ width: isLoading ? `${progress}%` : '0%', opacity: isLoading ? 1 : 0 }}></div>
       </div>
@@ -552,7 +563,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* أيقونة الدردشة مع حركة عيون طبيعية وعشوائية */}
+      {/* أيقونة الدردشة */}
       <div 
         onClick={() => { 
           setOpen(!open); 
@@ -673,7 +684,6 @@ export default function Home() {
                 if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
                 if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
                 
-                // 🔴 حذف التخزين المحلي تماماً عند بدء محادثة جديدة يدوياً
                 if (typeof window !== 'undefined') {
                   localStorage.removeItem('dar-alnujum-chat-state');
                 }
