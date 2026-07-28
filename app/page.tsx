@@ -230,7 +230,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // حركة العين البشرية الواقعية (مثل Binance - تتبع الماوس من كل الجهات وتعود للمنتصف)
+  // حركة العين البشرية الواقعية (مثل Binance - تتبع الماوس وتعود للمنتصف)
   // ============================================================
   useEffect(() => {
     let rafId: number;
@@ -866,7 +866,7 @@ export default function Home() {
 
       {/* شريط التحميل البنفسجي - RTL حقيقي يبدأ من اليمين وينمو لليسار */}
       {loadingProgress > 0 && (
-        <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-gray-800/50" dir="ltr">
+        <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-gray-800/50">
           <div 
             className="absolute top-0 right-0 h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)]"
             style={{ 
