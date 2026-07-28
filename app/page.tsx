@@ -57,7 +57,7 @@ export default function Home() {
   const eyeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   
-  // 🔴 حالة التحميل البسيطة لشريط جوجل (بدون نسبة مئوية)
+  // 🔴 حالة التحميل لشريط جوجل
   const [isLoading, setIsLoading] = useState(false);
 
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -69,7 +69,7 @@ export default function Home() {
       if (savedState) {
         try {
           const parsedState = JSON.parse(savedState);
-          // نتجاهل التحميل إذا كانت الحالة منتهية أو إذا كان المساعد فارغاً
+          // تنظيف فوري إذا كانت الحالة منتهية أو فارغة
           if (parsedState.chatStatus === "ended" || (parsedState.currentSpeaker === "bot" && (!parsedState.messages || parsedState.messages.length === 0))) {
             localStorage.removeItem('dar-alnujum-chat-state');
             return false;
@@ -100,6 +100,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [open]);
 
+  // 🔴 حركة العيون: تظهر من اليمين أولاً، ثم تبدأ الحركة العشوائية بعد تأخير
   useEffect(() => {
     const moveEyesRandomly = () => {
       const randomX = (Math.random() - 0.5) * 6;
@@ -114,8 +115,11 @@ export default function Home() {
       }, 3000 + Math.random() * 2000);
     };
 
-    startEyeMovement();
-    setTimeout(() => moveEyesRandomly(), 100);
+    // تأخير الحركة العشوائية لمدة 1.5 ثانية للسماح لحركة "الظهور من اليمين" بالانتهاء أولاً
+    setTimeout(() => {
+      startEyeMovement();
+      moveEyesRandomly();
+    }, 1500);
 
     return () => {
       if (eyeTimerRef.current) clearInterval(eyeTimerRef.current);
@@ -136,21 +140,19 @@ export default function Home() {
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
     if (currentSpeaker !== "agent") return;
 
-    // 1. تصفير الحالة فوراً
     setMessages([]);
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
     setChatStatus("online");
 
-    // 2. حذف التخزين المحلي قسراً لضمان عدم بقاء أي أثر
+    // حذف التخزين المحلي قسراً
     if (typeof window !== 'undefined') {
       localStorage.removeItem('dar-alnujum-chat-state');
     }
 
-    // 3. إظهار رسالة الترحيب الجديدة مع شريط تحميل جوجل
     setChatStatus("typing");
-    setIsLoading(true);
+    setIsLoading(true); // تشغيل شريط جوجل
     const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
     
     setTimeout(() => {
@@ -164,7 +166,7 @@ export default function Home() {
       };
       setMessages([welcomeMsg]);
       setChatStatus("online");
-      setIsLoading(false); // إنهاء شريط التحميل
+      setIsLoading(false); // إنهاء شريط جوجل (سينطلق لـ 100% ويختفي)
     }, 800);
   };
 
@@ -207,7 +209,7 @@ export default function Home() {
           };
           setMessages([welcomeMsg]);
           setChatStatus("online");
-          setIsLoading(false); // إيقاف شريط جوجل
+          setIsLoading(false); // إنهاء شريط جوجل
         }, 800);
       }
     }
@@ -348,7 +350,7 @@ export default function Home() {
       }]);
       setChatStatus("online");
     } finally {
-      setIsLoading(false); // إيقاف شريط جوجل
+      setIsLoading(false); // إنهاء شريط جوجل
     }
   };
 
@@ -375,44 +377,67 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
       <style jsx global>{`
-        /* 🔴 شريط تحميل بأسلوب جوجل (NProgress Style) */
-        .google-progress-bar {
+        /* 🔴 1. شريط تحميل بأسلوب جوجل (NProgress Style) */
+        .google-loader {
           position: fixed;
           top: 0;
           left: 0;
-          right: 0;
+          width: 100%;
           height: 3px;
           z-index: 9999;
-          background: transparent;
           pointer-events: none;
         }
-        .google-progress-bar::after {
+        .google-loader::after {
           content: '';
           position: absolute;
           top: 0;
           left: 0;
           height: 100%;
           width: 0%;
-          background: linear-gradient(to right, #7c3aed, #3b82f6, #8b5cf6);
-          border-radius: 0 2px 2px 0;
-          box-shadow: 0 0 10px rgba(124, 58, 237, 0.6);
+          background: linear-gradient(90deg, #7c3aed, #3b82f6, #8b5cf6);
+          box-shadow: 0 0 10px rgba(124, 58, 237, 0.8);
         }
-        .google-progress-bar.loading::after {
-          animation: google-loading 2.5s ease-in-out infinite;
+        /* حالة التحميل: يتحرك بسرعة ثم يتباطأ ويستقر عند ~85% */
+        .google-loader.loading::after {
+          animation: google-loading 2.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
         }
-        .google-progress-bar.done::after {
-          animation: google-done 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        /* حالة الانتهاء: ينطلق لـ 100% ويختفي بسلاسة */
+        .google-loader.done::after {
+          animation: google-finish 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
 
         @keyframes google-loading {
           0% { width: 0%; left: 0; }
-          40% { width: 40%; left: 0; }
-          70% { width: 70%; left: 15%; }
-          100% { width: 100%; left: 100%; }
+          30% { width: 40%; left: 0; }
+          60% { width: 65%; left: 10%; }
+          80% { width: 85%; left: 5%; }
+          100% { width: 90%; left: 5%; } /* يستقر هنا حتى يتغير state */
         }
-        @keyframes google-done {
-          0% { width: 70%; left: 30%; opacity: 1; }
-          100% { width: 100%; left: 100%; opacity: 0; }
+        @keyframes google-finish {
+          0% { width: 85%; left: 5%; opacity: 1; }
+          50% { width: 95%; left: 2%; opacity: 1; }
+          100% { width: 100%; left: 0; opacity: 0; }
+        }
+
+        /* 🔴 2. حركة انزلاق الأيقونة من اليمين مع ارتداد */
+        @keyframes slideInFromRight {
+          0% { transform: translateX(150%) scale(0.5); opacity: 0; }
+          60% { transform: translateX(-10px) scale(1.05); opacity: 1; }
+          100% { transform: translateX(0) scale(1); opacity: 1; }
+        }
+        .animate-slide-in-right {
+          animation: slideInFromRight 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        /* 🔴 3. حركة العيون: تظهر من اليمين */
+        @keyframes eyesPeekFromRight {
+          0% { transform: translateX(6px) scale(0.1); opacity: 0; }
+          50% { transform: translateX(3px) scale(1.2); opacity: 1; }
+          100% { transform: translateX(0) scale(1); opacity: 1; }
+        }
+        .animate-eyes-peek {
+          animation: eyesPeekFromRight 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+          transform-origin: center;
         }
 
         @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
@@ -427,24 +452,15 @@ export default function Home() {
         .animate-float-pulse { animation: float-pulse 3s ease-in-out infinite; }
         .animate-float-pulse:hover { animation-duration: 0.5s; transform: scale(1.1); }
 
-        /* 🔴 حركة الدخول من اليمين مع ارتداد خفيف */
-        @keyframes slide-in-bounce-right {
-          0% { transform: translateX(150%); opacity: 0; }
-          60% { transform: translateX(-10px); opacity: 1; }
-          100% { transform: translateX(0); opacity: 1; }
-        }
-        .animate-slide-in-bounce-right {
-          animation: slide-in-bounce-right 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-        }
-
         @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
         .animate-blink { animation: blink 4s infinite; transform-origin: center; }
+        
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
       {/* 🔴 شريط التحميل العلوي بأسلوب جوجل */}
-      <div className={`google-progress-bar ${isLoading ? 'loading' : 'done'}`}></div>
+      <div className={`google-loader ${isLoading ? 'loading' : 'done'}`}></div>
 
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
         <div className="w-full px-2 md:px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-2 md:gap-4">
@@ -489,7 +505,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 🔴 أيقونة الدردشة مع حركة الدخول من اليمين */}
+      {/* 🔴 أيقونة الدردشة: تنزلق من اليمين + العيون تظهر من اليمين */}
       <div 
         onClick={() => { 
           setOpen(!open); 
@@ -501,17 +517,19 @@ export default function Home() {
             setOpen(false);
           }
         }} 
-        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-xl shadow-purple-600/30 cursor-pointer transition-all duration-300 z-50 border-2 border-white/20 animate-float-pulse hover:shadow-2xl hover:shadow-purple-500/50 hover:scale-110 active:scale-95 animate-slide-in-bounce-right"
+        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-xl shadow-purple-600/30 cursor-pointer transition-all duration-300 z-50 border-2 border-white/20 animate-float-pulse hover:shadow-2xl hover:shadow-purple-500/50 hover:scale-110 active:scale-95 animate-slide-in-right"
         title="مركز المساعدة والدعم"
       >
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
           <g className="animate-blink">
             <circle cx="10" cy="14" r="5" fill="white" />
-            <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
+            {/* العيون تظهر من اليمين أولاً */}
+            <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" className="animate-eyes-peek" style={{ transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
           </g>
           <g className="animate-blink">
             <circle cx="22" cy="14" r="5" fill="white" />
-            <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
+            {/* العيون تظهر من اليمين أولاً */}
+            <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" className="animate-eyes-peek" style={{ transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
           </g>
           <path d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
         </svg>
@@ -600,7 +618,6 @@ export default function Home() {
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           {chatStatus === "ended" ? (
             <button onClick={() => {
-                // 🔴 إعادة ضبط كاملة وحذف التخزين قسراً
                 setMessages([]); 
                 setChatStatus("online"); 
                 setCurrentSpeaker("bot");
@@ -625,7 +642,7 @@ export default function Home() {
                   };
                   setMessages([welcomeMsg]);
                   setChatStatus("online");
-                  setIsLoading(false); // إيقاف شريط جوجل
+                  setIsLoading(false); // إنهاء شريط جوجل
                 }, 800);
               }} 
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
