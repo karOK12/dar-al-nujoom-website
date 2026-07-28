@@ -334,7 +334,9 @@ export default function Home() {
         setCurrentSpeaker("agent");
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
-          text: `حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟ (${assignedAgent.name} - ${assignedAgent.role})`,
+        text: `حياك الله 🌹
+أنا ${assignedAgent.name} (${assignedAgent.role}).
+أهلاً وسهلاً بك، كيف أقدر أساعدك اليوم؟`,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
         }]);
       } else {
