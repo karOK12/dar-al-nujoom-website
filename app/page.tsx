@@ -171,7 +171,7 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // شريط التحميل العلوي (RTL من اليمين لليسار)
+  // شريط التحميل العلوي
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -228,13 +228,14 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // حركة العين البشرية (Smooth Interpolation + Random Blink)
+  // حركة العين البشرية الاحترافية (تتبع دائري سلس في كل الاتجاهات)
   // ============================================================
   useEffect(() => {
     let rafId: number;
     const animateEye = () => {
-      currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.08;
-      currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.08;
+      // معادلة تنعيم الحركة (Smooth Lerp)
+      currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.12;
+      currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.12;
       setEyePos({ x: currentEyePos.current.x, y: currentEyePos.current.y });
       rafId = requestAnimationFrame(animateEye);
     };
@@ -249,13 +250,20 @@ export default function Home() {
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
         
-        const maxOffset = 2.0;
-        const rawX = (e.clientX - centerX) / 50;
-        const rawY = (e.clientY - centerY) / 50;
+        const dx = e.clientX - centerX;
+        const dy = e.clientY - centerY;
+        
+        // حساب الزاوية والمسافة لحركة دائرية طبيعية (مثل العين الحقيقية)
+        const angle = Math.atan2(dy, dx);
+        const distance = Math.min(Math.hypot(dx, dy), 200); // نصف قطر التأثير
+        
+        // تحويل المسافة إلى إزاحة صغيرة للبؤبؤ (أقصى إزاحة 4 بكسل لتبدو طبيعية)
+        const maxOffset = 4.5;
+        const offset = (distance / 200) * maxOffset;
         
         targetEyePos.current = {
-          x: Math.max(-maxOffset, Math.min(maxOffset, rawX)),
-          y: Math.max(-maxOffset, Math.min(maxOffset, rawY))
+          x: Math.cos(angle) * offset,
+          y: Math.sin(angle) * offset
         };
       }
     };
@@ -266,10 +274,11 @@ export default function Home() {
 
   useEffect(() => {
     if (open) {
-      targetEyePos.current = { x: -1.5, y: 1.5 };
+      // عند فتح الدردشة، تنظر العين للأسفل قليلاً نحو صندوق المحادثة
+      targetEyePos.current = { x: -2.0, y: 3.0 };
       const timer = setTimeout(() => {
         targetEyePos.current = { x: 0, y: 0 };
-      }, 2000);
+      }, 1500);
       return () => clearTimeout(timer);
     } else {
       targetEyePos.current = { x: 0, y: 0 };
@@ -279,13 +288,13 @@ export default function Home() {
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const scheduleBlink = () => {
-      const randomDelay = 3000 + Math.random() * 3000;
+      const randomDelay = 2500 + Math.random() * 4000; // رمشة عشوائية طبيعية
       blinkTimeout = setTimeout(() => {
         setIsBlinking(true);
         setTimeout(() => {
           setIsBlinking(false);
           scheduleBlink();
-        }, 150);
+        }, 120);
       }, randomDelay);
     };
     scheduleBlink();
@@ -700,7 +709,7 @@ export default function Home() {
       
       const botResponse: Message = createMessage(
         "bot", 
-        data.text || data.message || "عذراً، لم أتمكن من الرد حالياً.", 
+        data.text || data.message || "عذراً، لم أتمكن من فهم طلبك بدقة. هل يمكنك إعادة صياغته أو اختيار أحد الأقسام من القائمة؟", 
         "assistant", 
         "read",
         data.attachments || data.products || data.cards || [] 
@@ -732,7 +741,8 @@ export default function Home() {
     if (!hasSaved) {
       setChatStatus("typing");
       setTimeout(() => {
-        setMessages([createMessage("bot", "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟ يمكنك سؤالي عن الأخبار، البرامج، أسعار الإعلانات، أو أي استفسار آخر.", "assistant")]);
+        // رسالة ترحيب جديدة واحترافية
+        setMessages([createMessage("bot", "أهلاً بك في دعم قناة مجلة دار النجوم! 🌟\n\nأنا المساعد الذكي، ويسعدني خدمتك. يمكنك سؤالي عن:\n• أسعار وحجز الباقات الإعلانية\n• الدعم الفني وحل المشكلات\n• أي استفسار عام\n\nكيف يمكنني مساعدتك اليوم؟", "assistant")]);
         setChatStatus("online");
       }, 800);
     }
@@ -803,7 +813,7 @@ export default function Home() {
           50% { transform: scaleY(0.1); }
         }
         .animate-blink-human { 
-          animation: blink-human 0.15s ease-in-out; 
+          animation: blink-human 0.12s ease-in-out; 
           transform-origin: center;
         }
         
@@ -812,23 +822,7 @@ export default function Home() {
           50% { transform: translateY(-2px); }
         }
         .animate-cartoon-breathe {
-          animation: cartoon-breathe 3s ease-in-out infinite;
-        }
-        
-        @keyframes cartoon-smile {
-          0%, 100% { d: path("M 10 22 C 10 22, 14 26, 16 26 C 18 26, 22 22, 22 22"); }
-          50% { d: path("M 10 22 C 10 22, 14 25, 16 25 C 18 25, 22 22, 22 22"); }
-        }
-        .animate-cartoon-smile {
-          animation: cartoon-smile 4s ease-in-out infinite;
-        }
-
-        @keyframes cartoon-talk {
-          0%, 100% { d: path("M 10 22 C 10 22, 13 27, 16 27 C 19 27, 22 22, 22 22"); }
-          50% { d: path("M 10 22 C 10 22, 13 28, 16 28 C 19 28, 22 22, 22 22"); }
-        }
-        .animate-cartoon-talk {
-          animation: cartoon-talk 0.4s ease-in-out infinite;
+          animation: cartoon-breathe 4s ease-in-out infinite;
         }
         
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
@@ -891,30 +885,45 @@ export default function Home() {
         </section>
       </main>
 
-      {/* زر الدردشة - تم تعديله ليكون على اليمين */}
-      <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
-        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* زر الدردشة بأيقونة احترافية متحركة */}
+      <div 
+        ref={chatButtonRef} 
+        onClick={() => setOpen(!open)} 
+        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-105 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" 
+        title="مركز المساعدة"
+      >
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-cartoon-breathe">
+            {/* العين اليسرى */}
             <g className={isBlinking ? "animate-blink-human" : ""}>
-              <circle cx="10" cy="14" r="5" fill="white" />
-              <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+              <circle cx="12" cy="15" r="5.5" fill="white" />
+              {/* بؤبؤ العين يتتبع الماوس بسلاسة */}
+              <circle cx="12" cy="15" r="2.8" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s ease-out' }} />
+              {/* بريق العين (Catchlight) لإضفاء طابع إنساني احترافي */}
+              <circle cx="13.5" cy="13.5" r="1.2" fill="white" opacity="0.9" style={{ transform: `translate(${eyePos.x * 0.4}px, ${eyePos.y * 0.4}px)` }} />
             </g>
+            
+            {/* العين اليمنى */}
             <g className={isBlinking ? "animate-blink-human" : ""} style={{ animationDelay: '0.05s' }}>
-              <circle cx="22" cy="14" r="5" fill="white" />
-              <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+              <circle cx="24" cy="15" r="5.5" fill="white" />
+              <circle cx="24" cy="15" r="2.8" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s ease-out' }} />
+              <circle cx="25.5" cy="13.5" r="1.2" fill="white" opacity="0.9" style={{ transform: `translate(${eyePos.x * 0.4}px, ${eyePos.y * 0.4}px)` }} />
             </g>
+
+            {/* الفم: يتغير بسلاسة بين الابتسامة والفتح عند الكتابة */}
             <path 
-              d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" 
+              d={chatStatus === "typing" ? "M 11 23 Q 18 30 25 23" : "M 12 23 Q 18 27 24 23"}
               stroke="white" 
               strokeWidth="2.5" 
               strokeLinecap="round" 
-              className={chatStatus === "typing" ? "animate-cartoon-talk" : "animate-cartoon-smile"} 
+              fill={chatStatus === "typing" ? "white" : "none"}
+              className="transition-all duration-300 ease-in-out"
             />
           </g>
         </svg>
       </div>
 
-      {/* صندوق الدردشة - تم تعديله ليكون على اليمين */}
+      {/* صندوق الدردشة */}
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -945,13 +954,13 @@ export default function Home() {
         <div className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50">
           {messages.map((msg) => {
             if (msg.sender === "system") {
-              return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%]">{msg.text}</span></div>;
+              return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%] whitespace-pre-line">{msg.text}</span></div>;
             }
             const isUser = msg.sender === "user";
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
                 {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
-                <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
+                <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative whitespace-pre-line ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
                   {msg.text}
                   
                   {msg.attachments && msg.attachments.length > 0 && (
