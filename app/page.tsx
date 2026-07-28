@@ -58,11 +58,6 @@ interface TrendingProduct {
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
-const SESSION_TIMEOUTS = {
-  IDLE_TO_CLOSED: 300, 
-  QUEUE_CHECK_INTERVAL: 8000,
-};
-
 const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
   { employeeId: "EMP-002", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
@@ -74,6 +69,11 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'ads', name: 'فريق الإعلانات والمبيعات', description: 'لحجز الإعلانات والاستفسار عن الأسعار والباقات' },
   { id: 'technical', name: 'فريق الدعم الفني', description: 'لحل المشاكل التقنية وأخطاء الموقع' },
 ];
+
+const SESSION_TIMEOUTS = {
+  IDLE_TO_CLOSED: 60, 
+  QUEUE_CHECK_INTERVAL: 8000,
+};
 
 const TRENDING_PRODUCTS: TrendingProduct[] = [
   { id: 1, name: "كاميرا تصوير احترافية", desc: "خصم 25% لفترة محدودة", img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=150&h=150&fit=crop", shape: "circle" },
@@ -171,7 +171,7 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // شريط التحميل البنفسجي (RTL حقيقي من اليمين لليسار)
+  // شريط التحميل العلوي (RTL من اليمين لليسار)
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -228,13 +228,13 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // حركة العين البشرية الواقعية (Smooth + Random Blink)
+  // حركة العين البشرية (Smooth Interpolation + Random Blink)
   // ============================================================
   useEffect(() => {
     let rafId: number;
     const animateEye = () => {
-      currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.1;
-      currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.1;
+      currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.08;
+      currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.08;
       setEyePos({ x: currentEyePos.current.x, y: currentEyePos.current.y });
       rafId = requestAnimationFrame(animateEye);
     };
@@ -249,9 +249,9 @@ export default function Home() {
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
         
-        const maxOffset = 2.2;
-        const rawX = (e.clientX - centerX) / 40;
-        const rawY = (e.clientY - centerY) / 40;
+        const maxOffset = 2.0;
+        const rawX = (e.clientX - centerX) / 50;
+        const rawY = (e.clientY - centerY) / 50;
         
         targetEyePos.current = {
           x: Math.max(-maxOffset, Math.min(maxOffset, rawX)),
@@ -266,10 +266,10 @@ export default function Home() {
 
   useEffect(() => {
     if (open) {
-      targetEyePos.current = { x: -1.8, y: 1.8 };
+      targetEyePos.current = { x: -1.5, y: 1.5 };
       const timer = setTimeout(() => {
         targetEyePos.current = { x: 0, y: 0 };
-      }, 2500);
+      }, 2000);
       return () => clearTimeout(timer);
     } else {
       targetEyePos.current = { x: 0, y: 0 };
@@ -285,7 +285,7 @@ export default function Home() {
         setTimeout(() => {
           setIsBlinking(false);
           scheduleBlink();
-        }, 120);
+        }, 150);
       }, randomDelay);
     };
     scheduleBlink();
@@ -333,7 +333,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // SESSION LIFECYCLE MANAGEMENT & 300s TIMEOUT
+  // SESSION LIFECYCLE MANAGEMENT & 60s TIMEOUT
   // ============================================================
   useEffect(() => {
     if (currentSpeaker === "agent" || currentSpeaker === "bot") {
@@ -353,7 +353,7 @@ export default function Home() {
       if (elapsedSeconds >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
         const timeoutMsg = createMessage(
           "system",
-          "تم إنهاء جلسة الموظف بسبب عدم وجود نشاط لمدة 5 دقائق، تمت إعادتك إلى المساعد الذكي.",
+          "تم إنهاء جلسة الموظف بسبب عدم وجود رد من المستخدم، ويمكنك متابعة المحادثة مع المساعد الذكي.",
           "assistant"
         );
         setMessages(prev => [...prev, timeoutMsg]);
@@ -373,7 +373,7 @@ export default function Home() {
   const closeAgentSession = useCallback(() => {
     const freshBotMessage = createMessage(
       "bot",
-      "أهلاً بك مجدداً! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
+      "أهلاً بك مجدداً! أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
       "assistant"
     );
 
@@ -477,11 +477,9 @@ export default function Home() {
     const targetAgent = findAvailableAgent(targetDept) || SUPPORT_AGENTS.find(a => a.department === targetDept);
     if (!targetAgent) return;
 
-    const lastUserMsg = messages.filter(m => m.sender === 'user').pop()?.text || "استفسار عام";
-    
     const transferMsg = createMessage(
       "agent",
-      `لحظة واحدة أستاذ، سأحولك الآن إلى زميلي المختص في قسم ${targetDept === 'ads' ? 'الإعلانات' : 'الدعم الفني'}.`,
+      `لحظة واحدة، سأحولك الآن إلى زميلي المختص بهذا النوع من الطلبات.`,
       "assistant"
     );
     
@@ -504,7 +502,7 @@ export default function Home() {
       setTimeout(() => {
         const newAgentWelcome = createMessage(
           "agent",
-          `أهلاً بك، أنا ${targetAgent!.name}. اطلعت على محادثتك مع الأستاذ ${currentAgentName} بخصوص "${lastUserMsg}"، وسأتابع معك من هنا مباشرة. تفضل.`,
+          `مرحباً، أنا ${targetAgent!.name} من قسم ${targetDept === 'ads' ? 'الإعلانات' : targetDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}. اطلعت على كامل المحادثة بينك وبين الأستاذ ${currentAgentName}، وسأتابع معك من هذه النقطة. كيف أقدر أساعدك؟`,
           "assistant"
         );
         
@@ -514,7 +512,7 @@ export default function Home() {
         lastActivityTimeRef.current = Date.now();
       }, 1000);
     }, 1500);
-  }, [messages]);
+  }, []);
 
   // ============================================================
   // SEND MESSAGE & API HANDLING
@@ -566,8 +564,7 @@ export default function Home() {
           conversationPhaseRef.current = "ended";
           lastAgentMessageRef.current = agentReply;
           isSendingRef.current = false;
-          
-          setTimeout(() => closeAgentSession(), 2500);
+          setTimeout(() => closeAgentSession(), 2000);
           return;
         }
 
@@ -623,7 +620,7 @@ export default function Home() {
           setMessages(prev => [...prev, createMessage("agent", gratitudeReply, "assistant")]);
           
           setTimeout(() => {
-            const followUpQuestions = ["هل يوجد أي شيء آخر أستطيع مساعدتك به؟", "هل هناك أي استفسار آخر أستاذ؟"];
+            const followUpQuestions = ["هل تحتاج إلى أي استفسار آخر أستاذ؟", "هل هناك شيء آخر أقدر أساعدك فيه؟"];
             const availableFollowUp = followUpQuestions.filter(q => !previousAgentRepliesRef.current.has(q));
             const followUp = availableFollowUp.length > 0 ? availableFollowUp[Math.floor(Math.random() * availableFollowUp.length)] : followUpQuestions[0];
             
@@ -798,21 +795,15 @@ export default function Home() {
         @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
         .animate-seamless-scroll:hover { animation-play-state: paused; }
-        
-        /* حركة الظهور من الجهة اليسرى */
-        @keyframes slide-in-left { 
-          0% { transform: translateX(-100px) scale(0.5); opacity: 0; } 
-          60% { transform: translateX(10px) scale(1.05); opacity: 1; } 
-          100% { transform: translateX(0) scale(1); opacity: 1; } 
-        }
-        .animate-slide-in-left { animation: slide-in-left 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slide-in-right { 0% { transform: translateX(100px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
+        .animate-slide-in-right { animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         
         @keyframes blink-human {
           0%, 100% { transform: scaleY(1); }
           50% { transform: scaleY(0.1); }
         }
         .animate-blink-human { 
-          animation: blink-human 0.12s ease-in-out; 
+          animation: blink-human 0.15s ease-in-out; 
           transform-origin: center;
         }
         
@@ -833,8 +824,8 @@ export default function Home() {
         }
 
         @keyframes cartoon-talk {
-          0%, 100% { d: path("M 10 22 C 10 22, 13 26.5, 16 26.5 C 19 26.5, 22 22, 22 22"); }
-          50% { d: path("M 10 22 C 10 22, 13 27.5, 16 27.5 C 19 27.5, 22 22, 22 22"); }
+          0%, 100% { d: path("M 10 22 C 10 22, 13 27, 16 27 C 19 27, 22 22, 22 22"); }
+          50% { d: path("M 10 22 C 10 22, 13 28, 16 28 C 19 28, 22 22, 22 22"); }
         }
         .animate-cartoon-talk {
           animation: cartoon-talk 0.4s ease-in-out infinite;
@@ -845,12 +836,12 @@ export default function Home() {
       `}</style>
 
       {loadingProgress > 0 && (
-        <div className="fixed top-0 right-0 z-[100] h-1 w-full bg-gray-800/50" dir="ltr">
+        <div className="fixed top-0 right-0 left-auto z-[100] h-1 bg-gray-800/50 w-full">
           <div 
-            className="absolute top-0 right-0 h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)]"
+            className="h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)]"
             style={{ 
               width: `${loadingProgress}%`,
-              transition: loadingProgress === 100 ? 'width 0.5s ease-out, opacity 0.5s ease-out' : 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              transition: loadingProgress === 100 ? 'width 0.5s ease-out, opacity 0.5s ease-out' : 'width 0.4s ease-out',
               opacity: loadingProgress === 100 ? 0 : 1
             }}
           />
@@ -900,8 +891,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 🔴 أيقونة المساعد في الجهة اليسرى (Bottom Left) */}
-      <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 left-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-left" title="مركز المساعدة">
+      <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-cartoon-breathe">
             <g className={isBlinking ? "animate-blink-human" : ""}>
@@ -912,6 +902,7 @@ export default function Home() {
               <circle cx="22" cy="14" r="5" fill="white" />
               <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
             </g>
+            {/* 🔴 تم إصلاح الخطأ هنا بحذف المقارنة غير الضرورية بـ "user" */}
             <path 
               d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" 
               stroke="white" 
@@ -923,8 +914,7 @@ export default function Home() {
         </svg>
       </div>
 
-      {/* 🔴 صندوق الدردشة يفتح من الجهة اليسرى بسلاسة */}
-      <div className={`fixed bottom-24 left-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col origin-bottom-left ${open ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-8 scale-95 pointer-events-none"}`}>
+      <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
             {sessionAgents.length === 0 ? (
@@ -959,11 +949,7 @@ export default function Home() {
             const isUser = msg.sender === "user";
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
-                {!isUser && (
-                  <span className="text-[10px] text-purple-300 mb-1 ml-1 font-medium">
-                    {msg.sender === "agent" && currentAgent ? `${currentAgent.name} | ${currentAgent.role}` : "المساعد الذكي"}
-                  </span>
-                )}
+                {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
                 <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
                   {msg.text}
                   
@@ -995,7 +981,7 @@ export default function Home() {
           })}
 
           {showDepartmentSelection && currentSpeaker === "bot" && (
-            <div className="space-y-2 mt-2 animate-slide-in-left">
+            <div className="space-y-2 mt-2 animate-slide-in-right">
               {DEPARTMENT_OPTIONS.map((dept) => (
                 <button
                   key={dept.id}
