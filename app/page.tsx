@@ -106,7 +106,6 @@ const normalizeArabicText = (text: string): string => {
     .toLowerCase();
 };
 
-// تحليل نية المستخدم بشكل أعمق لفهم السياق الكامل
 const analyzeUserIntent = (inputText: string): UserIntent => {
   const normalized = normalizeArabicText(inputText);
   
@@ -261,12 +260,10 @@ export default function Home() {
   useEffect(() => {
     let rafId: number;
     const animateEye = () => {
-      // Lerp لحركة ناعمة جداً مع ميل للعودة للمركز ببطء إذا لم يكن هناك حركة ماوس
       const decay = 0.02;
       currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.15;
       currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.15;
       
-      // عودة تدريجية للمركز إذا كان الهدف صفراً
       if (targetEyePos.current.x === 0 && targetEyePos.current.y === 0) {
         currentEyePos.current.x *= (1 - decay);
         currentEyePos.current.y *= (1 - decay);
@@ -500,7 +497,6 @@ export default function Home() {
       handleHumanRequest();
       return true;
     }
-    // تحويل تلقائي ذكي إذا كان الطلب واضحاً جداً
     if (intent.confidence > 0.85 && intent.targetDepartment && currentSpeaker === "bot" && !showDepartmentSelection) {
        initiateDepartmentTransfer(intent.targetDepartment);
        return true;
@@ -552,7 +548,7 @@ export default function Home() {
   }, [messages]);
 
   // ============================================================
-  // SEND MESSAGE & API HANDLING (منطق محسّن واحترافي)
+  // SEND MESSAGE & API HANDLING
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -578,7 +574,6 @@ export default function Home() {
         const currentDept = currentAgent.department;
         messageCountRef.current += 1;
 
-        // 1. إنهاء المحادثة بأدب
         if (intent.type === "farewell" && (conversationPhaseRef.current === "closing" || conversationPhaseRef.current === "ongoing")) {
           const closingReplies = [
             "شكراً لتواصلك معنا، سعدنا بخدمتك، ونتمنى لك يوماً سعيداً.",
@@ -598,7 +593,6 @@ export default function Home() {
           return;
         }
 
-        // 2. الرد على الاستفسارات السعرية والإعلانية
         if (intent.type === "pricing" || intent.targetDepartment === 'ads') {
           if (currentDept === 'ads') {
             if (lastHandledTopicRef.current !== 'pricing_details') {
@@ -626,7 +620,6 @@ export default function Home() {
           }
         }
 
-        // 3. المتابعة الذكية
         if ((trimmedText === "نعم" || trimmedText === "اي" || trimmedText.includes("تمام")) && lastHandledTopicRef.current === 'pricing_details') {
             const followUp = "ممتاز. لكي أتمكن من تجهيز العرض الأنسب لك، هل يمكنك إخباري بالميزانية التقريبية المخصصة للإعلان أو المنصة المفضلة لديك؟";
             previousAgentRepliesRef.current.add(followUp);
@@ -638,7 +631,6 @@ export default function Home() {
             return;
         }
 
-        // 4. الرد على الشكر
         if (intent.type === "greeting" && conversationPhaseRef.current !== "closing" && conversationPhaseRef.current !== "ended") {
           const gratitudeReplies = ["العفو، هذا واجبنا.", "تدلل، يسعدني أن تم حل الأمر.", "بالعفو، تحت أمرك بأي وقت."];
           const availableGratitude = gratitudeReplies.filter(r => !previousAgentRepliesRef.current.has(r));
@@ -663,7 +655,6 @@ export default function Home() {
           return;
         }
 
-        // 5. التحويل الصحيح للدعم الفني
         if (intent.type === "technical") {
           if (currentDept === 'technical') {
             if (lastHandledTopicRef.current !== 'technical_details') {
@@ -690,7 +681,6 @@ export default function Home() {
           }
         }
 
-        // 6. ردود عامة احترافية ومختصرة (Fallback)
         const generalReplies = currentDept === 'ads' 
           ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك؟"]
           : currentDept === 'technical'
@@ -709,7 +699,6 @@ export default function Home() {
       return; 
     }
 
-    // منطق المساعد الذكي (AI API)
     setChatStatus("typing");
     try {
       const apiMessages = messages
@@ -770,7 +759,7 @@ export default function Home() {
   }, [open, messages.length, loadStateFromStorage]);
 
   // ============================================================
-  // RENDER HELPERS (محسّنة للأداء باستخدام useMemo و useCallback)
+  // RENDER HELPERS
   // ============================================================
   const getStatusText = useCallback(() => {
     switch (chatStatus) {
@@ -818,7 +807,7 @@ export default function Home() {
   }, [shapeMap]);
 
   // ============================================================
-  // JSX (محافظ على الهيكل الأصلي بنسبة 100% كما طُلب)
+  // JSX
   // ============================================================
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col" dir="rtl">
@@ -879,23 +868,25 @@ export default function Home() {
         </div>
       )}
 
-      {/* Header: لم يتم تغيير أي شيء في التصميم أو الترتيب */}
+      {/* Header: تم استعادته تماماً للتصميم الأصلي مع الحفاظ على ترتيب الشعار والاسم بشكل صحيح في RTL */}
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
         <div className="w-full px-2 md:px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-2 md:gap-4">
-          <a href="/" className="flex items-center gap-2 md:gap-3 shrink-0">
+          <a href="/" className="logo-container flex items-center gap-2 md:gap-3 shrink-0">
             <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover border-2 border-purple-500 shadow-md" />
-            <span className="text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">قناة مجلة دار النجوم</span>
+            <span className="brand-name text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">قناة مجلة دار النجوم</span>
           </a>
-          <div className="flex-1 max-w-md mx-2 hidden md:block">
-            <input type="text" placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm text-right" />
+          <div className="search-box flex-1 max-w-md mx-2 hidden md:block">
+            <div className="relative">
+              <input type="text" placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
+            </div>
           </div>
-          <div className="flex items-center gap-2 md:gap-3 shrink-0">
-            <a href="/upgrade" className="hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg transition">ترقية 👑</a>
-            <a href="/login" className="px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg transition">اشتراك</a>
+          <div className="actions flex items-center gap-2 md:gap-3 shrink-0">
+            <a href="/upgrade" className="btn upgrade hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-orange-500/30 transition">ترقية 👑</a>
+            <a href="/login" className="btn subscribe px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-purple-500/30 transition">اشتراك</a>
           </div>
         </div>
         <div className="md:hidden px-2 pb-3">
-          <input type="text" placeholder="🔎 ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm text-right" />
+          <input type="text" placeholder="🔎 ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
         </div>
       </header>
 
@@ -1054,7 +1045,7 @@ export default function Home() {
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               rows={1}
               disabled={showDepartmentSelection}
-              className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed text-right"
+              className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
               dir="rtl"
             />
             <button 
