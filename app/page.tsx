@@ -72,7 +72,7 @@ export default function Home() {
 
   const saveStateToStorage = () => {
     if (typeof window !== 'undefined') {
-      // 🔴 تعديل: إذا كانت الحالة منتهية، نحذف التخزين ولا نحفظ أي شيء
+      // إذا كانت الحالة منتهية، نحذف التخزين ولا نحفظ أي شيء
       if (chatStatus === "ended") {
         localStorage.removeItem('dar-alnujum-chat-state');
         return;
@@ -160,36 +160,53 @@ export default function Home() {
     // فقط إذا كان هناك موظف (وليس بوت)
     if (currentSpeaker !== "agent") return;
 
-    // 1. تصفير المحادثة والعودة للمساعد
+    // 1. تعيين الحالة إلى "منتهية" فوراً لمنع أي حفظ للحالة القديمة
+    setChatStatus("ended");
+    // 2. حذف التخزين فوراً
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('dar-alnujum-chat-state');
+    }
+    // 3. تصفير البيانات
     setMessages([]);
     setCurrentSpeaker("bot");
     setCurrentAgent(null);
     setSessionAgents([]);
-    setChatStatus("online");
-    setEndTime(null);
+    setEndTime(new Date());
 
-    // 🔴 2. حذف حالة التخزين المحلي تماماً بدلاً من حفظها (لأننا لا نريد تخزين جلسة الموظف بعد انتهائها)
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('dar-alnujum-chat-state');
-    }
-
-    // 3. إظهار رسالة ترحيب جديدة للمساعد
-    setChatStatus("typing");
-    setIsLoading(true);
-    const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
+    // 4. بعد فترة قصيرة، إعادة تعيين الحالة إلى online مع رسالة ترحيب جديدة
     setTimeout(() => {
-      const welcomeMsg: Message = {
-        id: "welcome-new-" + Date.now(),
-        sender: "bot",
-        role: "assistant",
-        text: welcomeMessages[randomIndex],
-        time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-        status: "read"
-      };
-      setMessages([welcomeMsg]);
-      setChatStatus("online");
-      setIsLoading(false);
-    }, 600);
+      setChatStatus("typing");
+      setIsLoading(true);
+      const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
+      // بدء شريط التحميل
+      const loadInterval = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(loadInterval);
+            return 90;
+          }
+          return Math.min(prev + (Math.random() * 10 + 5), 90);
+        });
+      }, 200);
+
+      setTimeout(() => {
+        const welcomeMsg: Message = {
+          id: "welcome-new-" + Date.now(),
+          sender: "bot",
+          role: "assistant",
+          text: welcomeMessages[randomIndex],
+          time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+          status: "read"
+        };
+        setMessages([welcomeMsg]);
+        setChatStatus("online");
+        setEndTime(null);
+        setIsLoading(false);
+        setProgress(100);
+        setTimeout(() => setProgress(0), 300);
+        clearInterval(loadInterval);
+      }, 600);
+    }, 100);
   };
 
   // دالة إعادة ضبط المؤقتات (خاصة بالموظف فقط)
@@ -197,8 +214,8 @@ export default function Home() {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
 
-    // المؤقتات تعمل فقط مع الموظف (وليست مع البوت)
-    if (currentSpeaker !== "agent") return;
+    // المؤقتات تعمل فقط مع الموظف (وليست مع البوت) وليس إذا كانت الحالة منتهية
+    if (currentSpeaker !== "agent" || chatStatus === "ended") return;
 
     if (chatStatus !== "ended") {
       setChatStatus("online");
@@ -334,15 +351,14 @@ export default function Home() {
         setCurrentSpeaker("agent");
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
-        text: `حياك الله 🌹
-أنا ${assignedAgent.name} (${assignedAgent.role}).
-أهلاً وسهلاً بك، كيف أقدر أساعدك اليوم؟`,
+          // 🔴 تم تعديل النص هنا حسب الطلب
+          text: `مرحباً، كيف أستطيع مساعدتك اليوم؟`,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
         }]);
       } else {
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
-          text: `أنا هنا بالفعل! ${currentAgent.name} جاهز لخدمتك. تفضل بطرح طلبك.`,
+          text: `مرحباً، كيف أستطيع مساعدتك اليوم؟`,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
         }]);
       }
