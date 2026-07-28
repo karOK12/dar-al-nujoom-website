@@ -36,11 +36,20 @@ const trendingProducts = [
 
 type ChatStatus = "typing" | "online" | "idle" | "ended";
 
+// 🔴 رسائل ترحيب محسنة وأكثر تفاعلية
 const welcomeMessages = [
-  "أهلاً وسهلاً بك في قناة مجلة دار النجوم! 🌟 كيف يمكنني خدمتك اليوم؟",
-  "مرحباً! سعداء بتواجدك معنا. تفضل بطرح سؤالك، أنا هنا لمساعدتك. 😊",
-  "أهلاً بك! كيف يقدر مساعدك الذكي يخدمك اليوم؟ أخبرني ما تحتاجه. 💫"
+  "أهلاً وسهلاً بك في قناة مجلة دار النجوم! 🌟\nأنا مساعدك الذكي، جاهز لخدمتك على مدار الساعة. كيف أقدر أساعدك اليوم؟",
+  "مرحباً بك! 😊\nسعداء بتواجدك معنا. تفضل بطرح سؤالك أو طلبك، وأنا هنا لمساعدتك في أي وقت.",
+  "أهلاً بك في دار النجوم! 💫\nمساعدك الذكي في خدمتك. أخبرني بما تحتاجه، وسأبذل قصارى جهدي لمساعدتك.",
+  "مرحباً! 🎉\nيسعدنا تواصلك معنا. كيف يمكنني خدمتك اليوم؟ لا تتردد في طرح أي سؤال."
 ];
+
+// 🔴 رسائل تحويل محسنة للموظفين
+const transferMessages = {
+  support: "يرجى الانتظار لحظة... جاري تحويلك إلى أحد موظفي خدمة العملاء المختصين who سيسعد بخدمتك.",
+  ads: "يرجى الانتظار... جاري تحويلك إلى قسم الإعلانات والترويج. موظفونا المتخصصون جاهزون لمساعدتك.",
+  technical: "يرجى الانتظار... جاري تحويلك إلى فريق الدعم الفني المتخصص. سيقومون بحل مشكلتك في أقرب وقت."
+};
 
 export default function Home() {
   const [open, setOpen] = useState(false);
@@ -57,7 +66,6 @@ export default function Home() {
   const eyeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   
-  // 🔴 حالة التحميل لشريط جوجل
   const [isLoading, setIsLoading] = useState(false);
 
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -69,7 +77,6 @@ export default function Home() {
       if (savedState) {
         try {
           const parsedState = JSON.parse(savedState);
-          // تنظيف فوري إذا كانت الحالة منتهية أو فارغة
           if (parsedState.chatStatus === "ended" || (parsedState.currentSpeaker === "bot" && (!parsedState.messages || parsedState.messages.length === 0))) {
             localStorage.removeItem('dar-alnujum-chat-state');
             return false;
@@ -100,26 +107,27 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [open]);
 
-  // 🔴 حركة العيون: تظهر من اليمين أولاً، ثم تبدأ الحركة العشوائية بعد تأخير
+  // 🔴 حركة العيون العشوائية مع تأخير ذكي
   useEffect(() => {
     const moveEyesRandomly = () => {
-      const randomX = (Math.random() - 0.5) * 6;
-      const randomY = (Math.random() - 0.5) * 4;
+      const randomX = (Math.random() - 0.5) * 8;
+      const randomY = (Math.random() - 0.5) * 5;
       setEyePos({ x: randomX, y: randomY });
     };
 
     const startEyeMovement = () => {
       if (eyeTimerRef.current) clearInterval(eyeTimerRef.current);
+      // حركة عشوائية كل 2-4 ثواني
       eyeTimerRef.current = setInterval(() => {
         moveEyesRandomly();
-      }, 3000 + Math.random() * 2000);
+      }, 2000 + Math.random() * 2000);
     };
 
-    // تأخير الحركة العشوائية لمدة 1.5 ثانية للسماح لحركة "الظهور من اليمين" بالانتهاء أولاً
+    // تأخير 1.2 ثانية للسماح لحركة الظهور من اليمين بالانتهاء
     setTimeout(() => {
       startEyeMovement();
       moveEyesRandomly();
-    }, 1500);
+    }, 1200);
 
     return () => {
       if (eyeTimerRef.current) clearInterval(eyeTimerRef.current);
@@ -129,12 +137,11 @@ export default function Home() {
   const getStatusText = () => {
     if (chatStatus === "typing") return "يكتب الآن...";
     if (chatStatus === "online") return "متصل الآن";
-    if (chatStatus === "idle") return "انتهى مؤقتاً";
+    if (chatStatus === "idle") return "في انتظار ردك...";
     if (chatStatus === "ended") return "انتهت المحادثة";
     return "غير نشط";
   };
 
-  // 🔴 دالة إنهاء المحادثة وحذف التخزين تماماً
   const performAutoClose = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
@@ -146,13 +153,12 @@ export default function Home() {
     setSessionAgents([]);
     setChatStatus("online");
 
-    // حذف التخزين المحلي قسراً
     if (typeof window !== 'undefined') {
       localStorage.removeItem('dar-alnujum-chat-state');
     }
 
     setChatStatus("typing");
-    setIsLoading(true); // تشغيل شريط جوجل
+    setIsLoading(true);
     const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
     
     setTimeout(() => {
@@ -166,10 +172,11 @@ export default function Home() {
       };
       setMessages([welcomeMsg]);
       setChatStatus("online");
-      setIsLoading(false); // إنهاء شريط جوجل (سينطلق لـ 100% ويختفي)
+      setIsLoading(false);
     }, 800);
   };
 
+  // 🔴 تحسين أوقات الـ idle والإغلاق التلقائي
   const resetActivityTimers = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
@@ -180,12 +187,14 @@ export default function Home() {
       setChatStatus("online");
     }
 
+    // 🔴 30 ثانية للـ idle (بدلاً من 20)
     idleTimerRef.current = setTimeout(() => {
       if (currentSpeaker === "agent" && chatStatus !== "ended" && chatStatus !== "typing") {
         setChatStatus("idle");
       }
-    }, 20 * 1000);
+    }, 30 * 1000);
 
+    // 🔴 5 دقائق للإغلاق التلقائي
     autoCloseTimerRef.current = setTimeout(() => {
       if (currentSpeaker === "agent" && chatStatus !== "ended") {
         performAutoClose();
@@ -198,7 +207,7 @@ export default function Home() {
       const hasSavedState = loadStateFromStorage();
       if (!hasSavedState) {
         setChatStatus("typing");
-        setIsLoading(true); // تشغيل شريط جوجل
+        setIsLoading(true);
         const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
         setTimeout(() => {
           const welcomeMsg: Message = {
@@ -209,7 +218,7 @@ export default function Home() {
           };
           setMessages([welcomeMsg]);
           setChatStatus("online");
-          setIsLoading(false); // إنهاء شريط جوجل
+          setIsLoading(false);
         }, 800);
       }
     }
@@ -219,7 +228,6 @@ export default function Home() {
     };
   }, [open]);
 
-  // حفظ الحالة فقط إذا كان هناك موظف نشط ومحادثة جارية
   useEffect(() => {
     if (typeof window !== 'undefined') {
       if (currentSpeaker === "agent" && chatStatus !== "ended" && messages.length > 0) {
@@ -254,15 +262,14 @@ export default function Home() {
     return 'support'; 
   };
 
+  // 🔴 تحسين رسائل التحويل للموظفين
   const checkAndPerformEscalation = (userText: string): boolean => {
     if (!wantsHumanContact(userText)) return false;
     
     setChatStatus("typing");
     const targetDept = detectDepartment(userText);
     
-    let transferMsg = "يرجى الانتظار، جاري تحويلك إلى قسم خدمة العملاء المختص...";
-    if (targetDept === 'ads') transferMsg = "يرجى الانتظار، جاري تحويلك إلى قسم الإعلانات والترويج...";
-    if (targetDept === 'technical') transferMsg = "يرجى الانتظار، جاري تحويلك إلى الدعم الفني المتخصص...";
+    const transferMsg = transferMessages[targetDept];
 
     setMessages((prev) => [...prev, {
       id: (Date.now() + 1).toString(), sender: currentSpeaker, role: "assistant",
@@ -282,9 +289,18 @@ export default function Home() {
           setSessionAgents(prev => [...prev, assignedAgent!]);
         }
         setCurrentSpeaker("agent");
+        
+        // 🔴 رسائل ترحيب محسنة من الموظفين
+        const agentWelcomeMessages = [
+          `أهلاً بك! أنا ${assignedAgent.name}، ${assignedAgent.role}. يسعدني خدمتك، كيف أقدر أساعدك؟`,
+          `مرحباً! ${assignedAgent.name} هنا، ${assignedAgent.role}. تفضل بطرح طلبك، أنا جاهز لمساعدتك.`,
+          `أهلاً وسهلاً! ${assignedAgent.name} - ${assignedAgent.role} في خدمتك. أخبرني بما تحتاجه.`
+        ];
+        const randomWelcome = agentWelcomeMessages[Math.floor(Math.random() * agentWelcomeMessages.length)];
+        
         setMessages((prev) => [...prev, {
           id: (Date.now() + 2).toString(), sender: "agent", role: "assistant",
-          text: `حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟ (${assignedAgent.name} - ${assignedAgent.role})`,
+          text: randomWelcome,
           time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }), status: "read"
         }]);
       } else {
@@ -306,7 +322,7 @@ export default function Home() {
     if (!text.trim() || chatStatus === "ended") return; 
     
     setChatStatus("typing");
-    setIsLoading(true); // تشغيل شريط جوجل
+    setIsLoading(true);
     const userText = text;
     setText("");
 
@@ -350,7 +366,7 @@ export default function Home() {
       }]);
       setChatStatus("online");
     } finally {
-      setIsLoading(false); // إنهاء شريط جوجل
+      setIsLoading(false);
     }
   };
 
@@ -377,7 +393,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
       <style jsx global>{`
-        /* 🔴 1. شريط تحميل بأسلوب جوجل (NProgress Style) */
+        /* 🔴 شريط تحميل بأسلوب جوجل */
         .google-loader {
           position: fixed;
           top: 0;
@@ -397,11 +413,9 @@ export default function Home() {
           background: linear-gradient(90deg, #7c3aed, #3b82f6, #8b5cf6);
           box-shadow: 0 0 10px rgba(124, 58, 237, 0.8);
         }
-        /* حالة التحميل: يتحرك بسرعة ثم يتباطأ ويستقر عند ~85% */
         .google-loader.loading::after {
           animation: google-loading 2.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
         }
-        /* حالة الانتهاء: ينطلق لـ 100% ويختفي بسلاسة */
         .google-loader.done::after {
           animation: google-finish 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
@@ -411,7 +425,7 @@ export default function Home() {
           30% { width: 40%; left: 0; }
           60% { width: 65%; left: 10%; }
           80% { width: 85%; left: 5%; }
-          100% { width: 90%; left: 5%; } /* يستقر هنا حتى يتغير state */
+          100% { width: 90%; left: 5%; }
         }
         @keyframes google-finish {
           0% { width: 85%; left: 5%; opacity: 1; }
@@ -419,25 +433,14 @@ export default function Home() {
           100% { width: 100%; left: 0; opacity: 0; }
         }
 
-        /* 🔴 2. حركة انزلاق الأيقونة من اليمين مع ارتداد */
+        /* 🔴 حركة الأيقونة من اليمين */
         @keyframes slideInFromRight {
-          0% { transform: translateX(150%) scale(0.5); opacity: 0; }
-          60% { transform: translateX(-10px) scale(1.05); opacity: 1; }
+          0% { transform: translateX(200%) scale(0.5); opacity: 0; }
+          60% { transform: translateX(-15px) scale(1.1); opacity: 1; }
           100% { transform: translateX(0) scale(1); opacity: 1; }
         }
         .animate-slide-in-right {
-          animation: slideInFromRight 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-        }
-
-        /* 🔴 3. حركة العيون: تظهر من اليمين */
-        @keyframes eyesPeekFromRight {
-          0% { transform: translateX(6px) scale(0.1); opacity: 0; }
-          50% { transform: translateX(3px) scale(1.2); opacity: 1; }
-          100% { transform: translateX(0) scale(1); opacity: 1; }
-        }
-        .animate-eyes-peek {
-          animation: eyesPeekFromRight 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-          transform-origin: center;
+          animation: slideInFromRight 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
 
         @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
@@ -459,7 +462,6 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
-      {/* 🔴 شريط التحميل العلوي بأسلوب جوجل */}
       <div className={`google-loader ${isLoading ? 'loading' : 'done'}`}></div>
 
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
@@ -505,7 +507,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 🔴 أيقونة الدردشة: تنزلق من اليمين + العيون تظهر من اليمين */}
+      {/* 🔴 أيقونة الدردشة تظهر من اليمين */}
       <div 
         onClick={() => { 
           setOpen(!open); 
@@ -523,13 +525,11 @@ export default function Home() {
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
           <g className="animate-blink">
             <circle cx="10" cy="14" r="5" fill="white" />
-            {/* العيون تظهر من اليمين أولاً */}
-            <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" className="animate-eyes-peek" style={{ transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
+            <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
           </g>
           <g className="animate-blink">
             <circle cx="22" cy="14" r="5" fill="white" />
-            {/* العيون تظهر من اليمين أولاً */}
-            <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" className="animate-eyes-peek" style={{ transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
+            <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
           </g>
           <path d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
         </svg>
@@ -537,7 +537,6 @@ export default function Home() {
         <div className="absolute -inset-2 rounded-full border border-purple-300/20 animate-ping opacity-50 pointer-events-none" style={{ animationDelay: '0.8s' }}></div>
       </div>
 
-      {/* نافذة الشات */}
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -593,7 +592,7 @@ export default function Home() {
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
                 {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent && chatStatus !== "ended" ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
-                <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
+                <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative whitespace-pre-line ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
                   {msg.text}
                 </div>
                 <span className="text-[10px] text-gray-500 mt-1 px-1 flex items-center gap-1">
@@ -631,7 +630,7 @@ export default function Home() {
                 }
                 
                 setChatStatus("typing");
-                setIsLoading(true); // تشغيل شريط جوجل
+                setIsLoading(true);
                 const randomIndex = Math.floor(Math.random() * welcomeMessages.length);
                 setTimeout(() => {
                   const welcomeMsg: Message = {
@@ -642,7 +641,7 @@ export default function Home() {
                   };
                   setMessages([welcomeMsg]);
                   setChatStatus("online");
-                  setIsLoading(false); // إنهاء شريط جوجل
+                  setIsLoading(false);
                 }, 800);
               }} 
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
