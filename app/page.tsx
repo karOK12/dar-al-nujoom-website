@@ -58,7 +58,6 @@ interface TrendingProduct {
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
-// خامساً: مدة انتهاء الجلسة (300 ثانية = 5 دقائق) - قابلة للتعديل بسهولة
 const SESSION_TIMEOUTS = {
   IDLE_TO_CLOSED: 300, 
   QUEUE_CHECK_INTERVAL: 8000,
@@ -148,11 +147,12 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
-  // ثانياً: متغيرات حركة العين البشرية
+  // متغيرات حركة العين البشرية
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
   const targetEyePos = useRef({ x: 0, y: 0 });
   const currentEyePos = useRef({ x: 0, y: 0 });
+  const mouseStopTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   const chatButtonRef = useRef<HTMLDivElement>(null);
 
@@ -173,7 +173,7 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // أولاً: شريط التحميل البنفسجي (RTL حقيقي - يبدأ من اليمين وينمو لليسار)
+  // شريط التحميل البنفسجي (RTL حقيقي)
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -230,15 +230,20 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // ثانياً: حركة العين البشرية الواقعية (Lerp + Random Blink)
+  // حركة العين البشرية الواقعية (مثل Binance - تتبع الماوس من كل الجهات)
   // ============================================================
   useEffect(() => {
     let rafId: number;
     const animateEye = () => {
-      // Lerp لحركة ناعمة جداً تشبه البشر (ease-out طبيعي)
-      currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.08;
-      currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.08;
-      setEyePos({ x: currentEyePos.current.x, y: currentEyePos.current.y });
+      // Lerp لحركة ناعمة جداً (معامل 0.15 = سرعة متوسطة)
+      currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.15;
+      currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.15;
+      
+      // تقريب للأرقام العشرية لتجنب الاهتزاز
+      const x = Math.round(currentEyePos.current.x * 100) / 100;
+      const y = Math.round(currentEyePos.current.y * 100) / 100;
+      
+      setEyePos({ x, y });
       rafId = requestAnimationFrame(animateEye);
     };
     rafId = requestAnimationFrame(animateEye);
@@ -252,26 +257,45 @@ export default function Home() {
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
         
-        // حد أقصى 2.2 بكسل لضمان بقاء البؤبؤ داخل دائرة البياض (نصف القطر 5) دائماً
-        const maxOffset = 2.2;
-        const rawX = (e.clientX - centerX) / 45;
-        const rawY = (e.clientY - centerY) / 45;
+        // حساب المسافة من مركز الأيقونة
+        const deltaX = e.clientX - centerX;
+        const deltaY = e.clientY - centerY;
+        
+        // حد أقصى 2.5 بكسل (نصف قطر البؤبؤ) لضمان عدم الخروج من دائرة البياض
+        const maxOffset = 2.5;
+        
+        // القسمة على 25 لجعل الحركة سريعة وطبيعية
+        const rawX = deltaX / 25;
+        const rawY = deltaY / 25;
         
         targetEyePos.current = {
           x: Math.max(-maxOffset, Math.min(maxOffset, rawX)),
           y: Math.max(-maxOffset, Math.min(maxOffset, rawY))
         };
+        
+        // إعادة ضبط مؤقت العودة للمنتصف
+        if (mouseStopTimerRef.current) {
+          clearTimeout(mouseStopTimerRef.current);
+        }
+        
+        // العودة التدريجية للمنتصف بعد توقف الماوس لمدة 1.5 ثانية
+        mouseStopTimerRef.current = setTimeout(() => {
+          targetEyePos.current = { x: 0, y: 0 };
+        }, 1500);
       }
     };
     
     window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      if (mouseStopTimerRef.current) clearTimeout(mouseStopTimerRef.current);
+    };
   }, [open]);
 
-  // نظرة للأسفل واليسار عند فتح الشات (باتجاه صندوق المحادثة)
+  // نظرة للأسفل واليسار عند فتح الشات
   useEffect(() => {
     if (open) {
-      targetEyePos.current = { x: -1.8, y: 1.8 };
+      targetEyePos.current = { x: -2.0, y: 2.0 };
       const timer = setTimeout(() => {
         targetEyePos.current = { x: 0, y: 0 };
       }, 2500);
@@ -483,7 +507,6 @@ export default function Home() {
     const targetAgent = findAvailableAgent(targetDept) || SUPPORT_AGENTS.find(a => a.department === targetDept);
     if (!targetAgent) return;
 
-    // ثالثاً: الموظف الجديد يقرأ السياق ويكمل من نفس النقطة
     const lastUserMsg = messages.filter(m => m.sender === 'user').pop()?.text || "استفسار عام";
     
     const transferMsg = createMessage(
@@ -524,7 +547,7 @@ export default function Home() {
   }, [messages]);
 
   // ============================================================
-  // ثالثاً وسابعاً: SEND MESSAGE & API HANDLING (سلوك موظف احترافي 100%)
+  // SEND MESSAGE & API HANDLING
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -553,7 +576,6 @@ export default function Home() {
         const currentDept = currentAgent.department;
         messageCountRef.current += 1;
 
-        // رابعاً: إنهاء المحادثة بأدب بعد تأكيد المستخدم
         const closingKeywords = ["لا", "شكرا", "شكراً", "هذا كل شيء", "انتهيت", "خلاص", "لا شكرا", "لا احتاج"];
         const isClosingRequest = closingKeywords.some(k => normalized.includes(k)) && normalized.length < 20;
 
@@ -579,7 +601,6 @@ export default function Home() {
           return;
         }
 
-        // الرد المباشر والديناميكي حسب الموضوع (بدون حشو)
         if (normalized.includes("سعر") || normalized.includes("اسعار") || normalized.includes("تفاصيل") || normalized.includes("اعلان") || normalized.includes("باقه") || normalized.includes("كم")) {
           if (currentDept === 'ads') {
             if (lastHandledTopicRef.current !== 'pricing_details') {
@@ -607,7 +628,6 @@ export default function Home() {
           }
         }
 
-        // المتابعة الذكية إذا قال المستخدم "نعم" أو "تمام" بعد عرض التفاصيل
         if ((normalized === "نعم" || normalized === "اي" || normalized === "تفضل" || normalized.includes("تمام") || normalized.includes("انتظار")) && lastHandledTopicRef.current === 'pricing_details') {
             const followUp = "ممتاز. لكي أتمكن من تجهيز العرض الأنسب لك، هل يمكنك إخباري بالميزانية التقريبية المخصصة للإعلان أو المنصة المفضلة لديك؟";
             previousAgentRepliesRef.current.add(followUp);
@@ -619,7 +639,6 @@ export default function Home() {
             return;
         }
 
-        // الرد على الشكر بسؤال واحد فقط عن الحاجة لمساعدة أخرى
         const isGratitude = normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || normalized.includes("الله يعطيك") || normalized.includes("انحلت") || normalized.includes("ممتاز");
         if (isGratitude && conversationPhaseRef.current !== "closing" && conversationPhaseRef.current !== "ended") {
           const gratitudeReplies = [
@@ -649,7 +668,6 @@ export default function Home() {
           return;
         }
 
-        // التحويل الصحيح للدعم الفني
         if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("معلق")) {
           if (currentDept === 'technical') {
             if (lastHandledTopicRef.current !== 'technical_details') {
@@ -676,7 +694,6 @@ export default function Home() {
           }
         }
 
-        // ردود عامة احترافية ومختصرة (Fallback آمن بدون تكرار)
         const generalReplies = currentDept === 'ads' 
           ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب لمتجرك؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك لنبدأ منها؟"]
           : currentDept === 'technical'
@@ -695,7 +712,6 @@ export default function Home() {
       return; 
     }
 
-    // منطق المساعد الذكي (AI API)
     setChatStatus("typing");
     try {
       const apiMessages = messages
@@ -807,7 +823,7 @@ export default function Home() {
   // JSX
   // ============================================================
   return (
-    <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
+    <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col" dir="rtl">
       <style jsx global>{`
         @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
@@ -852,9 +868,9 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
-      {/* أولاً: شريط التحميل البنفسجي - RTL حقيقي يبدأ من اليمين وينمو لليسار */}
+      {/* شريط التحميل البنفسجي - RTL حقيقي يبدأ من اليمين وينمو لليسار */}
       {loadingProgress > 0 && (
-        <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-gray-800/50">
+        <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-gray-800/50" dir="ltr">
           <div 
             className="absolute top-0 right-0 h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)]"
             style={{ 
@@ -909,17 +925,17 @@ export default function Home() {
         </section>
       </main>
 
-      {/* ثانياً: أيقونة المساعد بحركة عين بشرية واقعية ومتقنة */}
+      {/* أيقونة المساعد بحركة عين بشرية واقعية (مثل Binance) */}
       <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-cartoon-breathe">
             <g className={isBlinking ? "animate-blink-human" : ""}>
               <circle cx="10" cy="14" r="5" fill="white" />
-              <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+              <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)` }} />
             </g>
             <g className={isBlinking ? "animate-blink-human" : ""} style={{ animationDelay: '0.05s' }}>
               <circle cx="22" cy="14" r="5" fill="white" />
-              <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+              <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)` }} />
             </g>
             <path 
               d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" 
@@ -967,7 +983,6 @@ export default function Home() {
             const isUser = msg.sender === "user";
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
-                {/* ثالثاً: عرض اسم الموظف الحقيقي ووظيفته بشكل واضح وصحيح */}
                 {!isUser && (
                   <span className="text-[10px] text-purple-300 mb-1 ml-1 font-medium">
                     {msg.sender === "agent" && currentAgent ? `${currentAgent.name} | ${currentAgent.role}` : "المساعد الذكي"}
