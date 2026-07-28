@@ -868,15 +868,15 @@ export default function Home() {
         </div>
       )}
 
-      {/* Header: تم تعديل الترتيب ليتوافق تماماً مع متطلبات RTL (يمين: شعار+اسم، وسط: بحث، يسار: اشتراك ثم ترقية) */}
+      {/* Header: تم تعديل الترتيب ليتوافق مع الطلب (يمين: أزرار، وسط: بحث، يسار: شعار + اسم) */}
       <header className="sticky top-0 z-40 bg-[#0b0f1a]/95 backdrop-blur-md border-b border-gray-800 shadow-lg">
         <div className="w-full px-2 md:px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-2 md:gap-4">
           
-          {/* يمين: الشعار + اسم الموقع (ملاصقان كعنصر واحد) */}
-          <a href="/" className="logo-container flex items-center gap-2 md:gap-3 shrink-0">
-            <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover border-2 border-purple-500 shadow-md" />
-            <span className="brand-name text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">قناة مجلة دار النجوم</span>
-          </a>
+          {/* يمين: أزرار الاشتراك والترقية */}
+          <div className="actions flex items-center gap-2 md:gap-3 shrink-0">
+            <a href="/login" className="btn subscribe px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-purple-500/30 transition">اشتراك</a>
+            <a href="/upgrade" className="btn upgrade hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-orange-500/30 transition">ترقية 👑</a>
+          </div>
 
           {/* الوسط: مربع البحث */}
           <div className="search-box flex-1 max-w-md mx-2 hidden md:block">
@@ -891,11 +891,11 @@ export default function Home() {
             </div>
           </div>
 
-          {/* يسار: زر اشتراك ثم زر ترقية 👑 */}
-          <div className="actions flex items-center gap-2 md:gap-3 shrink-0">
-            <a href="/login" className="btn subscribe px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-purple-500/30 transition">اشتراك</a>
-            <a href="/upgrade" className="btn upgrade hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg hover:shadow-orange-500/30 transition">ترقية 👑</a>
-          </div>
+          {/* يسار: الشعار + اسم الموقع */}
+          <a href="/" className="logo-container flex items-center gap-2 md:gap-3 shrink-0">
+            <img src="https://iili.io/Bsjh2M7.png" alt="شعار" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover border-2 border-purple-500 shadow-md" />
+            <span className="brand-name text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">قناة مجلة دار النجوم</span>
+          </a>
 
         </div>
         <div className="md:hidden px-2 pb-3">
