@@ -11,14 +11,13 @@ type AgentStatus = "online" | "away" | "offline";
 type Department = 'support' | 'ads' | 'technical';
 type ChatStatus = "typing" | "online" | "waiting" | "inactive" | "closed";
 type ProductShape = "circle" | "rectangle" | "square" | "portrait";
-type AttachmentType = 'image' | 'link' | 'card' | 'product' | 'email' | 'file' | 'video';
+type AttachmentType = 'image' | 'link' | 'card' | 'product' | 'file' | 'video';
 
 interface Attachment {
   type: AttachmentType;
   url?: string;
   title?: string;
   description?: string;
-  email?: string;
   fileName?: string;
   fileSize?: string;
   fileType?: string;
@@ -43,7 +42,6 @@ interface Agent {
   status: AgentStatus;
   lastActivity: string;
   isBusy: boolean;
-  email?: string;
   isRealAgent?: boolean;
 }
 
@@ -74,15 +72,16 @@ interface UploadedFile {
 // ============================================================
 
 const SUPPORT_AGENTS: Agent[] = [
-  { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, email: "support@dar-alnujum.com", isRealAgent: false },
-  { employeeId: "EMP-002", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, email: "tech@dar-alnujum.com", isRealAgent: false },
-  { employeeId: "EMP-003", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=47", role: "مسؤولة الإعلانات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, email: "ads@dar-alnujum.com", isRealAgent: false },
+  { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
+  { employeeId: "EMP-002", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
+  { employeeId: "EMP-003", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=47", role: "مسؤولة الإعلانات والمبيعات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
 ];
 
+// تم تحديث أسماء الأقسام لتطابق طلبك تماماً
 const DEPARTMENT_OPTIONS: DepartmentOption[] = [
-  { id: 'support', name: 'فريق الدعم وخدمة العملاء', description: 'للاستفسارات العامة وخدمة العملاء' },
-  { id: 'ads', name: 'فريق الإعلانات والمبيعات', description: 'لحجز الإعلانات والاستفسار عن الأسعار والباقات' },
-  { id: 'technical', name: 'فريق الدعم الفني', description: 'لحل المشاكل التقنية وأخطاء الموقع' },
+  { id: 'support', name: 'استفسارات عامة وخدمة العملاء', description: 'تواصل مباشر مع موظف خدمة العملاء' },
+  { id: 'ads', name: 'قسم المبيعات والإعلانات', description: 'تواصل مباشر مع فريق المبيعات والدعاية' },
+  { id: 'technical', name: 'قسم الدعم الفني', description: 'تواصل مباشر مع فريق الدعم الفني' },
 ];
 
 const SESSION_TIMEOUTS = { IDLE_TO_CLOSED: 60, QUEUE_CHECK_INTERVAL: 8000 };
@@ -95,14 +94,6 @@ const TRENDING_PRODUCTS: TrendingProduct[] = [
 ];
 
 const EXACT_WELCOME_MESSAGE = "أهلاً وسهلاً بك في قناة مجلة دار النجوم. يسعدني مساعدتك، كيف أستطيع خدمتك اليوم؟";
-
-// خيارات التواصل الجديدة
-const DEPARTMENT_EMAILS = [
-  { title: "استفسارات عامة", email: "Hfsmrkarar1993@gmail.com", icon: "📩" },
-  { title: "قسم الدعم الفني", email: "tech@dar-alnujum.com", icon: "🛠️" },
-  { title: "فريق الدعاية والإعلانات", email: "ads@dar-alnujum.com", icon: "📢" },
-  { title: "قسم المبيعات", email: "sales@dar-alnujum.com", icon: "💼" }
-];
 
 const LOCAL_KNOWLEDGE_BASE = [
   { 
@@ -140,7 +131,6 @@ const LOCAL_KNOWLEDGE_BASE = [
 ];
 
 const GREETING_KEYWORDS = ["مرحبا", "هلا", "سلام", "صباح", "مساء", "اهلين", "السلام"];
-const EMAIL_KEYWORDS = ["بريد", "ايميل", "email", "تواصل", "اتصل"];
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
@@ -164,9 +154,14 @@ const normalizeArabicText = (text: string): string => {
     .toLowerCase();
 };
 
+// تم توسيع الكلمات المفتاحية لتشمل طلبات التواصل المباشر
 const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
-  const humanRequestKeywords = ["موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول"];
+  const humanRequestKeywords = [
+    "موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", 
+    "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول",
+    "تواصل", "اتصل", "مبيعات", "دعم فني", "اعلانات", "استفسار", "بريد", "ايميل"
+  ];
   return humanRequestKeywords.some(keyword => normalized.includes(keyword));
 };
 
@@ -648,9 +643,11 @@ export default function Home() {
     setChatStatus("online"); lastActivityTimeRef.current = Date.now();
   }, []);
 
+  // تم تحديث رسالة طلب اختيار القسم لتكون واضحة أنها للدردشة المباشرة
   const handleHumanRequest = useCallback(() => {
-    setShowDepartmentSelection(true); setChatStatus("online");
-    setMessages(prev => [...prev, createMessage("system", "يرجى اختيار القسم الذي ترغب في التواصل معه:")]);
+    setShowDepartmentSelection(true); 
+    setChatStatus("online");
+    setMessages(prev => [...prev, createMessage("system", "يسعدنا تواصلك المباشر! يرجى اختيار القسم المناسب ليتم تحويلك إلى الموظف المختص:", "assistant")]);
   }, []);
 
   const initiateDepartmentTransfer = useCallback((dept: Department) => {
@@ -678,7 +675,7 @@ export default function Home() {
   const performInternalTransfer = useCallback((targetDept: Department, currentAgentName: string) => {
     const targetAgent = findAvailableAgent(targetDept) || SUPPORT_AGENTS.find(a => a.department === targetDept);
     if (!targetAgent) return;
-    setMessages(prev => [...prev, createMessage("agent", `هذا الطلب يخص قسم ${targetDept === 'ads' ? 'الإعلانات' : targetDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}، سأقوم بتحويلك الآن إلى الموظف المختص مع الاحتفاظ بسجل المحادثة كاملاً.`, "assistant")]);
+    setMessages(prev => [...prev, createMessage("agent", `هذا الطلب يخص قسم ${targetDept === 'ads' ? 'المبيعات والإعلانات' : targetDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}، سأقوم بتحويلك الآن إلى الموظف المختص مع الاحتفاظ بسجل المحادثة كاملاً.`, "assistant")]);
     setTimeout(() => {
       setSessionAgents(prev => prev.find(a => a.employeeId === targetAgent!.employeeId) ? prev : [...prev, targetAgent!]);
       setCurrentAgent(targetAgent);
@@ -715,6 +712,7 @@ export default function Home() {
     conversationContextRef.current.push(trimmedText);
     if (conversationContextRef.current.length > 5) conversationContextRef.current.shift();
 
+    // التحقق من رغبة المستخدم في التواصل البشري (يشمل الآن كلمات مثل اتصل، مبيعات، دعم، إلخ)
     if (wantsHumanContact(trimmedText) && currentSpeaker === "bot" && !showDepartmentSelection) {
       handleHumanRequest(); isSendingRef.current = false; return;
     }
@@ -732,7 +730,7 @@ export default function Home() {
 
         if (isFirstUserMessageAfterTransferRef.current) {
           isFirstUserMessageAfterTransferRef.current = false;
-          const deptName = currentAgent.department === 'ads' ? 'الإعلانات' : currentAgent.department === 'technical' ? 'الدعم الفني' : 'خدمة العملاء';
+          const deptName = currentAgent.department === 'ads' ? 'المبيعات والإعلانات' : currentAgent.department === 'technical' ? 'الدعم الفني' : 'خدمة العملاء';
           setMessages(prev => [...prev, createMessage("agent", `أهلاً وسهلاً بك، معك ${currentAgent.name} من ${deptName}. كيف أقدر أساعدك اليوم؟`, "assistant")]);
           isSendingRef.current = false; return;
         }
@@ -782,21 +780,6 @@ export default function Home() {
 
     setChatStatus("typing");
     try {
-      // Check for email/contact request (NEW LOGIC)
-      if (EMAIL_KEYWORDS.some(k => normalized.includes(k))) {
-        const reply = "يسعدنا تواصلك معنا! يرجى اختيار القسم المناسب لطلبك:";
-        const attachments: Attachment[] = DEPARTMENT_EMAILS.map(dept => ({
-          type: 'email',
-          email: dept.email,
-          title: dept.title,
-          description: dept.icon
-        }));
-        setMessages(prev => [...prev, createMessage("bot", reply, "assistant", "read", attachments)]);
-        setChatStatus("online"); 
-        isSendingRef.current = false; 
-        return;
-      }
-
       const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
       
       if (kbMatch) {
@@ -884,7 +867,7 @@ export default function Home() {
   };
 
   // ============================================================
-  // RENDER ATTACHMENTS (Updated for Department Emails)
+  // RENDER ATTACHMENTS
   // ============================================================
   const renderAttachments = (attachments: Attachment[]) => {
     return (
@@ -917,41 +900,6 @@ export default function Home() {
                   </div>
                 </div>
               </a>
-            );
-          }
-          if (att.type === 'email' && att.email) {
-            return (
-              <div key={idx} className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-purple-500/30 rounded-lg p-3 mb-2">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="text-2xl">{att.description || '📧'}</div>
-                  <div className="flex-1">
-                    <div className="text-xs text-gray-400 mb-1">{att.title || 'البريد الإلكتروني'}</div>
-                    <div className="font-bold text-sm text-white break-all">{att.email}</div>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => navigator.clipboard.writeText(att.email!)}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-xs py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-1"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                    </svg>
-                    نسخ البريد
-                  </button>
-                  <a 
-                    href={`mailto:${att.email}`}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-3 rounded-lg transition-colors text-center flex items-center justify-center gap-1"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                      <polyline points="22,6 12,13 2,6"></polyline>
-                    </svg>
-                    إرسال بريد
-                  </a>
-                </div>
-              </div>
             );
           }
           if ((att.type === 'link' || att.type === 'card' || att.type === 'product') && att.url) {
