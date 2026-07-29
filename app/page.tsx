@@ -86,7 +86,7 @@ const WELCOME_MESSAGES = [
   "أهلاً بك، كيف أستطيع مساعدتك اليوم؟",
   "أهلاً وسهلاً بك في دار النجوم، يسعدني مساعدتك.",
   "مرحباً، أنا المساعد الذكي، تفضل بأي استفسار.",
- "أهلاً بك، كيف يمكنني مساعدتك اليوم؟"
+  "أهلاً بك، كيف يمكنني خدمتك اليوم؟"
 ];
 
 const PRICING_KEYWORDS = ["سعر", "اسعار", "اعلان", "باقة", "كم", "تكلفة", "عروض", "اشتراك", "نشر", "حجز"];
@@ -162,6 +162,9 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const [springScale, setSpringScale] = useState(1);
   
+  // NEW: Idle Animation State (Horizontal movement only)
+  const [idleOffsetX, setIdleOffsetX] = useState(0);
+  
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
   
@@ -189,7 +192,6 @@ export default function Home() {
   const lastAgentMessageRef = useRef<string>("");
   const messageCountRef = useRef<number>(0);
   
-  // NEW: Track if this is the first message after agent transfer
   const isFirstUserMessageAfterTransferRef = useRef(true);
   const lastWelcomeIndex = useRef<number>(-1);
 
@@ -270,6 +272,45 @@ export default function Home() {
       clearTimeout(fallback); clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
     };
   }, []);
+
+  // ============================================================
+  // IDLE ANIMATION LOGIC (Requirement: 15s cycle, horizontal only)
+  // ============================================================
+  useEffect(() => {
+    // Stop and reset immediately if dragging
+    if (isDragging) {
+      setIdleOffsetX(0);
+      return;
+    }
+
+    let moveTimeout: NodeJS.Timeout;
+    let resetTimeout: NodeJS.Timeout;
+    let cycleTimeout: NodeJS.Timeout;
+
+    const startCycle = () => {
+      // 1. Move left by 12px (Smooth spring transition handles the animation)
+      setIdleOffsetX(-12);
+      
+      moveTimeout = setTimeout(() => {
+        // 2. Return to original position (0)
+        setIdleOffsetX(0);
+        
+        resetTimeout = setTimeout(() => {
+          // 3. Wait 15 seconds, then repeat the cycle
+          cycleTimeout = setTimeout(startCycle, 15000);
+        }, 500); // 0.5s return journey (Total movement time ~1.0s)
+      }, 500); // 0.5s outward journey
+    };
+
+    // Initial 15s wait before the very first movement
+    cycleTimeout = setTimeout(startCycle, 15000);
+
+    return () => {
+      clearTimeout(moveTimeout);
+      clearTimeout(resetTimeout);
+      clearTimeout(cycleTimeout);
+    };
+  }, [isDragging]);
 
   // ============================================================
   // ADVANCED ANIMATION LOOP (Eyes + Drag Spring)
@@ -497,7 +538,7 @@ export default function Home() {
       conversationPhaseRef.current = "initial";
       lastAgentMessageRef.current = "";
       messageCountRef.current = 0;
-      isFirstUserMessageAfterTransferRef.current = true; // Reset for next time
+      isFirstUserMessageAfterTransferRef.current = true;
       if (typeof window !== "undefined") localStorage.removeItem("dar-alnujum-chat-state");
     }, 2500);
   }, []);
@@ -515,7 +556,7 @@ export default function Home() {
     conversationPhaseRef.current = "initial";
     lastAgentMessageRef.current = "";
     messageCountRef.current = 0;
-    isFirstUserMessageAfterTransferRef.current = true; // Crucial for first message logic
+    isFirstUserMessageAfterTransferRef.current = true;
     
     setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). تفضل، كيف يمكنني مساعدتك؟`, "assistant")]);
     setChatStatus("online");
@@ -571,7 +612,7 @@ export default function Home() {
       setSessionAgents(prev => prev.find(a => a.employeeId === targetAgent!.employeeId) ? prev : [...prev, targetAgent!]);
       setCurrentAgent(targetAgent);
       conversationPhaseRef.current = "initial";
-      isFirstUserMessageAfterTransferRef.current = true; // Reset for new agent
+      isFirstUserMessageAfterTransferRef.current = true;
       
       setTimeout(() => {
         setMessages(prev => [...prev, createMessage("agent", `مرحباً، أنا ${targetAgent!.name} من قسم ${targetDept === 'ads' ? 'الإعلانات' : targetDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}. اطلعت على المحادثة، وسأتابع معك من هنا. كيف أقدر أساعدك؟`, "assistant")]);
@@ -613,7 +654,6 @@ export default function Home() {
         const isNoThanks = normalized.includes("لا") && (normalized.includes("شكر") || normalized.includes("احتاج") || normalized.includes("شيء"));
         const isEndConversation = normalized.includes("هذا كل شيء") || normalized.includes("انتهيت") || normalized.includes("خلاص");
 
-        // 1. First Message After Transfer Logic (Requirement 1)
         if (isFirstUserMessageAfterTransferRef.current) {
           isFirstUserMessageAfterTransferRef.current = false;
           const deptName = currentDept === 'ads' ? 'الإعلانات' : currentDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء';
@@ -623,7 +663,6 @@ export default function Home() {
           return;
         }
 
-        // 2. Pure Greeting Logic (Requirement 5)
         if (isJustGreeting) {
           const warmReplies = ["أهلاً بك أستاذ، تفضل كيف أقدر أساعدك؟", "يا هلا، أنا معك. تفضل باستفسارك."];
           setMessages(prev => [...prev, createMessage("agent", warmReplies[Math.floor(Math.random() * warmReplies.length)], "assistant")]);
@@ -631,7 +670,6 @@ export default function Home() {
           return;
         }
 
-        // 3. Professional Closing Sequence (Requirement 2)
         if (isThanks && !isNoThanks) {
           setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر أستطيع مساعدتك به؟", "assistant")]);
           conversationPhaseRef.current = "closing_pending";
@@ -643,11 +681,10 @@ export default function Home() {
           const finalReply = "شكراً لتواصلك معنا، سعدنا بخدمتك. إذا احتجت إلى أي مساعدة أو استفسار في المستقبل، فلا تتردد في التواصل معنا في أي وقت. نتمنى لك يوماً سعيداً، ونشكرك على ثقتك بـ مجلة دار النجوم.";
           setMessages(prev => [...prev, createMessage("agent", finalReply, "assistant")]);
           isSendingRef.current = false;
-          setTimeout(() => closeAgentSession(), 2500); // End session after showing message
+          setTimeout(() => closeAgentSession(), 2500);
           return;
         }
 
-        // 4. Normal Business Logic
         if (currentDept === 'ads') {
           const hasPricingIntent = PRICING_KEYWORDS.some(k => normalized.includes(k));
           const hasCustomIntent = normalized.includes("مخصص") || normalized.includes("حملة") || normalized.includes("ميزانية");
@@ -697,7 +734,6 @@ export default function Home() {
           }
         }
 
-        // Default natural responses
         const generalReplies = currentDept === 'ads' 
           ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب لمتجرك؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك لنبدأ منها؟"]
           : currentDept === 'technical'
@@ -712,7 +748,6 @@ export default function Home() {
       return; 
     }
 
-    // BOT Response Logic
     setChatStatus("typing");
     try {
       const normalized = normalizeArabicText(trimmedText);
@@ -838,7 +873,6 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
-      {/* 3. شريط التحميل: من اليمين لليسار فقط بدون انعكاس */}
       {loadingProgress > 0 && (
         <div className="fixed top-0 right-0 z-[100] h-1 bg-gray-800/50 w-full">
           <div 
@@ -895,7 +929,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 4. أيقونة المساعد: لم يتم تعديلها، تعمل بالسحب والحركة الاحترافية كما هي */}
+      {/* AI Avatar Icon with Idle Animation Integrated */}
       <div 
         ref={chatButtonRef}
         onPointerDown={handlePointerDown}
@@ -909,8 +943,10 @@ export default function Home() {
           top: `${iconPos.y}px`,
           width: '64px',
           height: '64px',
-          transform: `scale(${springScale})`,
-          transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          // Added translateX for idle movement, combined with scale
+          transform: `translateX(${idleOffsetX}px) scale(${springScale})`,
+          // Smooth spring transition handles both the drag release and the idle nudge beautifully
+          transition: isDragging ? 'none' : 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
           boxShadow: isDragging 
             ? '0 20px 25px -5px rgba(147, 51, 234, 0.5), 0 8px 10px -6px rgba(147, 51, 234, 0.5)' 
             : '0 10px 15px -3px rgba(147, 51, 234, 0.3), 0 4px 6px -2px rgba(147, 51, 234, 0.2)'
