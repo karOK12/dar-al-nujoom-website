@@ -86,7 +86,7 @@ const WELCOME_MESSAGES = [
   "أهلاً بك، كيف أستطيع مساعدتك اليوم؟",
   "أهلاً وسهلاً بك في دار النجوم، يسعدني مساعدتك.",
   "مرحباً، أنا المساعد الذكي، تفضل بأي استفسار.",
- "أهلاً بك، كيف استطيع مساعدتك اليوم؟"
+  "أهلاً بك، كيف يمكنني خدمتك اليوم؟"
 ];
 
 const PRICING_KEYWORDS = ["سعر", "اسعار", "اعلان", "باقة", "كم", "تكلفة", "عروض", "اشتراك", "نشر", "حجز"];
@@ -218,7 +218,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // LOADING BAR (Right to Left Only)
+  // LOADING BAR LOGIC
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -274,40 +274,36 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // IDLE ANIMATION LOGIC (Requirement: 15s cycle, horizontal only)
+  // IDLE ANIMATION LOGIC (Binance-style: Nudge left, return, wait 12s)
   // ============================================================
   useEffect(() => {
-    // Stop and reset immediately if dragging
+    // إيقاف الحركة فوراً عند السحب
     if (isDragging) {
       setIdleOffsetX(0);
       return;
     }
 
     let moveTimeout: NodeJS.Timeout;
-    let resetTimeout: NodeJS.Timeout;
     let cycleTimeout: NodeJS.Timeout;
 
     const startCycle = () => {
-      // 1. Move left by 12px (Smooth spring transition handles the animation)
+      // 1. التحرك لليسار 12 بكسل
       setIdleOffsetX(-12);
       
       moveTimeout = setTimeout(() => {
-        // 2. Return to original position (0)
+        // 2. العودة للمكان الأصلي (CSS transition يتكفل بالنعومة)
         setIdleOffsetX(0);
         
-        resetTimeout = setTimeout(() => {
-          // 3. Wait 15 seconds, then repeat the cycle
-          cycleTimeout = setTimeout(startCycle, 15000);
-        }, 500); // 0.5s return journey (Total movement time ~1.0s)
-      }, 500); // 0.5s outward journey
+        // 3. الانتظار 12 ثانية قبل الدورة التالية
+        cycleTimeout = setTimeout(startCycle, 12000);
+      }, 400); // 400ms تتطابق مع مدة الانتقال في CSS
     };
 
-    // Initial 15s wait before the very first movement
-    cycleTimeout = setTimeout(startCycle, 15000);
+    // الانتظار 12 ثانية قبل أول حركة
+    cycleTimeout = setTimeout(startCycle, 12000);
 
     return () => {
       clearTimeout(moveTimeout);
-      clearTimeout(resetTimeout);
       clearTimeout(cycleTimeout);
     };
   }, [isDragging]);
@@ -873,13 +869,16 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
+      {/* شريط التحميل الاحترافي الداعم لـ RTL */}
       {loadingProgress > 0 && (
-        <div className="fixed top-0 right-0 z-[100] h-1 bg-gray-800/50 w-full">
+        <div className="fixed top-0 right-0 left-0 z-[100] h-1 bg-gray-800/30">
           <div 
-            className="h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)]"
+            className="absolute top-0 right-0 h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.6)]"
             style={{ 
               width: `${loadingProgress}%`,
-              transition: loadingProgress === 100 ? 'width 0.5s ease-out, opacity 0.5s ease-out' : 'width 0.4s ease-out',
+              transition: loadingProgress === 100 
+                ? 'width 0.6s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.6s ease-out' 
+                : 'width 0.4s cubic-bezier(0.25, 1, 0.5, 1)',
               opacity: loadingProgress === 100 ? 0 : 1
             }}
           />
@@ -929,7 +928,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* AI Avatar Icon with Idle Animation Integrated */}
+      {/* أيقونة المساعد (مع دمج حركة الخمول الجديدة) */}
       <div 
         ref={chatButtonRef}
         onPointerDown={handlePointerDown}
@@ -943,10 +942,10 @@ export default function Home() {
           top: `${iconPos.y}px`,
           width: '64px',
           height: '64px',
-          // Added translateX for idle movement, combined with scale
           transform: `translateX(${idleOffsetX}px) scale(${springScale})`,
-          // Smooth spring transition handles both the drag release and the idle nudge beautifully
-          transition: isDragging ? 'none' : 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          transition: isDragging 
+            ? 'none' 
+            : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
           boxShadow: isDragging 
             ? '0 20px 25px -5px rgba(147, 51, 234, 0.5), 0 8px 10px -6px rgba(147, 51, 234, 0.5)' 
             : '0 10px 15px -3px rgba(147, 51, 234, 0.3), 0 4px 6px -2px rgba(147, 51, 234, 0.2)'
