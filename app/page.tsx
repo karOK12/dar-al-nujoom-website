@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ============================================================
-// TYPES & INTERFACES (مُحدّثة لدعم الموظفين الحقيقيين مستقبلاً)
+// TYPES & INTERFACES
 // ============================================================
 
 type Sender = "user" | "bot" | "agent" | "system";
@@ -38,7 +38,6 @@ interface Agent {
   status: AgentStatus;
   lastActivity: string;
   isBusy: boolean;
-  // حقول جديدة للجاهزية المستقبلية لربط موظفين حقيقيين
   email?: string;
   isRealAgent?: boolean;
 }
@@ -82,16 +81,9 @@ const TRENDING_PRODUCTS: TrendingProduct[] = [
   { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=150&h=200&fit=crop", shape: "portrait" },
 ];
 
-const WELCOME_MESSAGES = [
-  "أهلاً بك، كيف أستطيع مساعدتك اليوم؟",
-  "أهلاً وسهلاً بك في دار النجوم، يسعدني مساعدتك.",
-  "مرحباً، أنا المساعد الذكي، تفضل بأي استفسار.",
-  "أهلاً بك، كيف يمكنني خدمتك اليوم؟"
-];
+// الجملة المطلوبة حرفياً للترحيب
+const EXACT_WELCOME_MESSAGE = "أهلاً وسهلاً بك في قناة مجلة دار النجوم. يسعدني مساعدتك، كيف أستطيع خدمتك اليوم؟";
 
-// ============================================================
-// LOCAL KNOWLEDGE BASE (البحث الداخلي الذكي)
-// ============================================================
 const LOCAL_KNOWLEDGE_BASE = [
   { 
     keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض"], 
@@ -113,20 +105,6 @@ const LOCAL_KNOWLEDGE_BASE = [
     explanation: "جميع الشروط والأحكام المنظمة لاستخدام المنصة متاحة هنا:",
     link: "/terms",
     linkText: "الشروط والأحكام"
-  },
-  { 
-    keywords: ["من نحن", "تعرف علينا"], 
-    targetDept: 'support' as Department,
-    explanation: "نحن منصة دار النجوم الإعلامية، منصتكم الأولى لعالم المشاهير والمحتوى الحصري.",
-    link: "/about",
-    linkText: "تعرف علينا أكثر"
-  },
-  { 
-    keywords: ["تواصل", "اتصل", "دعم"], 
-    targetDept: 'support' as Department,
-    explanation: "يسعدنا تواصلك معنا. يمكنك استخدام هذا الشات مباشرة أو زيارة صفحة التواصل:",
-    link: "/contact",
-    linkText: "صفحة تواصل معنا"
   }
 ];
 
@@ -189,7 +167,8 @@ export default function Home() {
   const [iconPos, setIconPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 80 : 0, y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [springScale, setSpringScale] = useState(1);
-  const [idleOffsetX, setIdleOffsetX] = useState(0); // للتحكم في حركة الخمول الأفقية فقط
+  const [idleOffsetX, setIdleOffsetX] = useState(0);
+  const [headTransform, setHeadTransform] = useState("translateY(0px) rotate(0deg)");
   
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
@@ -216,7 +195,6 @@ export default function Home() {
   const conversationPhaseRef = useRef<"initial" | "ongoing" | "clarifying" | "closing_pending" | "ended">("initial");
   const messageCountRef = useRef<number>(0);
   const isFirstUserMessageAfterTransferRef = useRef(true);
-  const lastWelcomeIndex = useRef<number>(-1);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
@@ -241,12 +219,11 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // LOADING BAR LOGIC (RTL: Right to Left, Smooth Fade Out)
+  // LOADING BAR LOGIC (RTL)
   // ============================================================
   useEffect(() => {
     let progress = 0;
     let isComplete = false;
-
     const updateProgress = (target: number, duration: number = 400) => {
       if (isComplete) return;
       const startTime = performance.now();
@@ -262,12 +239,10 @@ export default function Home() {
       };
       requestAnimationFrame(animate);
     };
-
     updateProgress(15, 300);
     const t1 = setTimeout(() => updateProgress(40, 500), 200);
     const t2 = setTimeout(() => updateProgress(75, 600), 600);
     const t3 = setTimeout(() => updateProgress(95, 500), 1200);
-
     const handleReadyState = () => { if (document.readyState === 'interactive') updateProgress(98, 300); };
     const handleLoad = () => {
       isComplete = true;
@@ -275,13 +250,11 @@ export default function Home() {
       setLoadingProgress(100);
       setTimeout(() => setLoadingProgress(0), 600);
     };
-
     document.addEventListener('readystatechange', handleReadyState);
     window.addEventListener('load', handleLoad);
     const fallback = setTimeout(() => {
       if (!isComplete) { isComplete = true; setLoadingProgress(100); setTimeout(() => setLoadingProgress(0), 600); }
     }, 10000);
-
     return () => {
       document.removeEventListener('readystatechange', handleReadyState);
       window.removeEventListener('load', handleLoad);
@@ -290,45 +263,45 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // IDLE ANIMATION LOGIC (Strict: Nudge left, return, wait 12s)
+  // IDLE ANIMATION LOGIC
   // ============================================================
   useEffect(() => {
     if (isDragging) {
       setIdleOffsetX(0);
       return;
     }
-
     let moveTimeout: NodeJS.Timeout;
     let cycleTimeout: NodeJS.Timeout;
-
     const startCycle = () => {
-      // 1. التحرك لليسار 12 بكسل
       setIdleOffsetX(-12);
       moveTimeout = setTimeout(() => {
-        // 2. العودة للمكان الأصلي
         setIdleOffsetX(0);
-        // 3. الانتظار 12 ثانية قبل الدورة التالية
         cycleTimeout = setTimeout(startCycle, 12000);
-      }, 400); // مدة العودة تتطابق مع transition في CSS
+      }, 400);
     };
-
     cycleTimeout = setTimeout(startCycle, 12000);
-
-    return () => {
-      clearTimeout(moveTimeout);
-      clearTimeout(cycleTimeout);
-    };
+    return () => { clearTimeout(moveTimeout); clearTimeout(cycleTimeout); };
   }, [isDragging]);
 
   // ============================================================
-  // ADVANCED ANIMATION LOOP (Eyes + Drag Spring)
+  // ADVANCED ANIMATION LOOP (Eyes + Head Breathing + Drag Spring)
   // ============================================================
   useEffect(() => {
     let rafId: number;
+    let time = 0;
     const animate = () => {
+      time += 0.015;
+      
+      // Head breathing and slight tilt
+      const breathY = Math.sin(time) * 1.0;
+      const tilt = Math.sin(time * 0.7) * 1.0;
+      setHeadTransform(`translateY(${breathY}px) rotate(${tilt}deg)`);
+
+      // Micro-saccades
       if (Math.random() < 0.008) {
         microSaccade.current = { x: (Math.random() - 0.5) * 0.8, y: (Math.random() - 0.5) * 0.8 };
       }
+      
       currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.08;
       currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.08;
       setEyePos({ x: currentEyePos.current.x + microSaccade.current.x, y: currentEyePos.current.y + microSaccade.current.y });
@@ -349,11 +322,10 @@ export default function Home() {
     return () => cancelAnimationFrame(rafId);
   }, [isDragging]);
 
+  // Eye Tracking (Mouse & Touch)
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent | TouchEvent) => {
+    const handleMove = (clientX: number, clientY: number) => {
       if (!chatButtonRef.current || isDragging) return;
-      const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
-      const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
       const rect = chatButtonRef.current.getBoundingClientRect();
       const dx = clientX - (rect.left + rect.width / 2);
       const dy = clientY - (rect.top + rect.height / 2);
@@ -362,14 +334,35 @@ export default function Home() {
       const moveDist = (distance / 300) * 2.2;
       let targetX = Math.cos(angle) * moveDist;
       let targetY = Math.sin(angle) * moveDist;
-      if (chatStatusRef.current === "typing") targetY -= 0.8;
+      if (chatStatusRef.current === "typing") targetY -= 0.8; // Look up slightly when thinking/typing
       targetEyePos.current = { x: targetX, y: targetY };
     };
+
+    const handleMouseMove = (e: MouseEvent) => handleMove(e.clientX, e.clientY);
+    const handleTouchMove = (e: TouchEvent) => {
+        if(e.touches.length > 0) handleMove(e.touches[0].clientX, e.touches[0].clientY);
+    };
+
     window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("touchmove", handleMouseMove, { passive: true });
-    return () => { window.removeEventListener("mousemove", handleMouseMove); window.removeEventListener("touchmove", handleMouseMove); };
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    return () => { window.removeEventListener("mousemove", handleMouseMove); window.removeEventListener("touchmove", handleTouchMove); };
   }, [isDragging]);
 
+  // Eye Direction based on Chat State
+  useEffect(() => {
+    if (open) {
+      // Look up towards the chat box and input field
+      targetEyePos.current = { x: 0, y: -2.5 };
+      if (chatStatus === "typing") {
+        // Look more specifically at the input area
+        targetEyePos.current = { x: 0, y: -3.0 };
+      }
+    } else {
+      targetEyePos.current = { x: 0, y: 0 };
+    }
+  }, [open, chatStatus]);
+
+  // Blinking & Idle Glance
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     let idleTimeout: NodeJS.Timeout;
@@ -380,7 +373,7 @@ export default function Home() {
       }, 2000 + Math.random() * 4000);
     };
     const scheduleIdleGlance = () => {
-      if (!isDragging && chatStatusRef.current === "online") {
+      if (!isDragging && chatStatusRef.current === "online" && !open) {
         idleTimeout = setTimeout(() => {
           const angle = Math.random() * Math.PI * 2;
           const dist = 1.0 + Math.random() * 1.0;
@@ -393,10 +386,10 @@ export default function Home() {
     scheduleBlink();
     scheduleIdleGlance();
     return () => { clearTimeout(blinkTimeout); clearTimeout(idleTimeout); };
-  }, [isDragging]);
+  }, [isDragging, open]);
 
   // ============================================================
-  // DRAG & DROP LOGIC (Untouched & Fully Functional)
+  // DRAG & DROP LOGIC
   // ============================================================
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
@@ -443,13 +436,6 @@ export default function Home() {
     } catch (e) { console.error('Save state error:', e); }
   }, [messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued]);
 
-  const getRandomMessage = (array: string[], lastIdxRef: React.MutableRefObject<number>) => {
-    let newIndex;
-    do { newIndex = Math.floor(Math.random() * array.length); } while (newIndex === lastIdxRef.current && array.length > 1);
-    lastIdxRef.current = newIndex;
-    return array[newIndex];
-  };
-
   const loadStateFromStorage = useCallback((): boolean => {
     if (typeof window === 'undefined') return false;
     try {
@@ -476,7 +462,8 @@ export default function Home() {
     if (currentSpeaker !== "agent") return;
     const interval = setInterval(() => {
       if ((Date.now() - lastActivityTimeRef.current) / 1000 >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
-        setMessages(prev => [...prev, createMessage("system", "تم إنهاء جلسة الموظف بسبب عدم وجود رد، يمكنك متابعة المحادثة مع المساعد الذكي.", "assistant")]);
+        // الجملة المطلوبة حرفياً عند الخمول
+        setMessages(prev => [...prev, createMessage("system", "أنا موجود إذا احتجت أي مساعدة في أي وقت.", "assistant")]);
         setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
         setChatStatus("online"); conversationPhaseRef.current = "initial";
         lastActivityTimeRef.current = Date.now();
@@ -487,7 +474,7 @@ export default function Home() {
 
   const closeAgentSession = useCallback(() => {
     setTimeout(() => {
-      setMessages([createMessage("bot", getRandomMessage(WELCOME_MESSAGES, lastWelcomeIndex), "assistant")]);
+      setMessages([createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
       setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
       setIsQueued(false); setShowDepartmentSelection(false); setChatStatus("online");
       lastActivityTimeRef.current = Date.now(); previousAgentRepliesRef.current.clear();
@@ -573,7 +560,6 @@ export default function Home() {
     const normalized = normalizeArabicText(trimmedText);
     const isJustGreeting = GREETING_KEYWORDS.some(k => normalized.includes(k)) && normalized.length < 20;
 
-    // 1. Agent Logic
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
       setTimeout(() => {
@@ -595,7 +581,8 @@ export default function Home() {
         }
 
         if (isThanks && !isNoThanks) {
-          setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر أستطيع مساعدتك به؟", "assistant")]);
+          // الجملة المطلوبة حرفياً للختام
+          setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر يمكنني مساعدتك به؟", "assistant")]);
           conversationPhaseRef.current = "closing_pending"; isSendingRef.current = false; return;
         }
 
@@ -604,14 +591,12 @@ export default function Home() {
           isSendingRef.current = false; setTimeout(() => closeAgentSession(), 2500); return;
         }
 
-        // Smart Department Transfer Check
         const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
         if (kbMatch && kbMatch.targetDept !== currentAgent.department) {
           performInternalTransfer(kbMatch.targetDept, currentAgent.name);
           isSendingRef.current = false; return;
         }
 
-        // Professional Pricing Response
         if (currentAgent.department === 'ads' && kbMatch && kbMatch.targetDept === 'ads') {
           if (lastHandledTopicRef.current !== 'pricing_details') {
             lastHandledTopicRef.current = 'pricing_details';
@@ -622,7 +607,6 @@ export default function Home() {
           }
         }
 
-        // Default Agent Reply
         const generalReplies = currentAgent.department === 'ads' 
           ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك؟"]
           : currentAgent.department === 'technical'
@@ -635,13 +619,11 @@ export default function Home() {
       return; 
     }
 
-    // 2. Bot Logic (Priority: Local Knowledge -> AI API)
     setChatStatus("typing");
     try {
       const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
       
       if (kbMatch) {
-        // Found in local knowledge base
         const reply = `${kbMatch.explanation}\n\nللمزيد من التفاصيل، تفضل بزيارة: ${kbMatch.linkText}`;
         const attachments: Attachment[] = [{ type: 'link', url: kbMatch.link, title: kbMatch.linkText, description: "رابط مباشر" }];
         setMessages(prev => [...prev, createMessage("bot", reply, "assistant", "read", attachments)]);
@@ -649,11 +631,10 @@ export default function Home() {
       }
 
       if (isJustGreeting) {
-        setMessages(prev => [...prev, createMessage("bot", getRandomMessage(WELCOME_MESSAGES, lastWelcomeIndex), "assistant")]);
+        setMessages(prev => [...prev, createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
         setChatStatus("online"); isSendingRef.current = false; return;
       }
 
-      // Fallback to AI API
       const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: (m.sender === "bot" || m.sender === "agent") ? "assistant" : "user", content: m.text }));
       if (apiMessages.length === 0 || apiMessages[apiMessages.length - 1].role !== "user") {
          apiMessages.push({ role: "user", content: trimmedText });
@@ -680,13 +661,15 @@ export default function Home() {
   }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession]);
 
   useEffect(() => { saveStateToStorage(); }, [saveStateToStorage]);
+  
   useEffect(() => {
     if (!open || messages.length > 0) return;
     const hasSaved = loadStateFromStorage();
     if (!hasSaved) {
       setChatStatus("typing");
       setTimeout(() => {
-        setMessages([createMessage("bot", getRandomMessage(WELCOME_MESSAGES, lastWelcomeIndex), "assistant")]);
+        // استخدام جملة الترحيب المطلوبة حرفياً
+        setMessages([createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
         setChatStatus("online");
       }, 800);
     }
@@ -742,7 +725,6 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
-      {/* شريط التحميل الاحترافي الداعم لـ RTL (يبدأ من اليمين ويتحرك لليسار) */}
       {loadingProgress > 0 && (
         <div className="fixed top-0 right-0 left-0 z-[100] h-1 bg-gray-800/30">
           <div 
@@ -799,7 +781,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* أيقونة المساعد (Idle Animation مدمجة بدقة بدون التأثير على Drag & Drop) */}
+      {/* أيقونة المساعد مع حركة الرأس والتنفس والعيون المتقدمة */}
       <div 
         ref={chatButtonRef}
         onPointerDown={handlePointerDown}
@@ -823,7 +805,8 @@ export default function Home() {
       >
         <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border-2 border-white/10 animate-slide-in-right">
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <g>
+            {/* تطبيق حركة الرأس والتنفس على المجموعة الكاملة */}
+            <g style={{ transform: headTransform, transformOrigin: '18px 18px', transition: 'transform 0.3s ease-out' }}>
               <g className={isBlinking ? "animate-blink-human" : ""}>
                 <circle cx="12" cy="15" r="5.5" fill="white" />
                 <circle cx="12" cy="15" r="2.8" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x + 0.3}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
