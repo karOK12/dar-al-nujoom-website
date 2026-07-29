@@ -89,13 +89,6 @@ const WELCOME_MESSAGES = [
   "أهلاً بك، كيف يمكنني خدمتك اليوم؟"
 ];
 
-const CLOSING_MESSAGES = [
-  "سعدنا بخدمتك، نتمنى لك يوماً سعيداً.",
-  "شكراً لتواصلك معنا، نحن دائماً في خدمتك.",
-  "إذا احتجت أي مساعدة مستقبلاً فنحن هنا.",
-  "نتمنى لك كل التوفيق، ونشكرك على ثقتك بنا."
-];
-
 const PRICING_KEYWORDS = ["سعر", "اسعار", "اعلان", "باقة", "كم", "تكلفة", "عروض", "اشتراك", "نشر", "حجز"];
 const GREETING_KEYWORDS = ["مرحبا", "هلا", "سلام", "صباح", "مساء", "اهلين", "السلام"];
 
@@ -177,7 +170,6 @@ export default function Home() {
   const microSaccade = useRef({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
   
-  // Drag Refs
   const dragStartPos = useRef({ x: 0, y: 0 });
   const pointerStartPos = useRef({ x: 0, y: 0 });
   const hasDragged = useRef(false);
@@ -193,12 +185,13 @@ export default function Home() {
   const awaitingFinalConfirmationRef = useRef(false);
   const conversationContextRef = useRef<string[]>([]);
   const lastHandledTopicRef = useRef<string | null>(null);
-  const conversationPhaseRef = useRef<"initial" | "ongoing" | "clarifying" | "closing" | "ended">("initial");
+  const conversationPhaseRef = useRef<"initial" | "ongoing" | "clarifying" | "closing_pending" | "ended">("initial");
   const lastAgentMessageRef = useRef<string>("");
   const messageCountRef = useRef<number>(0);
   
+  // NEW: Track if this is the first message after agent transfer
+  const isFirstUserMessageAfterTransferRef = useRef(true);
   const lastWelcomeIndex = useRef<number>(-1);
-  const lastClosingIndex = useRef<number>(-1);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
@@ -212,21 +205,18 @@ export default function Home() {
       if (savedPos) {
         try {
           const parsed = JSON.parse(savedPos);
-          // Validate bounds
           const x = Math.min(Math.max(parsed.x, 10), window.innerWidth - 74);
           const y = Math.min(Math.max(parsed.y, 10), window.innerHeight - 74);
           setIconPos({ x, y });
           currentIconPos.current = { x, y };
           targetIconPos.current = { x, y };
-        } catch (e) {
-          console.error("Failed to parse icon position", e);
-        }
+        } catch (e) { console.error("Failed to parse icon position", e); }
       }
     }
   }, []);
 
   // ============================================================
-  // شريط التحميل العلوي
+  // LOADING BAR (Right to Left Only)
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -245,7 +235,6 @@ export default function Home() {
         
         progress = startProgress + (target - startProgress) * eased;
         setLoadingProgress(Math.min(progress, 99));
-        
         if (progressRatio < 1) requestAnimationFrame(animate);
       };
       requestAnimationFrame(animate);
@@ -287,61 +276,37 @@ export default function Home() {
   // ============================================================
   useEffect(() => {
     let rafId: number;
-    let time = 0;
-    
     const animate = () => {
-      time += 0.015;
-      
-      // 1. Icon Spring Animation (Smooth return to scale 1)
-      const targetScale = isDragging ? 1.15 : 1.0;
-      const currentScale = springScale; // We'll update state less frequently to avoid React overhead, but we can use a ref for smooth CSS if needed. 
-      // For React, we'll update state only if difference is significant, or use a direct DOM ref for max performance.
-      // Let's use direct DOM manipulation for the drag transform to guarantee 60fps without React render cycles.
-      
-      // 2. Micro-saccades (Random tiny eye movements every ~2 seconds)
       if (Math.random() < 0.008) {
-        microSaccade.current = { 
-          x: (Math.random() - 0.5) * 0.8, 
-          y: (Math.random() - 0.5) * 0.8 
-        };
+        microSaccade.current = { x: (Math.random() - 0.5) * 0.8, y: (Math.random() - 0.5) * 0.8 };
       }
 
-      // 3. Smooth Eye Interpolation (Lerp) with Inertia
       currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.08;
       currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.08;
       
-      setEyePos({ 
-        x: currentEyePos.current.x + microSaccade.current.x, 
-        y: currentEyePos.current.y + microSaccade.current.y 
-      });
+      setEyePos({ x: currentEyePos.current.x + microSaccade.current.x, y: currentEyePos.current.y + microSaccade.current.y });
 
-      // 4. Smooth Icon Position Interpolation (for spring back)
       if (!isDragging) {
         currentIconPos.current.x += (targetIconPos.current.x - currentIconPos.current.x) * 0.15;
         currentIconPos.current.y += (targetIconPos.current.y - currentIconPos.current.y) * 0.15;
         
-        // Update React state only when close enough to stop re-rendering constantly, or use a ref for the style
-        if (Math.abs(currentIconPos.current.x - targetIconPos.current.x) < 0.5 && 
-            Math.abs(currentIconPos.current.y - targetIconPos.current.y) < 0.5) {
+        if (Math.abs(currentIconPos.current.x - targetIconPos.current.x) < 0.5 && Math.abs(currentIconPos.current.y - targetIconPos.current.y) < 0.5) {
           currentIconPos.current.x = targetIconPos.current.x;
           currentIconPos.current.y = targetIconPos.current.y;
         }
         setIconPos({ x: currentIconPos.current.x, y: currentIconPos.current.y });
-        setSpringScale(prev => prev + (targetScale - prev) * 0.15);
+        setSpringScale(prev => prev + (1.0 - prev) * 0.15);
       }
 
       rafId = requestAnimationFrame(animate);
     };
-    
     rafId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(rafId);
   }, [isDragging]);
 
-  // Mouse Tracking with Polar Coordinates & Human-like Constraints
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent | TouchEvent) => {
       if (!chatButtonRef.current || isDragging) return;
-      
       const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
 
@@ -351,22 +316,15 @@ export default function Home() {
       
       const dx = clientX - centerX;
       const dy = clientY - centerY;
-      
       const angle = Math.atan2(dy, dx);
-      const distance = Math.min(Math.hypot(dx, dy), 300); // 300px influence radius
-      
-      // Eye radius is 5.5, pupil is 2.8. Max move = 5.5 - 2.8 - 0.5 (padding) = 2.2px
-      // This guarantees white is ALWAYS visible.
+      const distance = Math.min(Math.hypot(dx, dy), 300);
       const maxPupilMove = 2.2;
       const moveDist = (distance / 300) * maxPupilMove;
       
       let targetX = Math.cos(angle) * moveDist;
       let targetY = Math.sin(angle) * moveDist;
 
-      // Typing/Thinking state: look up slightly
-      if (chatStatusRef.current === "typing") {
-        targetY -= 0.8;
-      }
+      if (chatStatusRef.current === "typing") targetY -= 0.8;
 
       targetEyePos.current = { x: targetX, y: targetY };
     };
@@ -379,7 +337,6 @@ export default function Home() {
     };
   }, [isDragging]);
 
-  // Natural Blinking & Idle Glances
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     let idleTimeout: NodeJS.Timeout;
@@ -388,10 +345,7 @@ export default function Home() {
       const randomDelay = 2000 + Math.random() * 4000;
       blinkTimeout = setTimeout(() => {
         setIsBlinking(true);
-        setTimeout(() => {
-          setIsBlinking(false);
-          scheduleBlink();
-        }, 120);
+        setTimeout(() => { setIsBlinking(false); scheduleBlink(); }, 120);
       }, randomDelay);
     };
 
@@ -399,15 +353,10 @@ export default function Home() {
       if (!isDragging && chatStatusRef.current === "online") {
         const randomDelay = 5000 + Math.random() * 5000;
         idleTimeout = setTimeout(() => {
-          // Look slightly to a random direction
           const angle = Math.random() * Math.PI * 2;
           const dist = 1.0 + Math.random() * 1.0;
           targetEyePos.current = { x: Math.cos(angle) * dist, y: Math.sin(angle) * dist };
-          
-          setTimeout(() => {
-            targetEyePos.current = { x: 0, y: 0 }; // Return to center
-          }, 1000 + Math.random() * 1000);
-          
+          setTimeout(() => { targetEyePos.current = { x: 0, y: 0 }; }, 1000 + Math.random() * 1000);
           scheduleIdleGlance();
         }, randomDelay);
       }
@@ -415,76 +364,56 @@ export default function Home() {
     
     scheduleBlink();
     scheduleIdleGlance();
-    return () => {
-      clearTimeout(blinkTimeout);
-      clearTimeout(idleTimeout);
-    };
+    return () => { clearTimeout(blinkTimeout); clearTimeout(idleTimeout); };
   }, [isDragging]);
 
   // ============================================================
-  // DRAG & DROP LOGIC (Pointer Events for Mouse + Touch)
+  // DRAG & DROP LOGIC
   // ============================================================
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    e.preventDefault(); // Prevent default touch behaviors
+    e.preventDefault();
     setIsDragging(true);
     hasDragged.current = false;
     pointerStartPos.current = { x: e.clientX, y: e.clientY };
     dragStartPos.current = { x: currentIconPos.current.x, y: currentIconPos.current.y };
-    
-    // Capture pointer to ensure we don't lose drag if mouse moves fast
     chatButtonRef.current?.setPointerCapture(e.pointerId);
   }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!isDragging) return;
-    
     const deltaX = e.clientX - pointerStartPos.current.x;
     const deltaY = e.clientY - pointerStartPos.current.y;
     
-    // Threshold to distinguish between click and drag
-    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
-      hasDragged.current = true;
-    }
+    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) hasDragged.current = true;
     
     if (hasDragged.current) {
       let newX = dragStartPos.current.x + deltaX;
       let newY = dragStartPos.current.y + deltaY;
-      
-      // Boundary Clamping (Keep within screen, assuming 64px icon size + 10px margin)
-      const maxX = window.innerWidth - 74;
-      const maxY = window.innerHeight - 74;
-      
-      newX = Math.max(10, Math.min(newX, maxX));
-      newY = Math.max(10, Math.min(newY, maxY));
+      newX = Math.max(10, Math.min(newX, window.innerWidth - 74));
+      newY = Math.max(10, Math.min(newY, window.innerHeight - 74));
       
       targetIconPos.current = { x: newX, y: newY };
-      currentIconPos.current = { x: newX, y: newY }; // Direct update during drag for 1:1 responsiveness
+      currentIconPos.current = { x: newX, y: newY };
       setIconPos({ x: newX, y: newY });
     }
   }, [isDragging]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (!isDragging) return;
-    
     setIsDragging(false);
     chatButtonRef.current?.releasePointerCapture(e.pointerId);
-    
-    // Save to localStorage
     if (typeof window !== 'undefined') {
       localStorage.setItem('chat-icon-pos', JSON.stringify(targetIconPos.current));
     }
   }, [isDragging]);
 
   const handleClick = useCallback(() => {
-    // Only toggle chat if it was a genuine click, not the end of a drag
-    if (!hasDragged.current) {
-      setOpen(prev => !prev);
-    }
-    hasDragged.current = false; // Reset for next time
+    if (!hasDragged.current) setOpen(prev => !prev);
+    hasDragged.current = false;
   }, []);
 
   // ============================================================
-  // LOCAL STORAGE & SESSION LOGIC
+  // SESSION & MESSAGE LOGIC
   // ============================================================
   const saveStateToStorage = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -497,9 +426,7 @@ export default function Home() {
 
   const getRandomMessage = (array: string[], lastIdxRef: React.MutableRefObject<number>) => {
     let newIndex;
-    do {
-      newIndex = Math.floor(Math.random() * array.length);
-    } while (newIndex === lastIdxRef.current && array.length > 1);
+    do { newIndex = Math.floor(Math.random() * array.length); } while (newIndex === lastIdxRef.current && array.length > 1);
     lastIdxRef.current = newIndex;
     return array[newIndex];
   };
@@ -510,7 +437,6 @@ export default function Home() {
       const saved = localStorage.getItem('dar-alnujum-chat-state');
       if (!saved) return false;
       const parsed = JSON.parse(saved);
-      
       setMessages(parsed.messages || []);
       setCurrentSpeaker("bot");
       setCurrentAgent(null);
@@ -525,11 +451,9 @@ export default function Home() {
       conversationPhaseRef.current = "initial";
       lastAgentMessageRef.current = "";
       messageCountRef.current = 0;
+      isFirstUserMessageAfterTransferRef.current = true;
       return true;
-    } catch (e) { 
-      console.error('Load state error:', e); 
-      return false; 
-    }
+    } catch (e) { return false; }
   }, []);
 
   useEffect(() => {
@@ -541,16 +465,14 @@ export default function Home() {
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
     const interval = setInterval(() => {
-      const now = Date.now();
-      const elapsedSeconds = (now - lastActivityTimeRef.current) / 1000;
+      const elapsedSeconds = (Date.now() - lastActivityTimeRef.current) / 1000;
       if (elapsedSeconds >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
-        setMessages(prev => [...prev, createMessage("system", "تم إنهاء جلسة الموظف بسبب عدم وجود رد من المستخدم، ويمكنك متابعة المحادثة مع المساعد الذكي.", "assistant")]);
+        setMessages(prev => [...prev, createMessage("system", "تم إنهاء جلسة الموظف بسبب عدم وجود رد، يمكنك متابعة المحادثة مع المساعد الذكي.", "assistant")]);
         setCurrentSpeaker("bot");
         setCurrentAgent(null);
         setSessionAgents([]);
         setChatStatus("online");
         conversationPhaseRef.current = "initial";
-        lastHandledTopicRef.current = null;
         lastActivityTimeRef.current = Date.now();
       }
     }, 1000);
@@ -558,9 +480,6 @@ export default function Home() {
   }, [currentSpeaker]);
 
   const closeAgentSession = useCallback(() => {
-    const closingMsg = getRandomMessage(CLOSING_MESSAGES, lastClosingIndex);
-    setMessages(prev => [...prev, createMessage("agent", closingMsg, "assistant")]);
-    
     setTimeout(() => {
       const freshWelcome = getRandomMessage(WELCOME_MESSAGES, lastWelcomeIndex);
       setMessages([createMessage("bot", freshWelcome, "assistant")]);
@@ -578,6 +497,7 @@ export default function Home() {
       conversationPhaseRef.current = "initial";
       lastAgentMessageRef.current = "";
       messageCountRef.current = 0;
+      isFirstUserMessageAfterTransferRef.current = true; // Reset for next time
       if (typeof window !== "undefined") localStorage.removeItem("dar-alnujum-chat-state");
     }, 2500);
   }, []);
@@ -595,6 +515,7 @@ export default function Home() {
     conversationPhaseRef.current = "initial";
     lastAgentMessageRef.current = "";
     messageCountRef.current = 0;
+    isFirstUserMessageAfterTransferRef.current = true; // Crucial for first message logic
     
     setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). تفضل، كيف يمكنني مساعدتك؟`, "assistant")]);
     setChatStatus("online");
@@ -649,15 +570,11 @@ export default function Home() {
     setTimeout(() => {
       setSessionAgents(prev => prev.find(a => a.employeeId === targetAgent!.employeeId) ? prev : [...prev, targetAgent!]);
       setCurrentAgent(targetAgent);
-      awaitingFinalConfirmationRef.current = false;
-      conversationContextRef.current = [];
-      lastHandledTopicRef.current = null;
       conversationPhaseRef.current = "initial";
-      lastAgentMessageRef.current = "";
-      messageCountRef.current = 0;
+      isFirstUserMessageAfterTransferRef.current = true; // Reset for new agent
       
       setTimeout(() => {
-        setMessages(prev => [...prev, createMessage("agent", `مرحباً، أنا ${targetAgent!.name} من قسم ${targetDept === 'ads' ? 'الإعلانات' : targetDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}. اطلعت على كامل المحادثة بينك وبين الأستاذ ${currentAgentName}، وسأتابع معك من هذه النقطة. كيف أقدر أساعدك؟`, "assistant")]);
+        setMessages(prev => [...prev, createMessage("agent", `مرحباً، أنا ${targetAgent!.name} من قسم ${targetDept === 'ads' ? 'الإعلانات' : targetDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}. اطلعت على المحادثة، وسأتابع معك من هنا. كيف أقدر أساعدك؟`, "assistant")]);
         setChatStatus("online");
         isSendingRef.current = false;
         lastActivityTimeRef.current = Date.now();
@@ -665,6 +582,9 @@ export default function Home() {
     }, 1500);
   }, []);
 
+  // ============================================================
+  // SEND MESSAGE & HUMAN-LIKE LOGIC
+  // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
     if (!trimmedText || isSendingRef.current) return;
@@ -688,13 +608,46 @@ export default function Home() {
         const currentDept = currentAgent.department;
         messageCountRef.current += 1;
 
-        const closingKeywords = ["لا", "شكرا", "شكراً", "هذا كل شيء", "انتهيت", "خلاص", "لا شكرا", "لا احتاج"];
-        if (closingKeywords.some(k => normalized.includes(k)) && normalized.length < 20 && (conversationPhaseRef.current === "closing" || conversationPhaseRef.current === "ongoing")) {
-          closeAgentSession();
+        const isJustGreeting = GREETING_KEYWORDS.some(k => normalized.includes(k)) && normalized.length < 20;
+        const isThanks = (normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو")) && !normalized.includes("لا");
+        const isNoThanks = normalized.includes("لا") && (normalized.includes("شكر") || normalized.includes("احتاج") || normalized.includes("شيء"));
+        const isEndConversation = normalized.includes("هذا كل شيء") || normalized.includes("انتهيت") || normalized.includes("خلاص");
+
+        // 1. First Message After Transfer Logic (Requirement 1)
+        if (isFirstUserMessageAfterTransferRef.current) {
+          isFirstUserMessageAfterTransferRef.current = false;
+          const deptName = currentDept === 'ads' ? 'الإعلانات' : currentDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء';
+          const reply = `أهلاً وسهلاً بك، معك ${currentAgent.name} من ${deptName}. كيف أقدر أساعدك اليوم؟`;
+          setMessages(prev => [...prev, createMessage("agent", reply, "assistant")]);
           isSendingRef.current = false;
           return;
         }
 
+        // 2. Pure Greeting Logic (Requirement 5)
+        if (isJustGreeting) {
+          const warmReplies = ["أهلاً بك أستاذ، تفضل كيف أقدر أساعدك؟", "يا هلا، أنا معك. تفضل باستفسارك."];
+          setMessages(prev => [...prev, createMessage("agent", warmReplies[Math.floor(Math.random() * warmReplies.length)], "assistant")]);
+          isSendingRef.current = false;
+          return;
+        }
+
+        // 3. Professional Closing Sequence (Requirement 2)
+        if (isThanks && !isNoThanks) {
+          setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر أستطيع مساعدتك به؟", "assistant")]);
+          conversationPhaseRef.current = "closing_pending";
+          isSendingRef.current = false;
+          return;
+        }
+
+        if (isNoThanks || isEndConversation) {
+          const finalReply = "شكراً لتواصلك معنا، سعدنا بخدمتك. إذا احتجت إلى أي مساعدة أو استفسار في المستقبل، فلا تتردد في التواصل معنا في أي وقت. نتمنى لك يوماً سعيداً، ونشكرك على ثقتك بـ مجلة دار النجوم.";
+          setMessages(prev => [...prev, createMessage("agent", finalReply, "assistant")]);
+          isSendingRef.current = false;
+          setTimeout(() => closeAgentSession(), 2500); // End session after showing message
+          return;
+        }
+
+        // 4. Normal Business Logic
         if (currentDept === 'ads') {
           const hasPricingIntent = PRICING_KEYWORDS.some(k => normalized.includes(k));
           const hasCustomIntent = normalized.includes("مخصص") || normalized.includes("حملة") || normalized.includes("ميزانية");
@@ -703,10 +656,8 @@ export default function Home() {
             if (hasCustomIntent && lastHandledTopicRef.current !== 'custom_inquiry') {
               lastHandledTopicRef.current = 'custom_inquiry';
               const customReply = "ممتاز، لكي أقدم لك عرض سعر دقيق ومخصص، أحتاج إلى معرفة بعض التفاصيل:\n1. نوع النشاط أو المنتج.\n2. مدة الحملة المطلوبة.\n3. المنصة المفضلة.\n4. الميزانية التقريبية.\n5. الدولة أو المنطقة المستهدفة.\n\nبمجرد تزويدي بهذه التفاصيل، سأقوم بإعداد العرض الأنسب لك فوراً.";
-              previousAgentRepliesRef.current.add(customReply);
               setMessages(prev => [...prev, createMessage("agent", customReply, "assistant")]);
               conversationPhaseRef.current = "clarifying";
-              lastAgentMessageRef.current = customReply;
               isSendingRef.current = false;
               return;
             }
@@ -720,34 +671,12 @@ export default function Home() {
 🔹 الباقة الاحترافية: 810 دولار (500,000+ ظهور، جميع المنصات مع مدير حساب).
 
 هل تود حجز إحدى هذه الباقات، أم تفضل أن نصمم لك عرضاً مخصصاً حسب ميزانيتك؟`;
-              previousAgentRepliesRef.current.add(pricingReply);
               setMessages(prev => [...prev, createMessage("agent", pricingReply, "assistant")]);
               conversationPhaseRef.current = "ongoing";
-              lastAgentMessageRef.current = pricingReply;
               isSendingRef.current = false;
               return;
             }
           }
-        }
-
-        const isGratitude = normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || normalized.includes("ممتاز");
-        if (isGratitude && conversationPhaseRef.current !== "closing" && conversationPhaseRef.current !== "ended") {
-          const gratitudeReplies = ["العفو أستاذ، هذا واجبنا.", "تدلل أستاذ، يسعدني أن تم حل الأمر.", "بالعفو أستاذ، تحت أمرك بأي وقت."];
-          const gratitudeReply = gratitudeReplies[Math.floor(Math.random() * gratitudeReplies.length)];
-          previousAgentRepliesRef.current.add(gratitudeReply);
-          setMessages(prev => [...prev, createMessage("agent", gratitudeReply, "assistant")]);
-          
-          setTimeout(() => {
-            const followUp = "هل هناك أي استفسار آخر أقدر أساعدك فيه؟";
-            previousAgentRepliesRef.current.add(followUp);
-            setMessages(prev => [...prev, createMessage("agent", followUp, "assistant")]);
-            awaitingFinalConfirmationRef.current = true;
-            conversationPhaseRef.current = "closing";
-            lastAgentMessageRef.current = followUp;
-            setChatStatus("online");
-            isSendingRef.current = false;
-          }, 1000);
-          return;
         }
 
         if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل")) {
@@ -755,10 +684,8 @@ export default function Home() {
             if (lastHandledTopicRef.current !== 'technical_details') {
                 lastHandledTopicRef.current = 'technical_details';
                 const techReply = "حاضر، يسعدني مساعدتك. لكي أتمكن من فحص الأمر بدقة، هل يمكنك تزويدي برقم الطلب أو وصف تفصيلي للخطأ الذي يظهر لك؟";
-                previousAgentRepliesRef.current.add(techReply);
                 setMessages(prev => [...prev, createMessage("agent", techReply, "assistant")]);
                 conversationPhaseRef.current = "clarifying";
-                lastAgentMessageRef.current = techReply;
                 isSendingRef.current = false;
                 return;
             }
@@ -770,6 +697,7 @@ export default function Home() {
           }
         }
 
+        // Default natural responses
         const generalReplies = currentDept === 'ads' 
           ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب لمتجرك؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك لنبدأ منها؟"]
           : currentDept === 'technical'
@@ -777,15 +705,14 @@ export default function Home() {
           : ["بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.", "حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟"];
         
         const agentReply = generalReplies[Math.floor(Math.random() * generalReplies.length)];
-        previousAgentRepliesRef.current.add(agentReply);
         setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
-        lastAgentMessageRef.current = agentReply;
         conversationPhaseRef.current = "ongoing";
         isSendingRef.current = false;
       }, 1500);
       return; 
     }
 
+    // BOT Response Logic
     setChatStatus("typing");
     try {
       const normalized = normalizeArabicText(trimmedText);
@@ -911,8 +838,9 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
+      {/* 3. شريط التحميل: من اليمين لليسار فقط بدون انعكاس */}
       {loadingProgress > 0 && (
-        <div className="fixed top-0 right-0 left-auto z-[100] h-1 bg-gray-800/50 w-full">
+        <div className="fixed top-0 right-0 z-[100] h-1 bg-gray-800/50 w-full">
           <div 
             className="h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)]"
             style={{ 
@@ -967,7 +895,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* Draggable AI Avatar Icon */}
+      {/* 4. أيقونة المساعد: لم يتم تعديلها، تعمل بالسحب والحركة الاحترافية كما هي */}
       <div 
         ref={chatButtonRef}
         onPointerDown={handlePointerDown}
@@ -992,21 +920,16 @@ export default function Home() {
         <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border-2 border-white/10 animate-slide-in-right">
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
             <g>
-              {/* العين اليسرى */}
               <g className={isBlinking ? "animate-blink-human" : ""}>
                 <circle cx="12" cy="15" r="5.5" fill="white" />
                 <circle cx="12" cy="15" r="2.8" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x + 0.3}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
                 <circle cx="13.5" cy="13.5" r="1.2" fill="white" opacity="0.9" style={{ transform: `translate(${eyePos.x * 0.3}px, ${eyePos.y * 0.3}px)` }} />
               </g>
-              
-              {/* العين اليمنى */}
               <g className={isBlinking ? "animate-blink-human" : ""} style={{ animationDelay: '0.05s' }}>
                 <circle cx="24" cy="15" r="5.5" fill="white" />
                 <circle cx="24" cy="15" r="2.8" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x - 0.3}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
                 <circle cx="25.5" cy="13.5" r="1.2" fill="white" opacity="0.9" style={{ transform: `translate(${eyePos.x * 0.3}px, ${eyePos.y * 0.3}px)` }} />
               </g>
-
-              {/* الفم */}
               <path 
                 d={chatStatus === "typing" ? "M 11 24 Q 18 31 25 24" : "M 12 24 Q 18 28 24 24"}
                 stroke="white" 
