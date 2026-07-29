@@ -96,7 +96,13 @@ const TRENDING_PRODUCTS: TrendingProduct[] = [
 
 const EXACT_WELCOME_MESSAGE = "أهلاً وسهلاً بك في قناة مجلة دار النجوم. يسعدني مساعدتك، كيف أستطيع خدمتك اليوم؟";
 
-const SITE_CONTACT_EMAIL = "info@dar-alnujum.com";
+// خيارات التواصل الجديدة
+const DEPARTMENT_EMAILS = [
+  { title: "استفسارات عامة", email: "Hfsmrkarar1993@gmail.com", icon: "📩" },
+  { title: "قسم الدعم الفني", email: "tech@dar-alnujum.com", icon: "🛠️" },
+  { title: "فريق الدعاية والإعلانات", email: "ads@dar-alnujum.com", icon: "📢" },
+  { title: "قسم المبيعات", email: "sales@dar-alnujum.com", icon: "💼" }
+];
 
 const LOCAL_KNOWLEDGE_BASE = [
   { 
@@ -130,14 +136,6 @@ const LOCAL_KNOWLEDGE_BASE = [
     link: "/about",
     linkText: "من نحن",
     linkDesc: "تعرف على فريقنا ورؤيتنا"
-  },
-  {
-    keywords: ["تواصل", "اتصل", "دعم"],
-    targetDept: 'support' as Department,
-    explanation: "يسعدنا تواصلك معنا عبر القنوات التالية:",
-    link: "/contact",
-    linkText: "صفحة تواصل معنا",
-    linkDesc: "جميع طرق التواصل معنا"
   }
 ];
 
@@ -448,7 +446,6 @@ export default function Home() {
     const iconSize = 64;
     const margin = 10;
     
-    // Find closest edge
     const distToLeft = x;
     const distToRight = screenWidth - x - iconSize;
     const distToTop = y;
@@ -500,7 +497,6 @@ export default function Home() {
     setIsDragging(false);
     chatButtonRef.current?.releasePointerCapture(e.pointerId);
     
-    // Snap to closest edge
     const snapped = snapToEdge(currentIconPos.current.x, currentIconPos.current.y);
     targetIconPos.current = snapped;
     currentIconPos.current = snapped;
@@ -521,13 +517,11 @@ export default function Home() {
     if (!files) return;
     
     Array.from(files).forEach(file => {
-      // Check file size
       if (file.size > MAX_FILE_SIZE) {
         alert(`حجم الملف "${file.name}" يتجاوز الحد المسموح (10MB)`);
         return;
       }
       
-      // Check file type
       const isAllowed = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOC_TYPES].includes(file.type);
       if (!isAllowed) {
         alert(`نوع الملف "${file.name}" غير مدعوم`);
@@ -542,7 +536,6 @@ export default function Home() {
         type: fileType
       };
       
-      // Generate preview for images and videos
       if (fileType === 'image' || fileType === 'video') {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -554,7 +547,6 @@ export default function Home() {
         setUploadedFiles(prev => [...prev, uploadedFile]);
       }
       
-      // Simulate upload progress
       let progress = 0;
       const interval = setInterval(() => {
         progress += 10;
@@ -708,7 +700,6 @@ export default function Home() {
 
     isSendingRef.current = true;
     
-    // Prepare attachments from uploaded files
     const fileAttachments: Attachment[] = uploadedFiles.map(f => ({
       type: f.type as AttachmentType,
       url: f.preview || URL.createObjectURL(f.file),
@@ -791,12 +782,19 @@ export default function Home() {
 
     setChatStatus("typing");
     try {
-      // Check for email request
+      // Check for email/contact request (NEW LOGIC)
       if (EMAIL_KEYWORDS.some(k => normalized.includes(k))) {
-        const reply = "يمكنك التواصل معنا عبر البريد الإلكتروني التالي:";
-        const attachments: Attachment[] = [{ type: 'email', email: SITE_CONTACT_EMAIL }];
+        const reply = "يسعدنا تواصلك معنا! يرجى اختيار القسم المناسب لطلبك:";
+        const attachments: Attachment[] = DEPARTMENT_EMAILS.map(dept => ({
+          type: 'email',
+          email: dept.email,
+          title: dept.title,
+          description: dept.icon
+        }));
         setMessages(prev => [...prev, createMessage("bot", reply, "assistant", "read", attachments)]);
-        setChatStatus("online"); isSendingRef.current = false; return;
+        setChatStatus("online"); 
+        isSendingRef.current = false; 
+        return;
       }
 
       const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
@@ -886,7 +884,7 @@ export default function Home() {
   };
 
   // ============================================================
-  // RENDER ATTACHMENTS
+  // RENDER ATTACHMENTS (Updated for Department Emails)
   // ============================================================
   const renderAttachments = (attachments: Attachment[]) => {
     return (
@@ -923,30 +921,33 @@ export default function Home() {
           }
           if (att.type === 'email' && att.email) {
             return (
-              <div key={idx} className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-purple-500/30 rounded-lg p-3">
+              <div key={idx} className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-purple-500/30 rounded-lg p-3 mb-2">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-purple-600/30 rounded-lg flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400">
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                      <polyline points="22,6 12,13 2,6"></polyline>
-                    </svg>
-                  </div>
+                  <div className="text-2xl">{att.description || '📧'}</div>
                   <div className="flex-1">
-                    <div className="text-xs text-gray-400 mb-1">البريد الإلكتروني</div>
-                    <div className="font-bold text-sm text-white">{att.email}</div>
+                    <div className="text-xs text-gray-400 mb-1">{att.title || 'البريد الإلكتروني'}</div>
+                    <div className="font-bold text-sm text-white break-all">{att.email}</div>
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <button 
                     onClick={() => navigator.clipboard.writeText(att.email!)}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-xs py-2 px-3 rounded-lg transition-colors"
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-xs py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-1"
                   >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
                     نسخ البريد
                   </button>
                   <a 
                     href={`mailto:${att.email}`}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-3 rounded-lg transition-colors text-center"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-3 rounded-lg transition-colors text-center flex items-center justify-center gap-1"
                   >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                      <polyline points="22,6 12,13 2,6"></polyline>
+                    </svg>
                     إرسال بريد
                   </a>
                 </div>
