@@ -11,12 +11,17 @@ type AgentStatus = "online" | "away" | "offline";
 type Department = 'support' | 'ads' | 'technical';
 type ChatStatus = "typing" | "online" | "waiting" | "inactive" | "closed";
 type ProductShape = "circle" | "rectangle" | "square" | "portrait";
+type AttachmentType = 'image' | 'link' | 'card' | 'product' | 'email' | 'file' | 'video';
 
 interface Attachment {
-  type: 'image' | 'link' | 'card' | 'product';
+  type: AttachmentType;
   url?: string;
   title?: string;
   description?: string;
+  email?: string;
+  fileName?: string;
+  fileSize?: string;
+  fileType?: string;
 }
 
 interface Message {
@@ -56,14 +61,22 @@ interface TrendingProduct {
   shape: ProductShape;
 }
 
+interface UploadedFile {
+  id: string;
+  file: File;
+  preview?: string;
+  progress: number;
+  type: 'image' | 'video' | 'document';
+}
+
 // ============================================================
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
 const SUPPORT_AGENTS: Agent[] = [
-  { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
-  { employeeId: "EMP-002", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
-  { employeeId: "EMP-003", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=47", role: "مسؤولة الإعلانات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
+  { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, email: "support@dar-alnujum.com", isRealAgent: false },
+  { employeeId: "EMP-002", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, email: "tech@dar-alnujum.com", isRealAgent: false },
+  { employeeId: "EMP-003", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=47", role: "مسؤولة الإعلانات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, email: "ads@dar-alnujum.com", isRealAgent: false },
 ];
 
 const DEPARTMENT_OPTIONS: DepartmentOption[] = [
@@ -81,34 +94,60 @@ const TRENDING_PRODUCTS: TrendingProduct[] = [
   { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=150&h=200&fit=crop", shape: "portrait" },
 ];
 
-// الجملة المطلوبة حرفياً للترحيب
 const EXACT_WELCOME_MESSAGE = "أهلاً وسهلاً بك في قناة مجلة دار النجوم. يسعدني مساعدتك، كيف أستطيع خدمتك اليوم؟";
+
+const SITE_CONTACT_EMAIL = "info@dar-alnujum.com";
 
 const LOCAL_KNOWLEDGE_BASE = [
   { 
     keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض"], 
     targetDept: 'ads' as Department,
-    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الإعلانية الأساسية:\n🔹 الأسبوعية: 135$\n🔹 الشهرية: 405$\n🔹 الاحترافية: 810$",
+    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الإعلانية الأساسية:\n🔹 الأسبوعية: 135$ (50,000 ظهور)\n🔹 الشهرية: 405$ (200,000 ظهور)\n🔹 الاحترافية: 810$ (500,000+ ظهور)",
     link: "/pricing",
-    linkText: "صفحة الأسعار والتفاصيل الكاملة"
+    linkText: "صفحة الأسعار والتفاصيل الكاملة",
+    linkDesc: "اطلع على جميع الباقات والشروط"
   },
   { 
     keywords: ["سياسة", "خصوصية"], 
     targetDept: 'support' as Department,
-    explanation: "يمكنك الاطلاع على كافة التفاصيل المتعلقة بحماية البيانات والشروط القانونية من خلال الرابط التالي:",
+    explanation: "يمكنك الاطلاع على كافة التفاصيل المتعلقة بحماية البيانات والشروط القانونية:",
     link: "/privacy",
-    linkText: "سياسة الخصوصية"
+    linkText: "سياسة الخصوصية",
+    linkDesc: "سياسة حماية البيانات والخصوصية"
   },
   { 
     keywords: ["شروط", "احكام"], 
     targetDept: 'support' as Department,
     explanation: "جميع الشروط والأحكام المنظمة لاستخدام المنصة متاحة هنا:",
     link: "/terms",
-    linkText: "الشروط والأحكام"
+    linkText: "الشروط والأحكام",
+    linkDesc: "الشروط القانونية لاستخدام المنصة"
+  },
+  {
+    keywords: ["من نحن", "تعرف علينا"],
+    targetDept: 'support' as Department,
+    explanation: "نحن منصة دار النجوم الإعلامية، منصتكم الأولى لعالم المشاهير والمحتوى الحصري.",
+    link: "/about",
+    linkText: "من نحن",
+    linkDesc: "تعرف على فريقنا ورؤيتنا"
+  },
+  {
+    keywords: ["تواصل", "اتصل", "دعم"],
+    targetDept: 'support' as Department,
+    explanation: "يسعدنا تواصلك معنا عبر القنوات التالية:",
+    link: "/contact",
+    linkText: "صفحة تواصل معنا",
+    linkDesc: "جميع طرق التواصل معنا"
   }
 ];
 
 const GREETING_KEYWORDS = ["مرحبا", "هلا", "سلام", "صباح", "مساء", "اهلين", "السلام"];
+const EMAIL_KEYWORDS = ["بريد", "ايميل", "email", "تواصل", "اتصل"];
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/mov', 'video/webm'];
+const ALLOWED_DOC_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
 
 // ============================================================
 // UTILITY FUNCTIONS
@@ -144,6 +183,20 @@ const createMessage = (sender: Sender, text: string, role?: "user" | "assistant"
   status, attachments
 });
 
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+};
+
+const getFileType = (file: File): 'image' | 'video' | 'document' => {
+  if (ALLOWED_IMAGE_TYPES.includes(file.type)) return 'image';
+  if (ALLOWED_VIDEO_TYPES.includes(file.type)) return 'video';
+  return 'document';
+};
+
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
@@ -173,10 +226,15 @@ export default function Home() {
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
   
+  // File Upload States
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+  
   const targetEyePos = useRef({ x: 0, y: 0 });
   const currentEyePos = useRef({ x: 0, y: 0 });
   const microSaccade = useRef({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const dragStartPos = useRef({ x: 0, y: 0 });
   const pointerStartPos = useRef({ x: 0, y: 0 });
@@ -284,20 +342,17 @@ export default function Home() {
   }, [isDragging]);
 
   // ============================================================
-  // ADVANCED ANIMATION LOOP (Eyes + Head Breathing + Drag Spring)
+  // ADVANCED ANIMATION LOOP
   // ============================================================
   useEffect(() => {
     let rafId: number;
     let time = 0;
     const animate = () => {
       time += 0.015;
-      
-      // Head breathing and slight tilt
       const breathY = Math.sin(time) * 1.0;
       const tilt = Math.sin(time * 0.7) * 1.0;
       setHeadTransform(`translateY(${breathY}px) rotate(${tilt}deg)`);
 
-      // Micro-saccades
       if (Math.random() < 0.008) {
         microSaccade.current = { x: (Math.random() - 0.5) * 0.8, y: (Math.random() - 0.5) * 0.8 };
       }
@@ -322,7 +377,7 @@ export default function Home() {
     return () => cancelAnimationFrame(rafId);
   }, [isDragging]);
 
-  // Eye Tracking (Mouse & Touch)
+  // Eye Tracking
   useEffect(() => {
     const handleMove = (clientX: number, clientY: number) => {
       if (!chatButtonRef.current || isDragging) return;
@@ -334,7 +389,7 @@ export default function Home() {
       const moveDist = (distance / 300) * 2.2;
       let targetX = Math.cos(angle) * moveDist;
       let targetY = Math.sin(angle) * moveDist;
-      if (chatStatusRef.current === "typing") targetY -= 0.8; // Look up slightly when thinking/typing
+      if (chatStatusRef.current === "typing") targetY -= 0.8;
       targetEyePos.current = { x: targetX, y: targetY };
     };
 
@@ -348,13 +403,10 @@ export default function Home() {
     return () => { window.removeEventListener("mousemove", handleMouseMove); window.removeEventListener("touchmove", handleTouchMove); };
   }, [isDragging]);
 
-  // Eye Direction based on Chat State
   useEffect(() => {
     if (open) {
-      // Look up towards the chat box and input field
       targetEyePos.current = { x: 0, y: -2.5 };
       if (chatStatus === "typing") {
-        // Look more specifically at the input area
         targetEyePos.current = { x: 0, y: -3.0 };
       }
     } else {
@@ -362,7 +414,6 @@ export default function Home() {
     }
   }, [open, chatStatus]);
 
-  // Blinking & Idle Glance
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     let idleTimeout: NodeJS.Timeout;
@@ -389,8 +440,38 @@ export default function Home() {
   }, [isDragging, open]);
 
   // ============================================================
-  // DRAG & DROP LOGIC
+  // DRAG & DROP LOGIC WITH SNAP TO EDGE
   // ============================================================
+  const snapToEdge = useCallback((x: number, y: number) => {
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    const iconSize = 64;
+    const margin = 10;
+    
+    // Find closest edge
+    const distToLeft = x;
+    const distToRight = screenWidth - x - iconSize;
+    const distToTop = y;
+    const distToBottom = screenHeight - y - iconSize;
+    
+    const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+    
+    let snappedX = x;
+    let snappedY = y;
+    
+    if (minDist === distToLeft) {
+      snappedX = margin;
+    } else if (minDist === distToRight) {
+      snappedX = screenWidth - iconSize - margin;
+    } else if (minDist === distToTop) {
+      snappedY = margin;
+    } else {
+      snappedY = screenHeight - iconSize - margin;
+    }
+    
+    return { x: snappedX, y: snappedY };
+  }, []);
+
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -418,13 +499,93 @@ export default function Home() {
     if (!isDragging) return;
     setIsDragging(false);
     chatButtonRef.current?.releasePointerCapture(e.pointerId);
-    if (typeof window !== 'undefined') localStorage.setItem('chat-icon-pos', JSON.stringify(targetIconPos.current));
-  }, [isDragging]);
+    
+    // Snap to closest edge
+    const snapped = snapToEdge(currentIconPos.current.x, currentIconPos.current.y);
+    targetIconPos.current = snapped;
+    currentIconPos.current = snapped;
+    setIconPos(snapped);
+    
+    if (typeof window !== 'undefined') localStorage.setItem('chat-icon-pos', JSON.stringify(snapped));
+  }, [isDragging, snapToEdge]);
 
   const handleClick = useCallback(() => {
     if (!hasDragged.current) setOpen(prev => !prev);
     hasDragged.current = false;
   }, []);
+
+  // ============================================================
+  // FILE UPLOAD LOGIC
+  // ============================================================
+  const handleFileSelect = useCallback((files: FileList | null) => {
+    if (!files) return;
+    
+    Array.from(files).forEach(file => {
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`حجم الملف "${file.name}" يتجاوز الحد المسموح (10MB)`);
+        return;
+      }
+      
+      // Check file type
+      const isAllowed = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOC_TYPES].includes(file.type);
+      if (!isAllowed) {
+        alert(`نوع الملف "${file.name}" غير مدعوم`);
+        return;
+      }
+      
+      const fileType = getFileType(file);
+      const uploadedFile: UploadedFile = {
+        id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        file,
+        progress: 0,
+        type: fileType
+      };
+      
+      // Generate preview for images and videos
+      if (fileType === 'image' || fileType === 'video') {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          uploadedFile.preview = e.target?.result as string;
+          setUploadedFiles(prev => [...prev, uploadedFile]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setUploadedFiles(prev => [...prev, uploadedFile]);
+      }
+      
+      // Simulate upload progress
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 10;
+        if (progress >= 100) {
+          progress = 100;
+          clearInterval(interval);
+        }
+        setUploadedFiles(prev => prev.map(f => f.id === uploadedFile.id ? { ...f, progress } : f));
+      }, 100);
+    });
+  }, []);
+
+  const removeFile = useCallback((fileId: string) => {
+    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    handleFileSelect(e.dataTransfer.files);
+  }, [handleFileSelect]);
 
   // ============================================================
   // SESSION & MESSAGE LOGIC
@@ -462,7 +623,6 @@ export default function Home() {
     if (currentSpeaker !== "agent") return;
     const interval = setInterval(() => {
       if ((Date.now() - lastActivityTimeRef.current) / 1000 >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
-        // الجملة المطلوبة حرفياً عند الخمول
         setMessages(prev => [...prev, createMessage("system", "أنا موجود إذا احتجت أي مساعدة في أي وقت.", "assistant")]);
         setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
         setChatStatus("online"); conversationPhaseRef.current = "initial";
@@ -540,15 +700,26 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // SEND MESSAGE & SMART ROUTING LOGIC
+  // SEND MESSAGE LOGIC
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
-    if (!trimmedText || isSendingRef.current) return;
+    if ((!trimmedText && uploadedFiles.length === 0) || isSendingRef.current) return;
 
     isSendingRef.current = true;
-    setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
+    
+    // Prepare attachments from uploaded files
+    const fileAttachments: Attachment[] = uploadedFiles.map(f => ({
+      type: f.type as AttachmentType,
+      url: f.preview || URL.createObjectURL(f.file),
+      fileName: f.file.name,
+      fileSize: formatFileSize(f.file.size),
+      fileType: f.file.type
+    }));
+    
+    setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent", fileAttachments.length > 0 ? fileAttachments : undefined)]);
     setText("");
+    setUploadedFiles([]);
     lastActivityTimeRef.current = Date.now();
     conversationContextRef.current.push(trimmedText);
     if (conversationContextRef.current.length > 5) conversationContextRef.current.shift();
@@ -581,7 +752,6 @@ export default function Home() {
         }
 
         if (isThanks && !isNoThanks) {
-          // الجملة المطلوبة حرفياً للختام
           setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر يمكنني مساعدتك به؟", "assistant")]);
           conversationPhaseRef.current = "closing_pending"; isSendingRef.current = false; return;
         }
@@ -600,8 +770,8 @@ export default function Home() {
         if (currentAgent.department === 'ads' && kbMatch && kbMatch.targetDept === 'ads') {
           if (lastHandledTopicRef.current !== 'pricing_details') {
             lastHandledTopicRef.current = 'pricing_details';
-            const reply = `${kbMatch.explanation}\n\nوللاطلاع على جميع التفاصيل والشروط، يمكنك زيارة: ${kbMatch.linkText}`;
-            const attachments: Attachment[] = [{ type: 'link', url: kbMatch.link, title: kbMatch.linkText, description: "اضغط هنا للانتقال" }];
+            const reply = `${kbMatch.explanation}\n\nوللاطلاع على جميع التفاصيل والشروط، يمكنك زيارة:`;
+            const attachments: Attachment[] = [{ type: 'link', url: kbMatch.link, title: kbMatch.linkText, description: kbMatch.linkDesc }];
             setMessages(prev => [...prev, createMessage("agent", reply, "assistant", "read", attachments)]);
             conversationPhaseRef.current = "ongoing"; isSendingRef.current = false; return;
           }
@@ -621,11 +791,19 @@ export default function Home() {
 
     setChatStatus("typing");
     try {
+      // Check for email request
+      if (EMAIL_KEYWORDS.some(k => normalized.includes(k))) {
+        const reply = "يمكنك التواصل معنا عبر البريد الإلكتروني التالي:";
+        const attachments: Attachment[] = [{ type: 'email', email: SITE_CONTACT_EMAIL }];
+        setMessages(prev => [...prev, createMessage("bot", reply, "assistant", "read", attachments)]);
+        setChatStatus("online"); isSendingRef.current = false; return;
+      }
+
       const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
       
       if (kbMatch) {
-        const reply = `${kbMatch.explanation}\n\nللمزيد من التفاصيل، تفضل بزيارة: ${kbMatch.linkText}`;
-        const attachments: Attachment[] = [{ type: 'link', url: kbMatch.link, title: kbMatch.linkText, description: "رابط مباشر" }];
+        const reply = `${kbMatch.explanation}\n\nللمزيد من التفاصيل:`;
+        const attachments: Attachment[] = [{ type: 'link', url: kbMatch.link, title: kbMatch.linkText, description: kbMatch.linkDesc }];
         setMessages(prev => [...prev, createMessage("bot", reply, "assistant", "read", attachments)]);
         setChatStatus("online"); isSendingRef.current = false; return;
       }
@@ -658,7 +836,7 @@ export default function Home() {
     } finally {
       setChatStatus("online"); isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession]);
+  }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession, uploadedFiles]);
 
   useEffect(() => { saveStateToStorage(); }, [saveStateToStorage]);
   
@@ -668,7 +846,6 @@ export default function Home() {
     if (!hasSaved) {
       setChatStatus("typing");
       setTimeout(() => {
-        // استخدام جملة الترحيب المطلوبة حرفياً
         setMessages([createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
         setChatStatus("online");
       }, 800);
@@ -706,6 +883,105 @@ export default function Home() {
         </div>
       );
     });
+  };
+
+  // ============================================================
+  // RENDER ATTACHMENTS
+  // ============================================================
+  const renderAttachments = (attachments: Attachment[]) => {
+    return (
+      <div className="mt-2 space-y-2">
+        {attachments.map((att, idx) => {
+          if (att.type === 'image' && att.url) {
+            return <img key={idx} src={att.url} alt="attachment" className="rounded-lg max-w-full h-auto border border-gray-600" />;
+          }
+          if (att.type === 'video' && att.url) {
+            return (
+              <video key={idx} controls className="rounded-lg max-w-full h-auto border border-gray-600">
+                <source src={att.url} type={att.fileType || 'video/mp4'} />
+                المتصفح لا يدعم تشغيل الفيديو
+              </video>
+            );
+          }
+          if (att.type === 'file' && att.url) {
+            return (
+              <a key={idx} href={att.url} download={att.fileName} className="block bg-[#0b0f1a]/50 hover:bg-[#0b0f1a] border border-purple-500/30 rounded-lg p-3 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-xs text-purple-300 truncate">{att.fileName}</div>
+                    <div className="text-[10px] text-gray-400">{att.fileSize}</div>
+                  </div>
+                </div>
+              </a>
+            );
+          }
+          if (att.type === 'email' && att.email) {
+            return (
+              <div key={idx} className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-purple-500/30 rounded-lg p-3">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 bg-purple-600/30 rounded-lg flex items-center justify-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                      <polyline points="22,6 12,13 2,6"></polyline>
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-xs text-gray-400 mb-1">البريد الإلكتروني</div>
+                    <div className="font-bold text-sm text-white">{att.email}</div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => navigator.clipboard.writeText(att.email!)}
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-xs py-2 px-3 rounded-lg transition-colors"
+                  >
+                    نسخ البريد
+                  </button>
+                  <a 
+                    href={`mailto:${att.email}`}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-3 rounded-lg transition-colors text-center"
+                  >
+                    إرسال بريد
+                  </a>
+                </div>
+              </div>
+            );
+          }
+          if ((att.type === 'link' || att.type === 'card' || att.type === 'product') && att.url) {
+            return (
+              <a key={idx} href={att.url} target="_blank" rel="noopener noreferrer" className="block bg-gradient-to-r from-purple-600/10 to-blue-600/10 hover:from-purple-600/20 hover:to-blue-600/20 border border-purple-500/30 rounded-lg p-3 transition-all">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    {att.title && <div className="font-bold text-sm text-purple-300 mb-1">{att.title}</div>}
+                    {att.description && <div className="text-xs text-gray-400 mb-2">{att.description}</div>}
+                    <div className="text-xs text-blue-400 flex items-center gap-1">
+                      <span>فتح الرابط</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </a>
+            );
+          }
+          return null;
+        })}
+      </div>
+    );
   };
 
   // ============================================================
@@ -781,7 +1057,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* أيقونة المساعد مع حركة الرأس والتنفس والعيون المتقدمة */}
+      {/* أيقونة المساعد */}
       <div 
         ref={chatButtonRef}
         onPointerDown={handlePointerDown}
@@ -805,7 +1081,6 @@ export default function Home() {
       >
         <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border-2 border-white/10 animate-slide-in-right">
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* تطبيق حركة الرأس والتنفس على المجموعة الكاملة */}
             <g style={{ transform: headTransform, transformOrigin: '18px 18px', transition: 'transform 0.3s ease-out' }}>
               <g className={isBlinking ? "animate-blink-human" : ""}>
                 <circle cx="12" cy="15" r="5.5" fill="white" />
@@ -859,7 +1134,25 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50">
+        <div 
+          className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {isDragOver && (
+            <div className="absolute inset-0 bg-purple-600/20 border-2 border-dashed border-purple-500 rounded-xl flex items-center justify-center z-10">
+              <div className="text-center">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mx-auto mb-2 text-purple-400">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <p className="text-purple-300 font-bold">أفلت الملفات هنا</p>
+              </div>
+            </div>
+          )}
+          
           {messages.map((msg) => {
             if (msg.sender === "system") {
               return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%] whitespace-pre-line">{msg.text}</span></div>;
@@ -870,23 +1163,7 @@ export default function Home() {
                 {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
                 <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative whitespace-pre-line ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
                   {msg.text}
-                  {msg.attachments && msg.attachments.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      {msg.attachments.map((att, idx) => {
-                        if (att.type === 'image' && att.url) return <img key={idx} src={att.url} alt="attachment" className="rounded-lg max-w-full h-auto border border-gray-600" />;
-                        if ((att.type === 'link' || att.type === 'card' || att.type === 'product') && att.url) {
-                          return (
-                            <a key={idx} href={att.url} target="_blank" rel="noopener noreferrer" className="block bg-[#0b0f1a]/50 hover:bg-[#0b0f1a] border border-purple-500/30 rounded-lg p-2 transition-colors">
-                              {att.title && <div className="font-bold text-xs text-purple-300 mb-1">{att.title}</div>}
-                              {att.description && <div className="text-[10px] text-gray-400">{att.description}</div>}
-                              <div className="text-[10px] text-blue-400 mt-1 truncate">{att.url}</div>
-                            </a>
-                          );
-                        }
-                        return null;
-                      })}
-                    </div>
-                  )}
+                  {msg.attachments && msg.attachments.length > 0 && renderAttachments(msg.attachments)}
                 </div>
                 <span className="text-[10px] text-gray-500 mt-1 px-1 flex items-center gap-1">
                   {msg.time}{isUser && <span>{msg.status === "read" ? "✓✓" : "✓"}</span>}
@@ -918,8 +1195,65 @@ export default function Home() {
           )}
         </div>
 
+        {/* File Upload Preview */}
+        {uploadedFiles.length > 0 && (
+          <div className="p-3 border-t border-gray-700 bg-[#1f2937]/30">
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {uploadedFiles.map(file => (
+                <div key={file.id} className="relative flex-shrink-0 w-20 h-20 bg-[#0b0f1a] rounded-lg border border-gray-700 overflow-hidden">
+                  {file.preview && (file.type === 'image' || file.type === 'video') ? (
+                    file.type === 'image' ? (
+                      <img src={file.preview} alt={file.file.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <video src={file.preview} className="w-full h-full object-cover" />
+                    )
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                      </svg>
+                    </div>
+                  )}
+                  {file.progress < 100 && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <div className="text-xs text-white font-bold">{file.progress}%</div>
+                    </div>
+                  )}
+                  <button 
+                    onClick={() => removeFile(file.id)}
+                    className="absolute top-1 right-1 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-700 transition-colors"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           <div className="flex gap-2 items-end">
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-gray-700 text-white hover:bg-gray-600"
+              title="إرفاق ملف"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+              </svg>
+            </button>
+            <input 
+              ref={fileInputRef}
+              type="file" 
+              multiple
+              accept={[...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOC_TYPES].join(',')}
+              onChange={(e) => handleFileSelect(e.target.files)}
+              className="hidden"
+            />
             <textarea
               id="chat-input"
               value={text}
@@ -930,7 +1264,7 @@ export default function Home() {
               disabled={showDepartmentSelection}
               className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            <button onClick={sendMessage} disabled={!text.trim() || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            <button onClick={sendMessage} disabled={(!text.trim() && uploadedFiles.length === 0) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
             </button>
           </div>
