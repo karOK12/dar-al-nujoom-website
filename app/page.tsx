@@ -565,74 +565,72 @@ export default function Home() {
     } catch (e) { return false; }
   }, []);
 
-  // FIX 3 & 4: 59s Inactivity + 2s Close Logic
+  // ============================================================
+  // FIX: STRICT INACTIVITY & RESET LOGIC
+  // ============================================================
   useEffect(() => {
+    // Only track inactivity if we are currently talking to an agent
     if (currentSpeaker !== "agent") return;
 
-    let inactivityTimeout: NodeJS.Timeout;
-    let closeSessionTimeout: NodeJS.Timeout;
+    let inactivityTimer: NodeJS.Timeout;
+    let closeSessionTimer: NodeJS.Timeout;
 
-    const startInactivityTimer = () => {
-      clearTimeout(inactivityTimeout);
-      clearTimeout(closeSessionTimeout);
+    const startInactivityTracking = () => {
+      // 1. Clear any existing timers to prevent overlapping executions
+      clearTimeout(inactivityTimer);
+      clearTimeout(closeSessionTimer);
 
-      inactivityTimeout = setTimeout(() => {
-        if (chatStatusRef.current !== "closed") {
-          setChatStatus("inactive"); // Change status to "انتهى مؤقتاً"
+      // 2. Start 59-second timer
+      inactivityTimer = setTimeout(() => {
+        // Guard clause: Ensure we are still with an agent after 59s
+        if (currentSpeakerRef.current === "agent") {
+          setChatStatus("inactive"); // Step 1: Change status to "انتهى مؤقت"
 
-          // Wait exactly 2 seconds, then close session
-          closeSessionTimeout = setTimeout(() => {
-            closeAgentSession();
-          }, 2000);
+          // 3. Start 2-second timer
+          closeSessionTimer = setTimeout(() => {
+            // Guard clause: Ensure we are still with an agent after 2s
+            if (currentSpeakerRef.current === "agent") {
+              // Step 2 & 3: Full reset of all agent states
+              setCurrentSpeaker("bot");
+              setCurrentAgent(null);
+              setSessionAgents([]);
+              setIsQueued(false);
+              setShowDepartmentSelection(false);
+              setChatStatus("online");
+              
+              // Reset Refs
+              isFirstUserMessageAfterTransferRef.current = true;
+              agentResponseHistoryRef.current.clear();
+              lastActivityTimeRef.current = Date.now();
+
+              // Step 4: Send the exact welcome message ONCE (replaces array)
+              setMessages([{
+                id: `${Date.now()}-reset-bot`,
+                sender: "bot",
+                text: EXACT_WELCOME_MESSAGE,
+                role: "assistant",
+                time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+                status: "read"
+              }]);
+
+              // Clear local storage
+              if (typeof window !== "undefined") {
+                localStorage.removeItem("dar-alnujum-chat-state");
+              }
+            }
+          }, 2000); // 2 seconds
         }
       }, 59000); // 59 seconds
     };
 
-    // Reset timer every time messages array changes (user or agent sends a message)
-    startInactivityTimer();
+    startInactivityTracking();
 
+    // Cleanup function: crucial for stopping timers when component unmounts or dependencies (messages) change
     return () => {
-      clearTimeout(inactivityTimeout);
-      clearTimeout(closeSessionTimeout);
+      clearTimeout(inactivityTimer);
+      clearTimeout(closeSessionTimer);
     };
-  }, [messages, currentSpeaker, closeAgentSession]);
-
-  // FIX 1 & 6: Single Greeting Logic
-  const closeAgentSession = useCallback(() => {
-    setCurrentSpeaker("bot");
-    setCurrentAgent(null);
-    setSessionAgents([]);
-    setIsQueued(false);
-    setShowDepartmentSelection(false);
-    setChatStatus("online");
-    isFirstUserMessageAfterTransferRef.current = true;
-    agentResponseHistoryRef.current.clear();
-
-    // Show ONLY the exact original welcome message
-    setMessages([createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
-    lastActivityTimeRef.current = Date.now();
-
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("dar-alnujum-chat-state");
-    }
-  }, []);
-
-  const startAgentSession = useCallback((agent: Agent) => {
-    setCurrentAgent(agent);
-    setSessionAgents(prev => prev.find(a => a.employeeId === agent.employeeId) ? prev : [...prev, agent]);
-    setCurrentSpeaker("agent");
-    setIsQueued(false);
-    setShowDepartmentSelection(false);
-    isFirstUserMessageAfterTransferRef.current = true;
-    agentResponseHistoryRef.current.clear();
-
-    const deptName = DEPARTMENT_OPTIONS.find(d => d.id === agent.department)?.name || "الدعم";
-    // Send the ONE AND ONLY greeting here upon transfer
-    setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). اطلعت على المحادثة السابقة، تفضل كيف يمكنني مساعدتك؟`, "assistant")]);
-    
-    setChatStatus("online");
-    lastActivityTimeRef.current = Date.now();
-  }, []);
+  }, [messages, currentSpeaker]); // Re-runs on every new message, effectively resetting the 59s timer
 
   const handleHumanRequest = useCallback(() => {
     setShowDepartmentSelection(true); 
@@ -648,20 +646,31 @@ export default function Home() {
     setTimeout(() => {
       const availableAgent = findAvailableAgent(dept);
       if (availableAgent) { 
-        startAgentSession(availableAgent); 
+        setCurrentAgent(availableAgent);
+        setSessionAgents(prev => prev.find(a => a.employeeId === availableAgent.employeeId) ? prev : [...prev, availableAgent]);
+        setCurrentSpeaker("agent");
+        setIsQueued(false);
+        isFirstUserMessageAfterTransferRef.current = true;
+        agentResponseHistoryRef.current.clear();
+        
+        const deptName = DEPARTMENT_OPTIONS.find(d => d.id === availableAgent.department)?.name || "الدعم";
+        setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${availableAgent.name} (${availableAgent.role}). اطلعت على المحادثة السابقة، تفضل كيف يمكنني مساعدتك؟`, "assistant")]);
+        
+        setChatStatus("online");
+        lastActivityTimeRef.current = Date.now();
       } else {
         setMessages(prev => [...prev, createMessage("system", `الموظف غير متصل حاليًا، سيتم الرد عليك عند عودته. (تم حفظ رسالتك في صندوق وارد قسم ${deptOption?.name})`, "assistant")]);
         setChatStatus("online");
       }
     }, 1000);
-  }, [startAgentSession]);
+  }, []);
 
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
     if ((!trimmedText && uploadedFiles.length === 0) || isSendingRef.current) return;
 
     isSendingRef.current = true;
-    lastActivityTimeRef.current = Date.now(); // FIX 4: Reset timer on user activity
+    lastActivityTimeRef.current = Date.now(); // Reset inactivity timer on user activity
     
     const fileAttachments: Attachment[] = uploadedFiles.map(f => ({
       type: f.type as AttachmentType, url: f.preview || URL.createObjectURL(f.file),
@@ -672,12 +681,12 @@ export default function Home() {
     setText("");
     setUploadedFiles([]);
 
-    // FIX 4: If inactive, wake it up immediately
+    // Wake up logic: If user types during "inactive" state, immediately revert to "online"
     if (currentSpeaker === "agent" && chatStatus === "inactive") {
       setChatStatus("online");
     }
 
-    // FIX 1 & 2: Agent Chat Flow (No duplicate greeting, correct department context)
+    // Agent Chat Flow
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
       setTimeout(() => {
@@ -740,7 +749,7 @@ export default function Home() {
     } finally {
       setChatStatus("online"); isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, initiateDepartmentTransfer, closeAgentSession, uploadedFiles, chatStatus]);
+  }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, initiateDepartmentTransfer, uploadedFiles, chatStatus]);
 
   useEffect(() => { saveStateToStorage(); }, [saveStateToStorage]);
   
