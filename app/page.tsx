@@ -7,7 +7,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 // ============================================================
 
 type Sender = "user" | "bot" | "agent" | "system";
-type AgentStatus = "online" | "away" | "offline";
+type AgentStatus = "online" | "busy" | "away" | "offline";
 type Department = 'sales' | 'technical' | 'ads' | 'management';
 type ChatStatus = "typing" | "online" | "waiting" | "inactive" | "closed";
 type ProductShape = "circle" | "rectangle" | "square" | "portrait";
@@ -73,9 +73,9 @@ interface UploadedFile {
 
 const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "ممثل مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-002", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-003", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=32", role: "مديرة الإعلانات", department: 'ads', status: 'offline', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-004", name: "أحمد المدير", img: "https://i.pravatar.cc/150?img=11", role: "مدير عام", department: 'management', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-002", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'busy', lastActivity: new Date().toISOString(), isBusy: true },
+  { employeeId: "EMP-003", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=32", role: "مديرة الإعلانات", department: 'ads', status: 'away', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-004", name: "أحمد المدير", img: "https://i.pravatar.cc/150?img=11", role: "مدير عام", department: 'management', status: 'offline', lastActivity: new Date().toISOString(), isBusy: false },
 ];
 
 const DEPARTMENT_OPTIONS: DepartmentOption[] = [
@@ -94,7 +94,6 @@ const TRENDING_PRODUCTS: TrendingProduct[] = [
 
 const EXACT_WELCOME_MESSAGE = "أهلاً وسهلاً بك في قناة مجلة دار النجوم. يسعدني مساعدتك، كيف أستطيع خدمتك اليوم؟";
 
-// تم توسيع قاعدة المعرفة لردود أدق وأشمل
 const LOCAL_KNOWLEDGE_BASE = [
   { 
     keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض"], 
@@ -111,14 +110,6 @@ const LOCAL_KNOWLEDGE_BASE = [
     link: "/support",
     linkText: "فتح تذكرة دعم فني",
     linkDesc: "فريقنا جاهز لمساعدتك"
-  },
-  { 
-    keywords: ["تواصل", "اتصل", "ايميل", "بريد", "رقم"], 
-    targetDept: 'management' as Department,
-    explanation: "يمكنك التواصل معنا مباشرة عبر اختيار القسم المناسب من القائمة، أو عبر بريدنا الإلكتروني الرسمي.",
-    link: "mailto:info@dar-alnujum.com",
-    linkText: "info@dar-alnujum.com",
-    linkDesc: "اضغط هنا لإرسال بريد إلكتروني"
   }
 ];
 
@@ -228,14 +219,14 @@ export default function Home() {
   const botResponseHistoryRef = useRef<Set<string>>(new Set());
   const hasIconAnimatedRef = useRef(false);
 
-  // Refs for timeout management
+  // Refs for robust timeout management
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const resetTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on new messages (UX Improvement)
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTo({
@@ -540,33 +531,28 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // FIX: STRICT INACTIVITY & RESET LOGIC (59s + 2s)
+  // FIX: BULLETPROOF INACTIVITY & RESET LOGIC (59s + 2s)
   // ============================================================
   useEffect(() => {
-    // Only track inactivity if we are currently talking to an agent
     if (currentSpeaker !== "agent") {
-      // Clean up timers if we are no longer with an agent
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
       if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
       return;
     }
 
     const startInactivityTracking = () => {
-      // 1. Clear any existing timers to prevent overlapping executions
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
       if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
 
-      // 2. Start 59-second timer
       inactivityTimerRef.current = setTimeout(() => {
-        // Guard clause: Ensure we are still with an agent after 59s
         if (currentSpeakerRef.current === "agent") {
-          setChatStatus("inactive"); // Step 1: Change status to "انتهى مؤقتاً"
+          setChatStatus("inactive");
 
-          // 3. Start 2-second timer
           resetTimerRef.current = setTimeout(() => {
-            // Guard clause: Ensure we are still with an agent after 2s
             if (currentSpeakerRef.current === "agent") {
-              // Step 2 & 3: Full reset of all agent states
+              // Notify user before reset
+              setMessages(prev => [...prev, createMessage("system", "انتهت جلسة المحادثة بسبب عدم النشاط. يمكنك بدء محادثة جديدة.", "assistant")]);
+              
               setCurrentSpeaker("bot");
               setCurrentAgent(null);
               setSessionAgents([]);
@@ -574,11 +560,9 @@ export default function Home() {
               setShowDepartmentSelection(false);
               setChatStatus("online");
               
-              // Reset Refs
               isFirstUserMessageAfterTransferRef.current = true;
               botResponseHistoryRef.current.clear();
 
-              // Step 4: Send the exact welcome message ONCE (replaces array for clean slate)
               setMessages([{
                 id: `${Date.now()}-reset-bot`,
                 sender: "bot",
@@ -588,24 +572,22 @@ export default function Home() {
                 status: "read"
               }]);
 
-              // Clear local storage
               if (typeof window !== "undefined") {
                 localStorage.removeItem("dar-alnujum-chat-state");
               }
             }
-          }, 2000); // 2 seconds
+          }, 2000);
         }
-      }, 59000); // 59 seconds
+      }, 59000);
     };
 
     startInactivityTracking();
 
-    // Cleanup function: crucial for stopping timers when component unmounts or dependencies change
     return () => {
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
       if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
     };
-  }, [messages, currentSpeaker]); // Re-runs on every new message, effectively resetting the 59s timer
+  }, [messages, currentSpeaker]);
 
   const handleHumanRequest = useCallback(() => {
     setShowDepartmentSelection(true); 
@@ -633,7 +615,7 @@ export default function Home() {
         
         setChatStatus("online");
       } else {
-        setMessages(prev => [...prev, createMessage("system", `الموظف غير متصل حاليًا، سيتم الرد عليك عند عودته. (تم حفظ رسالتك في صندوق وارد قسم ${deptOption?.name})`, "assistant")]);
+        setMessages(prev => [...prev, createMessage("system", `الموظف غير متصل أو مشغول حاليًا، سيتم الرد عليك عند عودته. (تم حفظ رسالتك في صندوق وارد قسم ${deptOption?.name})`, "assistant")]);
         setChatStatus("online");
       }
     }, 1000);
@@ -654,27 +636,21 @@ export default function Home() {
     setText("");
     setUploadedFiles([]);
 
-    // Wake up logic: If user types during "inactive" state, immediately revert to "online"
     if (currentSpeaker === "agent" && chatStatus === "inactive") {
       setChatStatus("online");
     }
 
-    // Agent Chat Flow
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
       setTimeout(() => {
         const normalized = normalizeArabicText(trimmedText);
-        
-        // Directly respond using smart logic, NO secondary greeting
         const deptName = DEPARTMENT_OPTIONS.find(d => d.id === currentAgent.department)?.name || "الدعم";
         
-        // Simple contextual response mapping for agents
         let responseText = "حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية.";
         if (normalized.includes("شكر") || normalized.includes("مشكور")) responseText = "العفو، هذا واجبنا. هل هناك أي استفسار آخر يمكنني مساعدتك به؟";
         else if (normalized.includes("مع السلامة") || normalized.includes("انتهيت") || normalized.includes("خلاص")) responseText = "شكراً لتواصلك معنا، نتمنى لك يوماً سعيداً!";
         else if (normalized.length > 15) responseText = "شكراً لك على هذا التوضيح، هذه المعلومات مفيدة جداً. دعني أراجع الأمر فوراً.";
         
-        // Prevent exact repetition
         if (botResponseHistoryRef.current.has(responseText)) {
           responseText = "فهمت ذلك تماماً. هل يمكنك تزويدي بالمزيد من التفاصيل لأتمكن من خدمتك بشكل أفضل؟";
         }
@@ -688,7 +664,6 @@ export default function Home() {
       return; 
     }
 
-    // Bot Flow
     setChatStatus("typing");
     try {
       const normalized = normalizeArabicText(trimmedText);
@@ -723,7 +698,6 @@ export default function Home() {
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       
-      // Prevent bot from repeating the exact same fallback message
       let botReply = data.text || data.message || "عذراً، لم أتمكن من فهم طلبك بدقة. هل يمكنك إعادة صياغته أو اختيار أحد الأقسام من القائمة؟";
       if (botResponseHistoryRef.current.has(botReply)) {
         botReply = "أعتذر عن ذلك، هل يمكنك تزويدي بمزيد من التفاصيل أو اختيار قسم محدد من القائمة لأتمكن من مساعدتك بشكل أفضل؟";
@@ -740,7 +714,8 @@ export default function Home() {
       console.error("Chat API Error:", error);
       setMessages(prev => [...prev, createMessage("system", "عذراً، حدث خطأ في الاتصال بالخادم. يرجى المحاولة لاحقاً.")]);
     } finally {
-      setChatStatus("online"); isSendingRef.current = false;
+      setChatStatus("online"); 
+      isSendingRef.current = false;
     }
   }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, initiateDepartmentTransfer, uploadedFiles, chatStatus]);
 
@@ -758,6 +733,9 @@ export default function Home() {
     }
   }, [open, messages.length, loadStateFromStorage]);
 
+  // ============================================================
+  // IMPROVED STATUS HANDLING (UX/UI)
+  // ============================================================
   const getStatusText = () => {
     switch (chatStatus) {
       case "typing": return "يكتب الآن..."; 
@@ -770,6 +748,15 @@ export default function Home() {
   };
 
   const getStatusColor = () => {
+    if (currentAgent) {
+      switch (currentAgent.status) {
+        case 'online': return "bg-green-400 animate-pulse";
+        case 'busy': return "bg-yellow-400 animate-pulse";
+        case 'away': return "bg-orange-400 animate-pulse";
+        case 'offline': return "bg-gray-400";
+        default: return "bg-gray-400";
+      }
+    }
     switch (chatStatus) {
       case "typing": return "bg-yellow-400 animate-pulse"; 
       case "online": return "bg-green-400 animate-pulse";
@@ -853,20 +840,10 @@ export default function Home() {
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
         
-        /* Custom Scrollbar for Chat */
-        .scrollbar-hide::-webkit-scrollbar {
-          width: 6px;
-        }
-        .scrollbar-hide::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .scrollbar-hide::-webkit-scrollbar-thumb {
-          background-color: rgba(139, 92, 246, 0.3);
-          border-radius: 20px;
-        }
-        .scrollbar-hide::-webkit-scrollbar-thumb:hover {
-          background-color: rgba(139, 92, 246, 0.5);
-        }
+        .scrollbar-hide::-webkit-scrollbar { width: 6px; }
+        .scrollbar-hide::-webkit-scrollbar-track { background: transparent; }
+        .scrollbar-hide::-webkit-scrollbar-thumb { background-color: rgba(139, 92, 246, 0.3); border-radius: 20px; }
+        .scrollbar-hide::-webkit-scrollbar-thumb:hover { background-color: rgba(139, 92, 246, 0.5); }
       `}</style>
 
       {loadingProgress > 0 && (
