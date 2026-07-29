@@ -71,7 +71,6 @@ interface UploadedFile {
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
-// تم توسيع فريق الدعم ليشمل عدة موظفين لكل قسم
 const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "ممثل مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
   { employeeId: "EMP-002", name: "منى العلي", img: "https://i.pravatar.cc/150?img=44", role: "أخصائية مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
@@ -196,7 +195,6 @@ export default function Home() {
   const [isQueued, setIsQueued] = useState(false);
   const [showDepartmentSelection, setShowDepartmentSelection] = useState(false);
   
-  // Ticket Creation State
   const [isTicketMode, setIsTicketMode] = useState(false);
   const [ticketStep, setTicketStep] = useState<'name' | 'details' | 'submitting'>('name');
   const [ticketDept, setTicketDept] = useState<Department | null>(null);
@@ -204,7 +202,6 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
-  // Animation & Drag States
   const [iconPos, setIconPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 80 : 0, y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [springScale, setSpringScale] = useState(1);
@@ -238,9 +235,6 @@ export default function Home() {
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
-  // ============================================================
-  // LOAD SAVED POSITION
-  // ============================================================
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedPos = localStorage.getItem('chat-icon-pos');
@@ -257,9 +251,6 @@ export default function Home() {
     }
   }, []);
 
-  // ============================================================
-  // LOADING BAR LOGIC (RTL)
-  // ============================================================
   useEffect(() => {
     let progress = 0;
     let isComplete = false;
@@ -301,9 +292,6 @@ export default function Home() {
     };
   }, []);
 
-  // ============================================================
-  // IDLE ANIMATION LOGIC
-  // ============================================================
   useEffect(() => {
     if (isDragging) {
       setIdleOffsetX(0);
@@ -322,9 +310,6 @@ export default function Home() {
     return () => { clearTimeout(moveTimeout); clearTimeout(cycleTimeout); };
   }, [isDragging]);
 
-  // ============================================================
-  // ADVANCED ANIMATION LOOP
-  // ============================================================
   useEffect(() => {
     let rafId: number;
     let time = 0;
@@ -358,7 +343,6 @@ export default function Home() {
     return () => cancelAnimationFrame(rafId);
   }, [isDragging]);
 
-  // Eye Tracking
   useEffect(() => {
     const handleMove = (clientX: number, clientY: number) => {
       if (!chatButtonRef.current || isDragging) return;
@@ -418,9 +402,6 @@ export default function Home() {
     return () => { clearTimeout(blinkTimeout); clearTimeout(idleTimeout); };
   }, [isDragging, open]);
 
-  // ============================================================
-  // DRAG & DROP LOGIC WITH SNAP TO EDGE
-  // ============================================================
   const snapToEdge = useCallback((x: number, y: number) => {
     const screenWidth = window.innerWidth;
     const screenHeight = window.innerHeight;
@@ -481,9 +462,6 @@ export default function Home() {
     hasDragged.current = false;
   }, []);
 
-  // ============================================================
-  // FILE UPLOAD LOGIC
-  // ============================================================
   const handleFileSelect = useCallback((files: FileList | null) => {
     if (!files) return;
     Array.from(files).forEach(file => {
@@ -516,9 +494,6 @@ export default function Home() {
   const handleDragLeave = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); }, []);
   const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); handleFileSelect(e.dataTransfer.files); }, [handleFileSelect]);
 
-  // ============================================================
-  // SESSION & MESSAGE LOGIC
-  // ============================================================
   const saveStateToStorage = useCallback(() => {
     if (typeof window === 'undefined') return;
     try { localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({ messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued })); } 
@@ -585,30 +560,23 @@ export default function Home() {
     setMessages(prev => [...prev, createMessage("system", "يسعدنا خدمتك! يرجى اختيار القسم المناسب ليتم توجيهك للموظف المختص فوراً:", "assistant")]);
   }, []);
 
+  // تم جعل التحويل فورياً وسلساً بدون تأخير مصطنع يسبب تعليق مؤشر "يكتب"
   const initiateDepartmentTransfer = useCallback((dept: Department) => {
-    setChatStatus("typing");
     const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
-    setMessages(prev => [...prev, createMessage("system", `جاري البحث عن موظف متاح في قسم ${deptOption?.name}...`)]);
     setShowDepartmentSelection(false);
     
-    setTimeout(() => {
-      const availableAgent = findAvailableAgent(dept);
-      if (availableAgent) { 
-        startAgentSession(availableAgent); 
-      } else {
-        // Fallback to Ticket System
-        setIsTicketMode(true);
-        setTicketDept(dept);
-        setTicketStep('name');
-        setMessages(prev => [...prev, createMessage("bot", `جميع موظفي قسم ${deptOption?.name} مشغولون حالياً أو غير متاحين. \n\nلا تقلق! يمكننا إنشاء تذكرة دعم لك وسيتم الرد عليك فوراً.\n\nيرجى كتابة **اسمك الكريم** للبدء:`, "assistant")]);
-        setChatStatus("online");
-      }
-    }, 1500);
+    const availableAgent = findAvailableAgent(dept);
+    if (availableAgent) { 
+      startAgentSession(availableAgent); 
+    } else {
+      setIsTicketMode(true);
+      setTicketDept(dept);
+      setTicketStep('name');
+      setMessages(prev => [...prev, createMessage("bot", `جميع موظفي قسم ${deptOption?.name} مشغولون حالياً.\n\nلا تقلق! يمكننا إنشاء تذكرة دعم لك.\n\nيرجى كتابة **اسمك الكريم** للبدء:`, "assistant")]);
+      setChatStatus("online");
+    }
   }, [startAgentSession]);
 
-  // ============================================================
-  // SEND MESSAGE LOGIC
-  // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
     if ((!trimmedText && uploadedFiles.length === 0) || isSendingRef.current) return;
@@ -625,17 +593,16 @@ export default function Home() {
     setUploadedFiles([]);
     lastActivityTimeRef.current = Date.now();
 
-    // 1. Handle Ticket Mode Flow
     if (isTicketMode) {
       if (ticketStep === 'name') {
         setTicketUserName(trimmedText);
         setTicketStep('details');
         const deptName = DEPARTMENT_OPTIONS.find(d => d.id === ticketDept)?.name || "الدعم";
         setTimeout(() => {
-          setMessages(prev => [...prev, createMessage("bot", `أهلاً بك يا ${trimmedText}. \n\nيرجى وصف مشكلتك أو استفسارك الخاص بقسم **${deptName}** بالتفصيل، وسنقوم بتحويله للفريق المختص فوراً:`, "assistant")]);
+          setMessages(prev => [...prev, createMessage("bot", `أهلاً بك يا ${trimmedText}. \n\nيرجى وصف مشكلتك أو استفسارك الخاص بقسم **${deptName}** بالتفصيل:`, "assistant")]);
           setChatStatus("online");
           isSendingRef.current = false;
-        }, 800);
+        }, 600);
         return;
       } 
       if (ticketStep === 'details') {
@@ -644,19 +611,18 @@ export default function Home() {
         setTimeout(() => {
           const ticketId = Math.floor(1000 + Math.random() * 9000);
           const deptName = DEPARTMENT_OPTIONS.find(d => d.id === ticketDept)?.name || "الدعم";
-          setMessages(prev => [...prev, createMessage("bot", `✅ **تم إنشاء التذكرة بنجاح!**\n\n🎫 رقم التذكرة: #${ticketId}\n📌 القسم: ${deptName}\n👤 الاسم: ${ticketUserName}\n📝 التفاصيل: ${trimmedText}\n\nسيقوم فريق ${deptName} بمراجعة طلبك والرد عليك في أقرب وقت ممكن عبر هذا المحادثة أو عبر وسائل التواصل المسجلة. شكراً لصبرك!`, "assistant")]);
+          setMessages(prev => [...prev, createMessage("bot", `✅ **تم إنشاء التذكرة بنجاح!**\n\n🎫 رقم التذكرة: #${ticketId}\n📌 القسم: ${deptName}\n👤 الاسم: ${ticketUserName}\n📝 التفاصيل: ${trimmedText}\n\nسيقوم الفريق بمراجعة طلبك والرد عليك في أقرب وقت. شكراً لصبرك!`, "assistant")]);
           setIsTicketMode(false);
           setTicketStep('name');
           setTicketDept(null);
           setTicketUserName("");
           setChatStatus("online");
           isSendingRef.current = false;
-        }, 2000);
+        }, 1500);
         return;
       }
     }
 
-    // 2. Handle Agent Chat Flow
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
       setTimeout(() => {
@@ -668,25 +634,29 @@ export default function Home() {
           isFirstUserMessageAfterTransferRef.current = false;
           const deptName = DEPARTMENT_OPTIONS.find(d => d.id === currentAgent.department)?.name || "الدعم";
           setMessages(prev => [...prev, createMessage("agent", `أهلاً وسهلاً بك، معك ${currentAgent.name} من ${deptName}. كيف أقدر أساعدك اليوم؟`, "assistant")]);
+          setChatStatus("online"); // ✅ تم الإصلاح: إعادة الحالة إلى online
           isSendingRef.current = false; return;
         }
 
         if (isThanks) {
           setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر يمكنني مساعدتك به؟", "assistant")]);
+          setChatStatus("online"); // ✅ تم الإصلاح
           isSendingRef.current = false; return;
         }
 
         if (isEndConversation) {
           setMessages(prev => [...prev, createMessage("agent", "شكراً لتواصلك معنا، سعدنا بخدمتك. نتمنى لك يوماً سعيداً، ونشكرك على ثقتك بـ مجلة دار النجوم.", "assistant")]);
+          setChatStatus("online"); // ✅ تم الإصلاح
           isSendingRef.current = false; setTimeout(() => closeAgentSession(), 2500); return;
         }
 
-        // Smart internal transfer if user asks for another department while talking to an agent
         const requestedDept = DEPARTMENT_OPTIONS.find(d => normalized.includes(d.id) || normalized.includes(d.name));
         if (requestedDept && requestedDept.id !== currentAgent.department) {
-           setMessages(prev => [...prev, createMessage("agent", `هذا الطلب يخص قسم ${requestedDept.name}، سأقوم بتحويلك الآن إلى الزميل المختص مع الاحتفاظ بسجل المحادثة.`, "assistant")]);
-           setTimeout(() => initiateDepartmentTransfer(requestedDept.id), 1500);
-           isSendingRef.current = false; return;
+           setMessages(prev => [...prev, createMessage("agent", `هذا الطلب يخص قسم ${requestedDept.name}، سأقوم بتحويلك الآن إلى الزميل المختص.`, "assistant")]);
+           setChatStatus("online"); // ✅ تم الإصلاح
+           isSendingRef.current = false; 
+           setTimeout(() => initiateDepartmentTransfer(requestedDept.id), 1000); 
+           return;
         }
 
         const generalReplies = [
@@ -695,30 +665,27 @@ export default function Home() {
           "شكراً لتوضيح ذلك. دعني أتحقق من الأمر وأعود لك بالحل الأنسب."
         ];
         setMessages(prev => [...prev, createMessage("agent", generalReplies[Math.floor(Math.random() * generalReplies.length)], "assistant")]);
+        setChatStatus("online"); // ✅ تم الإصلاح
         isSendingRef.current = false;
-      }, 1500);
+      }, 1200);
       return; 
     }
 
-    // 3. Handle Bot Flow
     setChatStatus("typing");
     try {
       const normalized = normalizeArabicText(trimmedText);
       const isJustGreeting = GREETING_KEYWORDS.some(k => normalized.includes(k)) && normalized.length < 20;
       const isExplicitEmailRequest = EXPLICIT_EMAIL_KEYWORDS.some(k => normalized.includes(k));
 
-      // Explicit Email Request (Only show if explicitly asked)
       if (isExplicitEmailRequest) {
         setMessages(prev => [...prev, createMessage("bot", "يمكنك التواصل معنا عبر البريد الإلكتروني الرسمي:\n📧 info@dar-alnujum.com", "assistant")]);
         setChatStatus("online"); isSendingRef.current = false; return;
       }
 
-      // Human Contact Request -> Show Departments
       if (wantsHumanContact(trimmedText) && !showDepartmentSelection) {
         handleHumanRequest(); isSendingRef.current = false; return;
       }
 
-      // Local Knowledge Base
       const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
       if (kbMatch) {
         const reply = `${kbMatch.explanation}\n\nللمزيد من التفاصيل:`;
@@ -727,13 +694,11 @@ export default function Home() {
         setChatStatus("online"); isSendingRef.current = false; return;
       }
 
-      // Greeting
       if (isJustGreeting) {
         setMessages(prev => [...prev, createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
         setChatStatus("online"); isSendingRef.current = false; return;
       }
 
-      // Fallback to AI API
       const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: (m.sender === "bot" || m.sender === "agent") ? "assistant" : "user", content: m.text }));
       if (apiMessages.length === 0 || apiMessages[apiMessages.length - 1].role !== "user") {
          apiMessages.push({ role: "user", content: trimmedText });
@@ -849,9 +814,6 @@ export default function Home() {
     );
   };
 
-  // ============================================================
-  // JSX
-  // ============================================================
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
       <style jsx global>{`
@@ -912,7 +874,6 @@ export default function Home() {
         </section>
       </main>
 
-      {/* أيقونة المساعد */}
       <div ref={chatButtonRef} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={handleClick}
         className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none"
         style={{ left: `${iconPos.x}px`, top: `${iconPos.y}px`, width: '64px', height: '64px', transform: `translateX(${idleOffsetX}px) scale(${springScale})`, transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', boxShadow: isDragging ? '0 20px 25px -5px rgba(147, 51, 234, 0.5), 0 8px 10px -6px rgba(147, 51, 234, 0.5)' : '0 10px 15px -3px rgba(147, 51, 234, 0.3), 0 4px 6px -2px rgba(147, 51, 234, 0.2)' }} title="مركز المساعدة">
@@ -935,7 +896,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* صندوق الدردشة */}
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-40 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -988,7 +948,6 @@ export default function Home() {
             );
           })}
 
-          {/* Department Selection Grid */}
           {showDepartmentSelection && currentSpeaker === "bot" && (
             <div className="grid grid-cols-1 gap-2 mt-2 animate-slide-in-right">
               {DEPARTMENT_OPTIONS.map((dept) => (
@@ -1016,7 +975,6 @@ export default function Home() {
           )}
         </div>
 
-        {/* File Upload Preview */}
         {uploadedFiles.length > 0 && (
           <div className="p-3 border-t border-gray-700 bg-[#1f2937]/30">
             <div className="flex gap-2 overflow-x-auto pb-2">
