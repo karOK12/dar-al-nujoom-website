@@ -71,7 +71,7 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
 ];
 
 const SESSION_TIMEOUTS = {
-  IDLE_TO_CLOSED: 60, 
+  IDLE_TO_CLOSED: 59, // تم التعديل إلى 59 ثانية كما طلبت
   QUEUE_CHECK_INTERVAL: 8000,
 };
 
@@ -147,18 +147,27 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
+  // حالات جديدة لسحب الأيقونة ورفع الصور
+  const [iconPos, setIconPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 80 : 0, y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
   const targetEyePos = useRef({ x: 0, y: 0 });
   const currentEyePos = useRef({ x: 0, y: 0 });
   
   const chatButtonRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentSpeakerRef = useRef(currentSpeaker);
   const chatStatusRef = useRef(chatStatus);
   const lastActivityTimeRef = useRef(Date.now());
   const isSendingRef = useRef(false);
   const previousAgentRepliesRef = useRef<Set<string>>(new Set());
+  const hasDragged = useRef(false);
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  const pointerStartPos = useRef({ x: 0, y: 0 });
   
   const awaitingFinalConfirmationRef = useRef(false);
   const conversationContextRef = useRef<string[]>([]);
@@ -244,7 +253,7 @@ export default function Home() {
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (chatButtonRef.current && !open) {
+      if (chatButtonRef.current && !open && !isDragging) {
         const rect = chatButtonRef.current.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
@@ -262,7 +271,7 @@ export default function Home() {
     
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, [open]);
+  }, [open, isDragging]);
 
   useEffect(() => {
     if (open) {
@@ -333,7 +342,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // SESSION LIFECYCLE MANAGEMENT & 60s TIMEOUT
+  // SESSION LIFECYCLE MANAGEMENT & 59s TIMEOUT (تم التعديل)
   // ============================================================
   useEffect(() => {
     if (currentSpeaker === "agent" || currentSpeaker === "bot") {
@@ -351,19 +360,30 @@ export default function Home() {
       const elapsedSeconds = (now - lastActivityTimeRef.current) / 1000;
 
       if (elapsedSeconds >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
-        const timeoutMsg = createMessage(
+        // 1. عرض رسالة انتهاء مؤقت
+        setMessages(prev => [...prev, createMessage(
           "system",
-          "تم إنهاء جلسة الموظف بسبب عدم وجود رد من المستخدم، ويمكنك متابعة المحادثة مع المساعد الذكي.",
+          "انتهت المحادثة مؤقتاً بسبب عدم وجود رد.",
           "assistant"
-        );
-        setMessages(prev => [...prev, timeoutMsg]);
-        setCurrentSpeaker("bot");
-        setCurrentAgent(null);
-        setSessionAgents([]);
-        setChatStatus("online");
-        conversationPhaseRef.current = "initial";
-        lastHandledTopicRef.current = null;
-        lastActivityTimeRef.current = Date.now();
+        )]);
+        setChatStatus("inactive");
+
+        // 2. العودة للمساعد الذكي وحذف المحادثة بالكامل بعد ثانيتين
+        setTimeout(() => {
+          setMessages([]); // حذف المحادثة بالكامل
+          setCurrentSpeaker("bot");
+          setCurrentAgent(null);
+          setSessionAgents([]);
+          setChatStatus("online");
+          conversationPhaseRef.current = "initial";
+          lastHandledTopicRef.current = null;
+          lastActivityTimeRef.current = Date.now(); // إعادة ضبط المؤقت
+
+          // عرض رسالة الترحيب الجديدة
+          setTimeout(() => {
+            setMessages([createMessage("bot", "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟", "assistant")]);
+          }, 500);
+        }, 2000);
       }
     }, 1000);
 
@@ -519,13 +539,20 @@ export default function Home() {
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
-    if (!trimmedText || isSendingRef.current) return;
+    if ((!trimmedText && !selectedImage) || isSendingRef.current) return;
 
     isSendingRef.current = true;
-    setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
-    setText("");
     
+    // إعادة ضبط مؤقت النشاط عند إرسال رسالة
     lastActivityTimeRef.current = Date.now();
+
+    const attachments: Attachment[] | undefined = selectedImage 
+      ? [{ type: 'image', url: selectedImage }] 
+      : undefined;
+
+    setMessages(prev => [...prev, createMessage("user", trimmedText || "صورة", "user", "sent", attachments)]);
+    setText("");
+    setSelectedImage(null); // مسح الصورة بعد الإرسال
     
     conversationContextRef.current.push(trimmedText);
     if (conversationContextRef.current.length > 5) {
@@ -719,7 +746,7 @@ export default function Home() {
       setChatStatus("online");
       isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, currentAgent, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession]);
+  }, [text, currentSpeaker, currentAgent, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession, selectedImage]);
 
   // ============================================================
   // EFFECTS
@@ -891,8 +918,47 @@ export default function Home() {
         </section>
       </main>
 
-      {/* زر الدردشة - تم تعديله ليكون على اليمين */}
-      <div ref={chatButtonRef} onClick={() => setOpen(!open)} className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-pointer hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right" title="مركز المساعدة">
+      {/* زر الدردشة - تم إضافة خاصية السحب والإفلات (Drag & Drop) */}
+      <div 
+        ref={chatButtonRef}
+        onPointerDown={(e) => {
+          setIsDragging(true);
+          hasDragged.current = false;
+          pointerStartPos.current = { x: e.clientX, y: e.clientY };
+          dragStartPos.current = { x: iconPos.x, y: iconPos.y };
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          if (!isDragging) return;
+          const deltaX = e.clientX - pointerStartPos.current.x;
+          const deltaY = e.clientY - pointerStartPos.current.y;
+          if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+            hasDragged.current = true;
+          }
+          if (hasDragged.current) {
+            setIconPos({
+              x: Math.max(0, Math.min(window.innerWidth - 64, dragStartPos.current.x + deltaX)),
+              y: Math.max(0, Math.min(window.innerHeight - 64, dragStartPos.current.y + deltaY))
+            });
+          }
+        }}
+        onPointerUp={(e) => {
+          setIsDragging(false);
+          (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+        }}
+        onClick={() => {
+          if (!hasDragged.current) {
+            setOpen(!open);
+          }
+        }}
+        className="fixed w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-grab active:cursor-grabbing hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right select-none"
+        style={{ 
+          left: `${iconPos.x}px`, 
+          top: `${iconPos.y}px`,
+          cursor: isDragging ? 'grabbing' : 'grab'
+        }}
+        title="مركز المساعدة"
+      >
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g className="animate-cartoon-breathe">
             <g className={isBlinking ? "animate-blink-human" : ""}>
@@ -914,7 +980,7 @@ export default function Home() {
         </svg>
       </div>
 
-      {/* صندوق الدردشة - تم تعديله ليكون على اليمين */}
+      {/* صندوق الدردشة */}
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -1009,7 +1075,43 @@ export default function Home() {
         </div>
 
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
+          {/* معاينة الصورة المرفقة قبل الإرسال */}
+          {selectedImage && (
+            <div className="mb-2 relative inline-block">
+              <img src={selectedImage} alt="Selected" className="h-16 w-16 object-cover rounded-lg border border-gray-600" />
+              <button 
+                onClick={() => setSelectedImage(null)}
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          
           <div className="flex gap-2 items-end">
+            {/* زر إرفاق صورة */}
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-gray-700 text-white hover:bg-gray-600"
+              title="إرفاق صورة"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            </button>
+            <input 
+              ref={fileInputRef}
+              type="file" 
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => setSelectedImage(reader.result as string);
+                  reader.readAsDataURL(file);
+                }
+              }}
+            />
+            
             <textarea
               id="chat-input"
               value={text}
@@ -1022,7 +1124,7 @@ export default function Home() {
             />
             <button 
               onClick={sendMessage} 
-              disabled={!text.trim() || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
+              disabled={(!text.trim() && !selectedImage) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
               className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
