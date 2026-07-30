@@ -71,7 +71,7 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
 ];
 
 const SESSION_TIMEOUTS = {
-  IDLE_TO_CLOSED: 59, // تم التعديل إلى 59 ثانية كما طلبت
+  IDLE_TO_CLOSED: 59, 
   QUEUE_CHECK_INTERVAL: 8000,
 };
 
@@ -147,10 +147,9 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
-  // حالات جديدة لسحب الأيقونة ورفع الصور
+  // حالات سحب الأيقونة
   const [iconPos, setIconPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 80 : 0, y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
@@ -158,7 +157,6 @@ export default function Home() {
   const currentEyePos = useRef({ x: 0, y: 0 });
   
   const chatButtonRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentSpeakerRef = useRef(currentSpeaker);
   const chatStatusRef = useRef(chatStatus);
@@ -342,7 +340,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // SESSION LIFECYCLE MANAGEMENT & 59s TIMEOUT (تم التعديل)
+  // SESSION LIFECYCLE MANAGEMENT & 59s TIMEOUT
   // ============================================================
   useEffect(() => {
     if (currentSpeaker === "agent" || currentSpeaker === "bot") {
@@ -360,7 +358,6 @@ export default function Home() {
       const elapsedSeconds = (now - lastActivityTimeRef.current) / 1000;
 
       if (elapsedSeconds >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
-        // 1. عرض رسالة انتهاء مؤقت
         setMessages(prev => [...prev, createMessage(
           "system",
           "انتهت المحادثة مؤقتاً بسبب عدم وجود رد.",
@@ -368,18 +365,16 @@ export default function Home() {
         )]);
         setChatStatus("inactive");
 
-        // 2. العودة للمساعد الذكي وحذف المحادثة بالكامل بعد ثانيتين
         setTimeout(() => {
-          setMessages([]); // حذف المحادثة بالكامل
+          setMessages([]); 
           setCurrentSpeaker("bot");
           setCurrentAgent(null);
           setSessionAgents([]);
           setChatStatus("online");
           conversationPhaseRef.current = "initial";
           lastHandledTopicRef.current = null;
-          lastActivityTimeRef.current = Date.now(); // إعادة ضبط المؤقت
+          lastActivityTimeRef.current = Date.now(); 
 
-          // عرض رسالة الترحيب الجديدة
           setTimeout(() => {
             setMessages([createMessage("bot", "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟", "assistant")]);
           }, 500);
@@ -539,20 +534,13 @@ export default function Home() {
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
-    if ((!trimmedText && !selectedImage) || isSendingRef.current) return;
+    if (!trimmedText || isSendingRef.current) return;
 
     isSendingRef.current = true;
-    
-    // إعادة ضبط مؤقت النشاط عند إرسال رسالة
     lastActivityTimeRef.current = Date.now();
 
-    const attachments: Attachment[] | undefined = selectedImage 
-      ? [{ type: 'image', url: selectedImage }] 
-      : undefined;
-
-    setMessages(prev => [...prev, createMessage("user", trimmedText || "صورة", "user", "sent", attachments)]);
+    setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
-    setSelectedImage(null); // مسح الصورة بعد الإرسال
     
     conversationContextRef.current.push(trimmedText);
     if (conversationContextRef.current.length > 5) {
@@ -688,11 +676,12 @@ export default function Home() {
           }
         }
 
+        // تم تحسين ردود الموظفين لتكون أكثر طبيعية واحترافية
         const generalReplies = currentDept === 'ads' 
-          ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب لمتجرك؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك لنبدأ منها؟"]
+          ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب لمتجرك؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك لنبدأ منها؟", "يسعدني ذلك. هل تفضل أن نركز على منصة معينة أم نغطي جميع المنصات؟"]
           : currentDept === 'technical'
-          ? ["حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية عن المشكلة.", "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح المشكلة أكثر؟"]
-          : ["بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.", "حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟"];
+          ? ["حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية أو رسالة الخطأ لتسريع الحل.", "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح متى بدأت المشكلة بالضبط؟", "فهمت الأمر. دعني أتحقق من هذا الأمر فوراً وأعود لك بالحل."]
+          : ["بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.", "حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟", "أهلاً بك. تفضل بطرح استفسارك وسأجيبك بأقصى سرعة."];
         
         const available = generalReplies.filter(r => !previousAgentRepliesRef.current.has(r));
         const agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : generalReplies[0];
@@ -746,7 +735,7 @@ export default function Home() {
       setChatStatus("online");
       isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, currentAgent, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession, selectedImage]);
+  }, [text, currentSpeaker, currentAgent, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession]);
 
   // ============================================================
   // EFFECTS
@@ -895,8 +884,8 @@ export default function Home() {
       </header>
 
       <div className="bg-[#111827] border-b border-gray-800 overflow-hidden relative py-3">
+        {/* تم إلغاء التظليل الموجود على اليسار والإبقاء على اليمين فقط */}
         <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-[#111827] to-transparent z-10 pointer-events-none"></div>
-        <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-[#111827] to-transparent z-10 pointer-events-none"></div>
         <div className="flex animate-seamless-scroll w-max">
           {renderSeamlessItems()}
         </div>
@@ -918,7 +907,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* زر الدردشة - تم إضافة خاصية السحب والإفلات (Drag & Drop) */}
+      {/* زر الدردشة - تم الحفاظ على السحب والإفلات مع حركة تلقائية لليسار لمرة واحدة فقط */}
       <div 
         ref={chatButtonRef}
         onPointerDown={(e) => {
@@ -1075,43 +1064,7 @@ export default function Home() {
         </div>
 
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
-          {/* معاينة الصورة المرفقة قبل الإرسال */}
-          {selectedImage && (
-            <div className="mb-2 relative inline-block">
-              <img src={selectedImage} alt="Selected" className="h-16 w-16 object-cover rounded-lg border border-gray-600" />
-              <button 
-                onClick={() => setSelectedImage(null)}
-                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
-              >
-                ✕
-              </button>
-            </div>
-          )}
-          
           <div className="flex gap-2 items-end">
-            {/* زر إرفاق صورة */}
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-gray-700 text-white hover:bg-gray-600"
-              title="إرفاق صورة"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            </button>
-            <input 
-              ref={fileInputRef}
-              type="file" 
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  const reader = new FileReader();
-                  reader.onloadend = () => setSelectedImage(reader.result as string);
-                  reader.readAsDataURL(file);
-                }
-              }}
-            />
-            
             <textarea
               id="chat-input"
               value={text}
@@ -1124,7 +1077,7 @@ export default function Home() {
             />
             <button 
               onClick={sendMessage} 
-              disabled={(!text.trim() && !selectedImage) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
+              disabled={!text.trim() || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
               className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
