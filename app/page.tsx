@@ -92,7 +92,7 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'general', name: 'استفسار عام', icon: '❓', description: 'أي استفسار آخر غير مذكور أعلاه' },
 ];
 
-const SESSION_TIMEOUTS = { IDLE_TO_CLOSED: 60, QUEUE_CHECK_INTERVAL: 8000 };
+const SESSION_TIMEOUTS = { IDLE_TO_CLOSED: 59, QUEUE_CHECK_INTERVAL: 8000 }; // تم التعديل إلى 59 ثانية
 
 const TRENDING_PRODUCTS: TrendingProduct[] = [
   { id: 1, name: "كاميرا تصوير احترافية", desc: "خصم 25% لفترة محدودة", img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=150&h=150&fit=crop", shape: "circle" },
@@ -308,22 +308,19 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // IDLE ANIMATION LOGIC (Move ONCE to the left after appearance)
+  // IDLE ANIMATION LOGIC
   // ============================================================
   useEffect(() => {
     if (isDragging) {
       setIdleOffsetX(0);
       return;
     }
-    
-    // حركة لمرة واحدة فقط بعد ظهور الأيقونة
     const singleNudgeTimeout = setTimeout(() => {
-      setIdleOffsetX(-12); // تتحرك لليسار قليلاً
+      setIdleOffsetX(-12);
       setTimeout(() => {
-        setIdleOffsetX(0); // تعود لمكانها الأصلي وتتوقف تماماً
+        setIdleOffsetX(0);
       }, 400);
-    }, 1500); // بعد 1.5 ثانية من التحميل
-
+    }, 1500);
     return () => clearTimeout(singleNudgeTimeout);
   }, [isDragging]);
 
@@ -545,23 +542,49 @@ export default function Home() {
     } catch (e) { return false; }
   }, []);
 
-  useEffect(() => {
-    if (currentSpeaker === "agent" || currentSpeaker === "bot") {
-      if (chatStatus === "inactive") setChatStatus("online");
-    }
-  }, [messages, currentSpeaker]);
-
+  // ============================================================
+  // ✅ AGENT INACTIVITY TIMEOUT (59 Seconds) - تم التعديل هنا
+  // ============================================================
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
+
     const interval = setInterval(() => {
-      if ((Date.now() - lastActivityTimeRef.current) / 1000 >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
-        setMessages(prev => [...prev, createMessage("system", "أنا موجود إذا احتجت أي مساعدة في أي وقت.", "assistant")]);
-        setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
-        setChatStatus("online"); lastActivityTimeRef.current = Date.now();
+      const secondsIdle = (Date.now() - lastActivityTimeRef.current) / 1000;
+      
+      if (secondsIdle >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
+        setMessages(prev => {
+          // منع تكرار رسالة الانتهاء إذا تم تشغيل المؤقت أكثر من مرة
+          if (prev.some(m => m.text.includes("انتهت مهلة الانتظار"))) return prev;
+          return [...prev, createMessage("system", "⏱️ انتهت مهلة الانتظار (59 ثانية) لعدم وجود رد. جاري العودة للمساعد الذكي...", "assistant")];
+        });
+
+        // العودة للمساعد الذكي بعد ثانيتين لإعطاء فرصة لقراءة الرسالة
+        setTimeout(() => {
+          setCurrentSpeaker("bot");
+          setCurrentAgent(null);
+          setSessionAgents([]);
+          setChatStatus("online");
+          lastActivityTimeRef.current = Date.now();
+          setMessages(prev => [...prev, createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
+        }, 2000);
       }
     }, 1000);
+
     return () => clearInterval(interval);
   }, [currentSpeaker]);
+
+  // ============================================================
+  // ✅ RESET TIMER WHEN AGENT REPLIES - تم التعديل هنا
+  // ============================================================
+  useEffect(() => {
+    if (currentSpeaker === "agent" && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.sender === "agent") {
+        // إعادة ضبط المؤقت عندما يرد الموظف، لمنح المستخدم 59 ثانية جديدة للرد
+        lastActivityTimeRef.current = Date.now();
+      }
+    }
+  }, [messages, currentSpeaker]);
 
   const closeAgentSession = useCallback(() => {
     setTimeout(() => {
@@ -581,7 +604,8 @@ export default function Home() {
     setCurrentSpeaker("agent"); setIsQueued(false); setShowDepartmentSelection(false);
     isFirstUserMessageAfterTransferRef.current = true;
     setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). اطلعت على المحادثة السابقة، تفضل كيف يمكنني مساعدتك؟`, "assistant")]);
-    setChatStatus("online"); lastActivityTimeRef.current = Date.now();
+    setChatStatus("online"); 
+    lastActivityTimeRef.current = Date.now(); // ضبط المؤقت عند بدء الجلسة
   }, []);
 
   const handleHumanRequest = useCallback(() => {
@@ -614,7 +638,7 @@ export default function Home() {
   }, [startAgentSession]);
 
   // ============================================================
-  // SEND MESSAGE LOGIC (Fixed Typing Indicator Stuck Issue)
+  // SEND MESSAGE LOGIC
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -630,7 +654,7 @@ export default function Home() {
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent", fileAttachments.length > 0 ? fileAttachments : undefined)]);
     setText("");
     setUploadedFiles([]);
-    lastActivityTimeRef.current = Date.now();
+    lastActivityTimeRef.current = Date.now(); // ✅ إعادة ضبط المؤقت عند إرسال المستخدم رسالة
 
     // 1. Handle Ticket Mode Flow
     if (isTicketMode) {
@@ -675,21 +699,21 @@ export default function Home() {
           isFirstUserMessageAfterTransferRef.current = false;
           const deptName = DEPARTMENT_OPTIONS.find(d => d.id === currentAgent.department)?.name || "الدعم";
           setMessages(prev => [...prev, createMessage("agent", `أهلاً وسهلاً بك، معك ${currentAgent.name} من ${deptName}. كيف أقدر أساعدك اليوم؟`, "assistant")]);
-          setChatStatus("online"); // ✅ تم الإصلاح: إعادة الحالة لطبيعية
+          setChatStatus("online");
           isSendingRef.current = false; 
           return;
         }
 
         if (isThanks) {
           setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر يمكنني مساعدتك به؟", "assistant")]);
-          setChatStatus("online"); // ✅ تم الإصلاح
+          setChatStatus("online");
           isSendingRef.current = false; 
           return;
         }
 
         if (isEndConversation) {
           setMessages(prev => [...prev, createMessage("agent", "شكراً لتواصلك معنا، سعدنا بخدمتك. نتمنى لك يوماً سعيداً، ونشكرك على ثقتك بـ مجلة دار النجوم.", "assistant")]);
-          setChatStatus("online"); // ✅ تم الإصلاح
+          setChatStatus("online");
           isSendingRef.current = false; 
           setTimeout(() => closeAgentSession(), 2500); 
           return;
@@ -698,7 +722,7 @@ export default function Home() {
         const requestedDept = DEPARTMENT_OPTIONS.find(d => normalized.includes(d.id) || normalized.includes(d.name));
         if (requestedDept && requestedDept.id !== currentAgent.department) {
            setMessages(prev => [...prev, createMessage("agent", `هذا الطلب يخص قسم ${requestedDept.name}، سأقوم بتحويلك الآن إلى الزميل المختص مع الاحتفاظ بسجل المحادثة.`, "assistant")]);
-           setChatStatus("online"); // ✅ تم الإصلاح
+           setChatStatus("online");
            isSendingRef.current = false; 
            setTimeout(() => initiateDepartmentTransfer(requestedDept.id), 1000);
            return;
@@ -710,7 +734,7 @@ export default function Home() {
           "شكراً لتوضيح ذلك. دعني أتحقق من الأمر وأعود لك بالحل الأنسب."
         ];
         setMessages(prev => [...prev, createMessage("agent", generalReplies[Math.floor(Math.random() * generalReplies.length)], "assistant")]);
-        setChatStatus("online"); // ✅ تم الإصلاح
+        setChatStatus("online");
         isSendingRef.current = false;
       }, 1500);
       return; 
@@ -930,7 +954,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* أيقونة المساعد (تم إضافة rounded-full و overflow-hidden لمنع أي ظل مربع) */}
+      {/* أيقونة المساعد */}
       <div 
         ref={chatButtonRef} 
         onPointerDown={handlePointerDown} 
