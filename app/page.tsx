@@ -83,6 +83,27 @@ const TRENDING_PRODUCTS: TrendingProduct[] = [
 ];
 
 // ============================================================
+// SMART DIALOGUE CONFIGURATION (Requirements 10 & 11)
+// ============================================================
+
+const WELCOME_MESSAGES = [
+  "أهلاً بك، كيف أستطيع مساعدتك اليوم؟",
+  "أهلاً وسهلاً بك في دار النجوم، يسعدني مساعدتك.",
+  "مرحباً، أنا المساعد الذكي، تفضل بأي استفسار.",
+  "أهلاً بك، كيف يمكنني خدمتك اليوم؟"
+];
+
+const CLOSING_MESSAGES = [
+  "سعدنا بخدمتك، نتمنى لك يوماً سعيداً.",
+  "شكراً لتواصلك معنا، نحن دائماً في خدمتك.",
+  "إذا احتجت أي مساعدة مستقبلاً فنحن هنا.",
+  "نتمنى لك كل التوفيق، ونشكرك على ثقتك بنا."
+];
+
+const PRICING_KEYWORDS = ["سعر", "اسعار", "اعلان", "باقة", "كم", "تكلفة", "عروض", "اشتراك", "نشر", "حجز"];
+const GREETING_KEYWORDS = ["مرحبا", "هلا", "سلام", "صباح", "مساء", "اهلين", "السلام"];
+
+// ============================================================
 // UTILITY FUNCTIONS
 // ============================================================
 
@@ -147,11 +168,14 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
+  // Advanced Animation States
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
+  const [headTransform, setHeadTransform] = useState("translateY(0px) rotate(0deg)");
+  
   const targetEyePos = useRef({ x: 0, y: 0 });
   const currentEyePos = useRef({ x: 0, y: 0 });
-  
+  const microSaccade = useRef({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
 
   const currentSpeakerRef = useRef(currentSpeaker);
@@ -166,6 +190,10 @@ export default function Home() {
   const conversationPhaseRef = useRef<"initial" | "ongoing" | "clarifying" | "closing" | "ended">("initial");
   const lastAgentMessageRef = useRef<string>("");
   const messageCountRef = useRef<number>(0);
+  
+  // Dialogue Memory
+  const lastWelcomeIndex = useRef<number>(-1);
+  const lastClosingIndex = useRef<number>(-1);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
@@ -228,21 +256,45 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // حركة العين البشرية الاحترافية (تتبع دائري سلس في كل الاتجاهات)
+  // ADVANCED ANIMATION LOOP (Requirement 12: GPU Accelerated)
   // ============================================================
   useEffect(() => {
     let rafId: number;
-    const animateEye = () => {
-      // معادلة تنعيم الحركة (Smooth Lerp)
-      currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.12;
-      currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.12;
-      setEyePos({ x: currentEyePos.current.x, y: currentEyePos.current.y });
-      rafId = requestAnimationFrame(animateEye);
+    let time = 0;
+    
+    const animate = () => {
+      time += 0.015;
+      
+      // 1. Head Breathing & Idle Tilt (Subtle, natural)
+      const breathY = Math.sin(time) * 1.2;
+      const tilt = Math.sin(time * 0.7) * 1.5;
+      setHeadTransform(`translateY(${breathY}px) rotate(${tilt}deg)`);
+
+      // 2. Micro-saccades (Random tiny eye movements every ~3 seconds)
+      if (Math.random() < 0.005) {
+        microSaccade.current = { 
+          x: (Math.random() - 0.5) * 1.5, 
+          y: (Math.random() - 0.5) * 1.5 
+        };
+      }
+
+      // 3. Smooth Eye Interpolation (Lerp)
+      currentEyePos.current.x += (targetEyePos.current.x - currentEyePos.current.x) * 0.1;
+      currentEyePos.current.y += (targetEyePos.current.y - currentEyePos.current.y) * 0.1;
+      
+      // Add micro-saccade to final position
+      const finalX = currentEyePos.current.x + microSaccade.current.x;
+      const finalY = currentEyePos.current.y + microSaccade.current.y;
+
+      setEyePos({ x: finalX, y: finalY });
+      rafId = requestAnimationFrame(animate);
     };
-    rafId = requestAnimationFrame(animateEye);
+    
+    rafId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(rafId);
   }, []);
 
+  // Mouse Tracking with Polar Coordinates (Natural circular movement)
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (chatButtonRef.current && !open) {
@@ -253,14 +305,12 @@ export default function Home() {
         const dx = e.clientX - centerX;
         const dy = e.clientY - centerY;
         
-        // حساب الزاوية والمسافة لحركة دائرية طبيعية (مثل العين الحقيقية)
         const angle = Math.atan2(dy, dx);
-        const distance = Math.min(Math.hypot(dx, dy), 200); // نصف قطر التأثير
+        const distance = Math.min(Math.hypot(dx, dy), 250);
+        const maxOffset = 4.0;
+        const offset = (distance / 250) * maxOffset;
         
-        // تحويل المسافة إلى إزاحة صغيرة للبؤبؤ (أقصى إزاحة 4 بكسل لتبدو طبيعية)
-        const maxOffset = 4.5;
-        const offset = (distance / 200) * maxOffset;
-        
+        // Parallax effect: Right eye moves slightly more than left for 3D depth
         targetEyePos.current = {
           x: Math.cos(angle) * offset,
           y: Math.sin(angle) * offset
@@ -274,8 +324,8 @@ export default function Home() {
 
   useEffect(() => {
     if (open) {
-      // عند فتح الدردشة، تنظر العين للأسفل قليلاً نحو صندوق المحادثة
-      targetEyePos.current = { x: -2.0, y: 3.0 };
+      // Look down slightly at the chat box, then return to center
+      targetEyePos.current = { x: -1.5, y: 2.5 };
       const timer = setTimeout(() => {
         targetEyePos.current = { x: 0, y: 0 };
       }, 1500);
@@ -285,10 +335,11 @@ export default function Home() {
     }
   }, [open]);
 
+  // Natural Blinking
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     const scheduleBlink = () => {
-      const randomDelay = 2500 + Math.random() * 4000; // رمشة عشوائية طبيعية
+      const randomDelay = 2000 + Math.random() * 4000;
       blinkTimeout = setTimeout(() => {
         setIsBlinking(true);
         setTimeout(() => {
@@ -312,6 +363,15 @@ export default function Home() {
       }));
     } catch (e) { console.error('Save state error:', e); }
   }, [messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued]);
+
+  const getRandomMessage = (array: string[], lastIdxRef: React.MutableRefObject<number>) => {
+    let newIndex;
+    do {
+      newIndex = Math.floor(Math.random() * array.length);
+    } while (newIndex === lastIdxRef.current && array.length > 1);
+    lastIdxRef.current = newIndex;
+    return array[newIndex];
+  };
 
   const loadStateFromStorage = useCallback((): boolean => {
     if (typeof window === 'undefined') return false;
@@ -342,7 +402,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // SESSION LIFECYCLE MANAGEMENT & 60s TIMEOUT
+  // SESSION LIFECYCLE MANAGEMENT
   // ============================================================
   useEffect(() => {
     if (currentSpeaker === "agent" || currentSpeaker === "bot") {
@@ -380,42 +440,34 @@ export default function Home() {
   }, [currentSpeaker]);
 
   const closeAgentSession = useCallback(() => {
-    const freshBotMessage = createMessage(
-      "bot",
-      "أهلاً بك مجدداً! أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟",
-      "assistant"
-    );
+    // 1. Send random closing message
+    const closingMsg = getRandomMessage(CLOSING_MESSAGES, lastClosingIndexRef);
+    setMessages(prev => [...prev, createMessage("agent", closingMsg, "assistant")]);
+    
+    // 2. Wait, then reset and start new bot session with NEW welcome message
+    setTimeout(() => {
+      const freshWelcome = getRandomMessage(WELCOME_MESSAGES, lastWelcomeIndexRef);
+      setMessages([createMessage("bot", freshWelcome, "assistant")]);
+      setCurrentSpeaker("bot");
+      setCurrentAgent(null);
+      setSessionAgents([]);
+      setIsQueued(false);
+      setShowDepartmentSelection(false);
+      setChatStatus("online");
+      lastActivityTimeRef.current = Date.now();
+      previousAgentRepliesRef.current.clear();
+      awaitingFinalConfirmationRef.current = false;
+      conversationContextRef.current = [];
+      lastHandledTopicRef.current = null;
+      conversationPhaseRef.current = "initial";
+      lastAgentMessageRef.current = "";
+      messageCountRef.current = 0;
 
-    setMessages(prev => [...prev, freshBotMessage]);
-    setCurrentSpeaker("bot");
-    setCurrentAgent(null);
-    setSessionAgents([]);
-    setIsQueued(false);
-    setShowDepartmentSelection(false);
-    setChatStatus("online");
-    lastActivityTimeRef.current = Date.now();
-    previousAgentRepliesRef.current.clear();
-    awaitingFinalConfirmationRef.current = false;
-    conversationContextRef.current = [];
-    lastHandledTopicRef.current = null;
-    conversationPhaseRef.current = "initial";
-    lastAgentMessageRef.current = "";
-    messageCountRef.current = 0;
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem(
-        "dar-alnujum-chat-state",
-        JSON.stringify({
-          messages: [...messages, freshBotMessage],
-          currentSpeaker: "bot",
-          currentAgent: null,
-          sessionAgents: [],
-          chatStatus: "online",
-          isQueued: false
-        })
-      );
-    }
-  }, [messages]);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("dar-alnujum-chat-state");
+      }
+    }, 2500);
+  }, []);
 
   const startAgentSession = useCallback((agent: Agent) => {
     setCurrentAgent(agent);
@@ -524,7 +576,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // SEND MESSAGE & API HANDLING
+  // SEND MESSAGE & SMART INTENT HANDLING (Requirement 11)
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -557,38 +609,37 @@ export default function Home() {
         const isClosingRequest = closingKeywords.some(k => normalized.includes(k)) && normalized.length < 20;
 
         if (isClosingRequest && (conversationPhaseRef.current === "closing" || conversationPhaseRef.current === "ongoing")) {
-          const closingReplies = [
-            "شكراً لتواصلك معنا، سعدنا بخدمتك، ونتمنى لك يوماً سعيداً.",
-            "يسعدنا دائماً خدمتك، وإذا احتجت أي مساعدة مستقبلاً فنحن هنا.",
-            "نتمنى لك كل التوفيق، وشكراً لثقتك بنا."
-          ];
-          const availableClosings = closingReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-          const agentReply = availableClosings.length > 0 
-            ? availableClosings[Math.floor(Math.random() * availableClosings.length)]
-            : closingReplies[Math.floor(Math.random() * closingReplies.length)];
-            
-          previousAgentRepliesRef.current.add(agentReply);
-          setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
-          setChatStatus("online");
-          conversationPhaseRef.current = "ended";
-          lastAgentMessageRef.current = agentReply;
+          closeAgentSession();
           isSendingRef.current = false;
-          setTimeout(() => closeAgentSession(), 2000);
           return;
         }
 
-        if (normalized.includes("سعر") || normalized.includes("اسعار") || normalized.includes("تفاصيل") || normalized.includes("اعلان") || normalized.includes("باقه") || normalized.includes("كم")) {
-          if (currentDept === 'ads') {
+        // Smart Pricing Logic for Ads Agent
+        if (currentDept === 'ads') {
+          const hasPricingIntent = PRICING_KEYWORDS.some(k => normalized.includes(k));
+          const hasCustomIntent = normalized.includes("مخصص") || normalized.includes("حملة") || normalized.includes("ميزانية");
+
+          if (hasPricingIntent) {
+            if (hasCustomIntent && lastHandledTopicRef.current !== 'custom_inquiry') {
+              lastHandledTopicRef.current = 'custom_inquiry';
+              const customReply = "ممتاز، لكي أقدم لك عرض سعر دقيق ومخصص، أحتاج إلى معرفة بعض التفاصيل:\n1. نوع النشاط أو المنتج.\n2. مدة الحملة المطلوبة.\n3. المنصة المفضلة (فيسبوك، انستغرام، تيك توك، إلخ).\n4. الميزانية التقريبية.\n5. الدولة أو المنطقة المستهدفة.\n\nبمجرد تزويدي بهذه التفاصيل، سأقوم بإعداد العرض الأنسب لك فوراً.";
+              previousAgentRepliesRef.current.add(customReply);
+              setMessages(prev => [...prev, createMessage("agent", customReply, "assistant")]);
+              conversationPhaseRef.current = "clarifying";
+              lastAgentMessageRef.current = customReply;
+              isSendingRef.current = false;
+              return;
+            }
+            
             if (lastHandledTopicRef.current !== 'pricing_details') {
               lastHandledTopicRef.current = 'pricing_details';
-              const pricingReply = `أهلاً بك أستاذ. إليك تفاصيل باقاتنا الإعلانية الأساسية:
+              const pricingReply = `أهلاً بك أستاذ. إليك ملخص باقاتنا الإعلانية الأساسية:
 
-🔹 الباقة الأسبوعية: 135 دولار (مدة أسبوع، 50,000 ظهور، منصتين رئيسيتين).
-🔹 الباقة الشهرية: 405 دولار (مدة شهر، 200,000 ظهور، 3 منصات رئيسية).
-🔹 الباقة الاحترافية: 810 دولار (مدة شهر، 500,000+ ظهور، جميع المنصات مع مدير حساب مخصص).
+🔹 الباقة الأسبوعية: 135 دولار (50,000 ظهور، منصتين).
+🔹 الباقة الشهرية: 405 دولار (200,000 ظهور، 3 منصات).
+🔹 الباقة الاحترافية: 810 دولار (500,000+ ظهور، جميع المنصات مع مدير حساب).
 
-هل تود أن نبدأ بحجز إحدى هذه الباقات، أو لديك استفسار عن باقة مخصصة لميزانيتك؟`;
-              
+هل تود حجز إحدى هذه الباقات، أم تفضل أن نصمم لك عرضاً مخصصاً حسب ميزانيتك؟`;
               previousAgentRepliesRef.current.add(pricingReply);
               setMessages(prev => [...prev, createMessage("agent", pricingReply, "assistant")]);
               conversationPhaseRef.current = "ongoing";
@@ -596,43 +647,19 @@ export default function Home() {
               isSendingRef.current = false;
               return;
             }
-          } else {
-            setMessages(prev => [...prev, createMessage("agent", "العفو أستاذ، هذا الطلب يخص قسم الإعلانات. سأحولك الآن إلى زميلتي المختصة.", "assistant")]);
-            setTimeout(() => performInternalTransfer('ads', currentAgent.name), 1000);
-            isSendingRef.current = false;
-            return;
           }
         }
 
-        if ((normalized === "نعم" || normalized === "اي" || normalized === "تفضل" || normalized.includes("تمام") || normalized.includes("انتظار")) && lastHandledTopicRef.current === 'pricing_details') {
-            const followUp = "ممتاز. لكي أتمكن من تجهيز العرض الأنسب لك، هل يمكنك إخباري بالميزانية التقريبية المخصصة للإعلان أو المنصة المفضلة لديك؟";
-            previousAgentRepliesRef.current.add(followUp);
-            setMessages(prev => [...prev, createMessage("agent", followUp, "assistant")]);
-            conversationPhaseRef.current = "clarifying";
-            lastHandledTopicRef.current = "budget_inquiry";
-            lastAgentMessageRef.current = followUp;
-            isSendingRef.current = false;
-            return;
-        }
-
-        const isGratitude = normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || normalized.includes("الله يعطيك") || normalized.includes("انحلت") || normalized.includes("ممتاز");
+        // Gratitude handling
+        const isGratitude = normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || normalized.includes("ممتاز");
         if (isGratitude && conversationPhaseRef.current !== "closing" && conversationPhaseRef.current !== "ended") {
-          const gratitudeReplies = [
-            "العفو أستاذ، هذا واجبنا.",
-            "تدلل أستاذ، يسعدني أن تم حل الأمر.",
-            "بالعفو أستاذ، تحت أمرك بأي وقت."
-          ];
-          const availableGratitude = gratitudeReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-          const gratitudeReply = availableGratitude.length > 0 ? availableGratitude[Math.floor(Math.random() * availableGratitude.length)] : gratitudeReplies[0];
-          
+          const gratitudeReplies = ["العفو أستاذ، هذا واجبنا.", "تدلل أستاذ، يسعدني أن تم حل الأمر.", "بالعفو أستاذ، تحت أمرك بأي وقت."];
+          const gratitudeReply = gratitudeReplies[Math.floor(Math.random() * gratitudeReplies.length)];
           previousAgentRepliesRef.current.add(gratitudeReply);
           setMessages(prev => [...prev, createMessage("agent", gratitudeReply, "assistant")]);
           
           setTimeout(() => {
-            const followUpQuestions = ["هل تحتاج إلى أي استفسار آخر أستاذ؟", "هل هناك شيء آخر أقدر أساعدك فيه؟"];
-            const availableFollowUp = followUpQuestions.filter(q => !previousAgentRepliesRef.current.has(q));
-            const followUp = availableFollowUp.length > 0 ? availableFollowUp[Math.floor(Math.random() * availableFollowUp.length)] : followUpQuestions[0];
-            
+            const followUp = "هل هناك أي استفسار آخر أقدر أساعدك فيه؟";
             previousAgentRepliesRef.current.add(followUp);
             setMessages(prev => [...prev, createMessage("agent", followUp, "assistant")]);
             awaitingFinalConfirmationRef.current = true;
@@ -644,21 +671,16 @@ export default function Home() {
           return;
         }
 
-        if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("معلق")) {
+        // Technical handling
+        if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل")) {
           if (currentDept === 'technical') {
             if (lastHandledTopicRef.current !== 'technical_details') {
                 lastHandledTopicRef.current = 'technical_details';
-                const techReplies = [
-                  "حاضر، يسعدني مساعدتك. لكي أتمكن من فحص الأمر بدقة، هل يمكنك تزويدي برقم الطلب أو لقطة شاشة للخطأ؟",
-                  "أكيد، أنا هنا لمساعدتك. يرجى تزويدي بتفاصيل أكثر: متى بدأت المشكلة؟ وهل تظهر رسالة خطأ معينة؟"
-                ];
-                const available = techReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-                const agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : techReplies[0];
-                
-                previousAgentRepliesRef.current.add(agentReply);
-                setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
+                const techReply = "حاضر، يسعدني مساعدتك. لكي أتمكن من فحص الأمر بدقة، هل يمكنك تزويدي برقم الطلب أو وصف تفصيلي للخطأ الذي يظهر لك؟";
+                previousAgentRepliesRef.current.add(techReply);
+                setMessages(prev => [...prev, createMessage("agent", techReply, "assistant")]);
                 conversationPhaseRef.current = "clarifying";
-                lastAgentMessageRef.current = agentReply;
+                lastAgentMessageRef.current = techReply;
                 isSendingRef.current = false;
                 return;
             }
@@ -670,15 +692,14 @@ export default function Home() {
           }
         }
 
+        // Default natural responses based on department
         const generalReplies = currentDept === 'ads' 
           ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب لمتجرك؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك لنبدأ منها؟"]
           : currentDept === 'technical'
           ? ["حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية عن المشكلة.", "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح المشكلة أكثر؟"]
           : ["بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.", "حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟"];
         
-        const available = generalReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-        const agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : generalReplies[0];
-        
+        const agentReply = generalReplies[Math.floor(Math.random() * generalReplies.length)];
         previousAgentRepliesRef.current.add(agentReply);
         setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
         lastAgentMessageRef.current = agentReply;
@@ -688,8 +709,22 @@ export default function Home() {
       return; 
     }
 
+    // BOT Response Logic
     setChatStatus("typing");
     try {
+      const normalized = normalizeArabicText(trimmedText);
+      const isGreeting = GREETING_KEYWORDS.some(k => normalized.includes(k));
+      const hasPricingIntent = PRICING_KEYWORDS.some(k => normalized.includes(k));
+
+      // If it's just a greeting, DO NOT show prices. Just greet back.
+      if (isGreeting && !hasPricingIntent) {
+        const botResponse = createMessage("bot", getRandomMessage(WELCOME_MESSAGES, lastWelcomeIndexRef), "assistant");
+        setMessages(prev => [...prev, botResponse]);
+        setChatStatus("online");
+        isSendingRef.current = false;
+        return;
+      }
+
       const apiMessages = messages
         .filter(m => m.sender !== "system")
         .map(m => ({ role: (m.sender === "bot" || m.sender === "agent") ? "assistant" : "user", content: m.text }));
@@ -741,8 +776,7 @@ export default function Home() {
     if (!hasSaved) {
       setChatStatus("typing");
       setTimeout(() => {
-        // رسالة ترحيب جديدة واحترافية
-        setMessages([createMessage("bot", "أهلاً بك في دعم قناة مجلة دار النجوم! 🌟\n\nأنا المساعد الذكي، ويسعدني خدمتك. يمكنك سؤالي عن:\n• أسعار وحجز الباقات الإعلانية\n• الدعم الفني وحل المشكلات\n• أي استفسار عام\n\nكيف يمكنني مساعدتك اليوم؟", "assistant")]);
+        setMessages([createMessage("bot", getRandomMessage(WELCOME_MESSAGES, lastWelcomeIndexRef), "assistant")]);
         setChatStatus("online");
       }, 800);
     }
@@ -817,14 +851,6 @@ export default function Home() {
           transform-origin: center;
         }
         
-        @keyframes cartoon-breathe {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-2px); }
-        }
-        .animate-cartoon-breathe {
-          animation: cartoon-breathe 4s ease-in-out infinite;
-        }
-        
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
@@ -885,7 +911,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* زر الدردشة بأيقونة احترافية متحركة */}
+      {/* زر الدردشة بأيقونة احترافية متحركة (متطلبات الحركة الدقيقة) */}
       <div 
         ref={chatButtonRef} 
         onClick={() => setOpen(!open)} 
@@ -893,31 +919,35 @@ export default function Home() {
         title="مركز المساعدة"
       >
         <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <g className="animate-cartoon-breathe">
+          {/* الرأس: يتنفس ويميل بشكل طبيعي */}
+          <g style={{ transform: headTransform, transformOrigin: '18px 18px', transition: 'transform 0.3s ease-out' }}>
+            
             {/* العين اليسرى */}
             <g className={isBlinking ? "animate-blink-human" : ""}>
               <circle cx="12" cy="15" r="5.5" fill="white" />
-              {/* بؤبؤ العين يتتبع الماوس بسلاسة */}
-              <circle cx="12" cy="15" r="2.8" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s ease-out' }} />
-              {/* بريق العين (Catchlight) لإضفاء طابع إنساني احترافي */}
-              <circle cx="13.5" cy="13.5" r="1.2" fill="white" opacity="0.9" style={{ transform: `translate(${eyePos.x * 0.4}px, ${eyePos.y * 0.4}px)` }} />
+              {/* البؤبؤ: يتحرك بسلاسة مع تأثير Parallax طفيف */}
+              <circle cx="12" cy="15" r="2.8" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x * 0.9}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+              {/* بريق العين (Catchlight) */}
+              <circle cx="13.5" cy="13.5" r="1.2" fill="white" opacity="0.9" style={{ transform: `translate(${eyePos.x * 0.3}px, ${eyePos.y * 0.3}px)` }} />
             </g>
             
             {/* العين اليمنى */}
             <g className={isBlinking ? "animate-blink-human" : ""} style={{ animationDelay: '0.05s' }}>
               <circle cx="24" cy="15" r="5.5" fill="white" />
-              <circle cx="24" cy="15" r="2.8" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s ease-out' }} />
-              <circle cx="25.5" cy="13.5" r="1.2" fill="white" opacity="0.9" style={{ transform: `translate(${eyePos.x * 0.4}px, ${eyePos.y * 0.4}px)` }} />
+              {/* البؤبؤ: حركة مستقلة قليلاً لإعطاء عمق ثلاثي الأبعاد */}
+              <circle cx="24" cy="15" r="2.8" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x * 1.1}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+              <circle cx="25.5" cy="13.5" r="1.2" fill="white" opacity="0.9" style={{ transform: `translate(${eyePos.x * 0.3}px, ${eyePos.y * 0.3}px)` }} />
             </g>
 
-            {/* الفم: يتغير بسلاسة بين الابتسامة والفتح عند الكتابة */}
+            {/* الفم: يتحول بسلاسة بين الابتسامة والفتح أثناء الكتابة (SVG Morphing via CSS) */}
             <path 
-              d={chatStatus === "typing" ? "M 11 23 Q 18 30 25 23" : "M 12 23 Q 18 27 24 23"}
+              d={chatStatus === "typing" ? "M 11 24 Q 18 31 25 24" : "M 12 24 Q 18 28 24 24"}
               stroke="white" 
               strokeWidth="2.5" 
               strokeLinecap="round" 
               fill={chatStatus === "typing" ? "white" : "none"}
-              className="transition-all duration-300 ease-in-out"
+              className="transition-all duration-500 ease-in-out"
+              style={{ transformOrigin: '18px 24px' }}
             />
           </g>
         </svg>
