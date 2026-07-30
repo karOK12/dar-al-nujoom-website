@@ -236,7 +236,8 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
-  const [iconPos, setIconPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 80 : 0, y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0 });
+  // FIX: Use right and bottom for default bottom-right positioning
+  const [iconPos, setIconPos] = useState({ right: 24, bottom: 24 });
   const [isDragging, setIsDragging] = useState(false);
   const [springScale, setSpringScale] = useState(1);
   const [idleOffsetX, setIdleOffsetX] = useState(0);
@@ -254,11 +255,11 @@ export default function Home() {
   const chatButtonRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const dragStartPos = useRef({ x: 0, y: 0 });
+  const dragStartPos = useRef({ right: 24, bottom: 24 });
   const pointerStartPos = useRef({ x: 0, y: 0 });
   const hasDragged = useRef(false);
-  const currentIconPos = useRef({ x: iconPos.x, y: iconPos.y });
-  const targetIconPos = useRef({ x: iconPos.x, y: iconPos.y });
+  const currentIconPos = useRef({ right: 24, bottom: 24 });
+  const targetIconPos = useRef({ right: 24, bottom: 24 });
 
   const currentSpeakerRef = useRef(currentSpeaker);
   const chatStatusRef = useRef(chatStatus);
@@ -272,17 +273,17 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // 1. ICON ENTRANCE ANIMATION (Once: Right -> Slight Left -> Back to Right)
+  // 1. ICON ENTRANCE ANIMATION (Once: Nudge Left -> Return to Right)
   // ============================================================
   useEffect(() => {
     if (!hasIconAnimatedRef.current && typeof window !== 'undefined') {
       hasIconAnimatedRef.current = true;
       // Move slightly left
-      setIconPos(prev => ({ ...prev, x: Math.max(0, prev.x - 15) }));
+      setIdleOffsetX(-15);
       
       // Return to original right position after a short delay
       setTimeout(() => {
-        setIconPos(prev => ({ ...prev, x: Math.min(window.innerWidth - 80, prev.x + 15) }));
+        setIdleOffsetX(0);
       }, 600);
     }
   }, []);
@@ -296,11 +297,11 @@ export default function Home() {
       if (savedPos) {
         try {
           const parsed = JSON.parse(savedPos);
-          const x = Math.min(Math.max(parsed.x, 10), window.innerWidth - 74);
-          const y = Math.min(Math.max(parsed.y, 10), window.innerHeight - 74);
-          setIconPos({ x, y });
-          currentIconPos.current = { x, y };
-          targetIconPos.current = { x, y };
+          const right = Math.max(10, Math.min(window.innerWidth - 74, parsed.right || 24));
+          const bottom = Math.max(10, Math.min(window.innerHeight - 74, parsed.bottom || 24));
+          setIconPos({ right, bottom });
+          currentIconPos.current = { right, bottom };
+          targetIconPos.current = { right, bottom };
         } catch (e) { console.error("Failed to parse icon position", e); }
       }
     }
@@ -371,13 +372,14 @@ export default function Home() {
       setEyePos({ x: currentEyePos.current.x + microSaccade.current.x, y: currentEyePos.current.y + microSaccade.current.y });
 
       if (!isDragging) {
-        currentIconPos.current.x += (targetIconPos.current.x - currentIconPos.current.x) * 0.15;
-        currentIconPos.current.y += (targetIconPos.current.y - currentIconPos.current.y) * 0.15;
-        if (Math.abs(currentIconPos.current.x - targetIconPos.current.x) < 0.5 && Math.abs(currentIconPos.current.y - targetIconPos.current.y) < 0.5) {
-          currentIconPos.current.x = targetIconPos.current.x;
-          currentIconPos.current.y = targetIconPos.current.y;
+        currentIconPos.current.right += (targetIconPos.current.right - currentIconPos.current.right) * 0.15;
+        currentIconPos.current.bottom += (targetIconPos.current.bottom - currentIconPos.current.bottom) * 0.15;
+        
+        if (Math.abs(currentIconPos.current.right - targetIconPos.current.right) < 0.5 && Math.abs(currentIconPos.current.bottom - targetIconPos.current.bottom) < 0.5) {
+          currentIconPos.current.right = targetIconPos.current.right;
+          currentIconPos.current.bottom = targetIconPos.current.bottom;
         }
-        setIconPos({ x: currentIconPos.current.x, y: currentIconPos.current.y });
+        setIconPos({ right: currentIconPos.current.right, bottom: currentIconPos.current.bottom });
         setSpringScale(prev => prev + (1.0 - prev) * 0.15);
       }
       rafId = requestAnimationFrame(animate);
@@ -391,8 +393,10 @@ export default function Home() {
     const handleMove = (clientX: number, clientY: number) => {
       if (!chatButtonRef.current || isDragging) return;
       const rect = chatButtonRef.current.getBoundingClientRect();
-      const dx = clientX - (rect.left + rect.width / 2);
-      const dy = clientY - (rect.top + rect.height / 2);
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const dx = clientX - centerX;
+      const dy = clientY - centerY;
       const angle = Math.atan2(dy, dx);
       const distance = Math.min(Math.hypot(dx, dy), 300);
       const moveDist = (distance / 300) * 2.2;
@@ -449,25 +453,26 @@ export default function Home() {
   // ============================================================
   // DRAG & DROP LOGIC WITH SNAP TO EDGE
   // ============================================================
-  const snapToEdge = useCallback((x: number, y: number) => {
+  const snapToEdge = useCallback((right: number, bottom: number) => {
     const screenWidth = window.innerWidth;
     const screenHeight = window.innerHeight;
     const iconSize = 64;
     const margin = 10;
     
-    const distToLeft = x;
-    const distToRight = screenWidth - x - iconSize;
-    const distToTop = y;
-    const distToBottom = screenHeight - y - iconSize;
-    const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+    const distToRight = right;
+    const distToLeft = screenWidth - iconSize - right;
+    const distToBottom = bottom;
+    const distToTop = screenHeight - iconSize - bottom;
     
-    let snappedX = x, snappedY = y;
-    if (minDist === distToLeft) snappedX = margin;
-    else if (minDist === distToRight) snappedX = screenWidth - iconSize - margin;
-    else if (minDist === distToTop) snappedY = margin;
-    else snappedY = screenHeight - iconSize - margin;
+    const minDist = Math.min(distToRight, distToLeft, distToBottom, distToTop);
     
-    return { x: snappedX, y: snappedY };
+    let snappedRight = right, snappedBottom = bottom;
+    if (minDist === distToRight) snappedRight = margin;
+    else if (minDist === distToLeft) snappedRight = screenWidth - iconSize - margin;
+    else if (minDist === distToBottom) snappedBottom = margin;
+    else if (minDist === distToTop) snappedBottom = screenHeight - iconSize - margin;
+    
+    return { right: snappedRight, bottom: snappedBottom };
   }, []);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
@@ -475,9 +480,9 @@ export default function Home() {
     setIsDragging(true);
     hasDragged.current = false;
     pointerStartPos.current = { x: e.clientX, y: e.clientY };
-    dragStartPos.current = { x: currentIconPos.current.x, y: currentIconPos.current.y };
+    dragStartPos.current = { right: iconPos.right, bottom: iconPos.bottom };
     chatButtonRef.current?.setPointerCapture(e.pointerId);
-  }, []);
+  }, [iconPos]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!isDragging) return;
@@ -485,11 +490,11 @@ export default function Home() {
     const deltaY = e.clientY - pointerStartPos.current.y;
     if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) hasDragged.current = true;
     if (hasDragged.current) {
-      let newX = Math.max(10, Math.min(dragStartPos.current.x + deltaX, window.innerWidth - 74));
-      let newY = Math.max(10, Math.min(dragStartPos.current.y + deltaY, window.innerHeight - 74));
-      targetIconPos.current = { x: newX, y: newY };
-      currentIconPos.current = { x: newX, y: newY };
-      setIconPos({ x: newX, y: newY });
+      const newRight = Math.max(10, Math.min(window.innerWidth - 10, dragStartPos.current.right - deltaX));
+      const newBottom = Math.max(10, Math.min(window.innerHeight - 10, dragStartPos.current.bottom - deltaY));
+      targetIconPos.current = { right: newRight, bottom: newBottom };
+      currentIconPos.current = { right: newRight, bottom: newBottom };
+      setIconPos({ right: newRight, bottom: newBottom });
     }
   }, [isDragging]);
 
@@ -497,7 +502,7 @@ export default function Home() {
     if (!isDragging) return;
     setIsDragging(false);
     chatButtonRef.current?.releasePointerCapture(e.pointerId);
-    const snapped = snapToEdge(currentIconPos.current.x, currentIconPos.current.y);
+    const snapped = snapToEdge(currentIconPos.current.right, currentIconPos.current.bottom);
     targetIconPos.current = snapped;
     currentIconPos.current = snapped;
     setIconPos(snapped);
@@ -676,7 +681,7 @@ export default function Home() {
       fileName: f.file.name, fileSize: formatFileSize(f.file.size), fileType: f.file.type
     }));
     
-    setMessages(prev => [...prev, createMessage("user", trimmedText || (selectedFile?.file.type.startsWith('image/') ? "صورة" : "ملف"), "user", "sent", fileAttachments.length > 0 ? fileAttachments : undefined)]);
+    setMessages(prev => [...prev, createMessage("user", trimmedText || (uploadedFiles.length > 0 && uploadedFiles[0].file.type.startsWith('image/') ? "صورة" : "ملف"), "user", "sent", fileAttachments.length > 0 ? fileAttachments : undefined)]);
     setText("");
     setUploadedFiles([]);
 
@@ -912,9 +917,18 @@ export default function Home() {
         </section>
       </main>
 
+      {/* FIX: Icon anchored to bottom-right using 'right' and 'bottom' properties */}
       <div ref={chatButtonRef} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={handleClick}
         className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none"
-        style={{ left: `${iconPos.x}px`, top: `${iconPos.y}px`, width: '64px', height: '64px', transform: `translateX(${idleOffsetX}px) scale(${springScale})`, transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', boxShadow: isDragging ? '0 20px 25px -5px rgba(147, 51, 234, 0.5), 0 8px 10px -6px rgba(147, 51, 234, 0.5)' : '0 10px 15px -3px rgba(147, 51, 234, 0.3), 0 4px 6px -2px rgba(147, 51, 234, 0.2)' }} title="مركز المساعدة">
+        style={{ 
+          right: `${iconPos.right}px`, 
+          bottom: `${iconPos.bottom}px`, 
+          width: '64px', 
+          height: '64px', 
+          transform: `translateX(${idleOffsetX}px) scale(${springScale})`, 
+          transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
+          boxShadow: isDragging ? '0 20px 25px -5px rgba(147, 51, 234, 0.5), 0 8px 10px -6px rgba(147, 51, 234, 0.5)' : '0 10px 15px -3px rgba(147, 51, 234, 0.3), 0 4px 6px -2px rgba(147, 51, 234, 0.2)' 
+        }} title="مركز المساعدة">
         <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border-2 border-white/10 animate-slide-in-right">
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
             <g style={{ transform: headTransform, transformOrigin: '18px 18px', transition: 'transform 0.3s ease-out' }}>
