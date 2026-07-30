@@ -92,8 +92,6 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'general', name: 'استفسار عام', icon: '❓', description: 'أي استفسار آخر غير مذكور أعلاه' },
 ];
 
-const SESSION_TIMEOUTS = { IDLE_TO_CLOSED: 60, QUEUE_CHECK_INTERVAL: 8000 };
-
 const TRENDING_PRODUCTS: TrendingProduct[] = [
   { id: 1, name: "كاميرا تصوير احترافية", desc: "خصم 25% لفترة محدودة", img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=150&h=150&fit=crop", shape: "circle" },
   { id: 2, name: "سماعات استوديو", desc: "عزل ضوضاء فائق الجودة", img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&h=150&fit=crop", shape: "rectangle" },
@@ -202,6 +200,7 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
+  // Animation & Drag States
   const [iconPos, setIconPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 80 : 0, y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [springScale, setSpringScale] = useState(1);
@@ -219,6 +218,7 @@ export default function Home() {
   const microSaccade = useRef({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   
   const dragStartPos = useRef({ x: 0, y: 0 });
   const pointerStartPos = useRef({ x: 0, y: 0 });
@@ -234,6 +234,13 @@ export default function Home() {
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({ top: chatContainerRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [messages, chatStatus]);
 
   // ============================================================
   // LOAD SAVED POSITION
@@ -299,24 +306,22 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // IDLE ANIMATION LOGIC
+  // IDLE ANIMATION LOGIC (Move ONCE to the left after appearance)
   // ============================================================
   useEffect(() => {
     if (isDragging) {
       setIdleOffsetX(0);
       return;
     }
-    let moveTimeout: NodeJS.Timeout;
-    let cycleTimeout: NodeJS.Timeout;
-    const startCycle = () => {
+    
+    const singleNudgeTimeout = setTimeout(() => {
       setIdleOffsetX(-12);
-      moveTimeout = setTimeout(() => {
+      setTimeout(() => {
         setIdleOffsetX(0);
-        cycleTimeout = setTimeout(startCycle, 12000);
       }, 400);
-    };
-    cycleTimeout = setTimeout(startCycle, 12000);
-    return () => { clearTimeout(moveTimeout); clearTimeout(cycleTimeout); };
+    }, 1500);
+
+    return () => clearTimeout(singleNudgeTimeout);
   }, [isDragging]);
 
   // ============================================================
@@ -367,7 +372,7 @@ export default function Home() {
       const moveDist = (distance / 300) * 2.2;
       let targetX = Math.cos(angle) * moveDist;
       let targetY = Math.sin(angle) * moveDist;
-      if (chatStatusRef.current === "typing") targetY -= 0.8;
+      if (chatStatusRef.current === "typing" || chatStatusRef.current === "waiting") targetY -= 0.8;
       targetEyePos.current = { x: targetX, y: targetY };
     };
 
@@ -384,7 +389,7 @@ export default function Home() {
   useEffect(() => {
     if (open) {
       targetEyePos.current = { x: 0, y: -2.5 };
-      if (chatStatus === "typing") targetEyePos.current = { x: 0, y: -3.0 };
+      if (chatStatus === "typing" || chatStatus === "waiting") targetEyePos.current = { x: 0, y: -3.0 };
     } else {
       targetEyePos.current = { x: 0, y: 0 };
     }
@@ -537,21 +542,40 @@ export default function Home() {
     } catch (e) { return false; }
   }, []);
 
-  useEffect(() => {
-    if (currentSpeaker === "agent" || currentSpeaker === "bot") {
-      if (chatStatus === "inactive") setChatStatus("online");
-    }
-  }, [messages, currentSpeaker]);
-
+  // ============================================================
+  // ✅ AUTO-RETURN TO BOT AFTER 59 SECONDS OF INACTIVITY
+  // ============================================================
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
+    
     const interval = setInterval(() => {
-      if ((Date.now() - lastActivityTimeRef.current) / 1000 >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
-        setMessages(prev => [...prev, createMessage("system", "أنا موجود إذا احتجت أي مساعدة في أي وقت.", "assistant")]);
-        setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
-        setChatStatus("online"); lastActivityTimeRef.current = Date.now();
+      const elapsed = (Date.now() - lastActivityTimeRef.current) / 1000;
+      if (elapsed >= 59) {
+        // 1. عرض حالة "انتهت المحادثة مؤقتاً"
+        setChatStatus("inactive");
+        
+        // 2. العودة التامة للمساعد الذكي بعد ثانيتين مع رسالة الترحيب الأصلية وتنظيف الحالة
+        setTimeout(() => {
+          setMessages([createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
+          setCurrentSpeaker("bot");
+          setCurrentAgent(null);
+          setSessionAgents([]);
+          setChatStatus("online");
+          setIsQueued(false);
+          setShowDepartmentSelection(false);
+          setIsTicketMode(false);
+          setTicketStep('name');
+          setTicketDept(null);
+          setTicketUserName("");
+          lastActivityTimeRef.current = Date.now();
+          isFirstUserMessageAfterTransferRef.current = true;
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("dar-alnujum-chat-state");
+          }
+        }, 2000);
       }
     }, 1000);
+    
     return () => clearInterval(interval);
   }, [currentSpeaker]);
 
@@ -583,23 +607,26 @@ export default function Home() {
   }, []);
 
   const initiateDepartmentTransfer = useCallback((dept: Department) => {
-    setChatStatus("typing");
+    setChatStatus("waiting");
     const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
-    setMessages(prev => [...prev, createMessage("system", `جاري البحث عن موظف متاح في قسم ${deptOption?.name}...`)]);
+    setMessages(prev => [...prev, createMessage("system", `⏳ جاري البحث عن أفضل موظف متاح في قسم **${deptOption?.name}** لتولي طلبك...`)]);
     setShowDepartmentSelection(false);
     
     setTimeout(() => {
       const availableAgent = findAvailableAgent(dept);
       if (availableAgent) { 
-        startAgentSession(availableAgent); 
+        setMessages(prev => [...prev, createMessage("system", `✅ تم العثور على الموظف المختص. جاري تحويل المحادثة الآن...`)]);
+        setTimeout(() => {
+          startAgentSession(availableAgent); 
+        }, 800);
       } else {
         setIsTicketMode(true);
         setTicketDept(dept);
         setTicketStep('name');
-        setMessages(prev => [...prev, createMessage("bot", `جميع موظفي قسم ${deptOption?.name} مشغولون حالياً أو غير متاحين. \n\nلا تقلق! يمكننا إنشاء تذكرة دعم لك وسيتم الرد عليك فوراً.\n\nيرجى كتابة **اسمك الكريم** للبدء:`, "assistant")]);
+        setMessages(prev => [...prev, createMessage("bot", `⚠️ جميع موظفي قسم **${deptOption?.name}** مشغولون حالياً أو غير متاحين.\n\nلا تقلق! يمكننا إنشاء تذكرة دعم أولوية لك، وسيتم الرد عليك فوراً.\n\nيرجى كتابة **اسمك الكريم** للبدء:`, "assistant")]);
         setChatStatus("online");
       }
-    }, 1500);
+    }, 2000);
   }, [startAgentSession]);
 
   // ============================================================
@@ -665,6 +692,7 @@ export default function Home() {
           const deptName = DEPARTMENT_OPTIONS.find(d => d.id === currentAgent.department)?.name || "الدعم";
           setMessages(prev => [...prev, createMessage("agent", `أهلاً وسهلاً بك، معك ${currentAgent.name} من ${deptName}. كيف أقدر أساعدك اليوم؟`, "assistant")]);
           setChatStatus("online");
+          lastActivityTimeRef.current = Date.now(); // ✅ إعادة ضبط المؤقت
           isSendingRef.current = false; 
           return;
         }
@@ -672,6 +700,7 @@ export default function Home() {
         if (isThanks) {
           setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر يمكنني مساعدتك به؟", "assistant")]);
           setChatStatus("online");
+          lastActivityTimeRef.current = Date.now(); // ✅ إعادة ضبط المؤقت
           isSendingRef.current = false; 
           return;
         }
@@ -679,6 +708,7 @@ export default function Home() {
         if (isEndConversation) {
           setMessages(prev => [...prev, createMessage("agent", "شكراً لتواصلك معنا، سعدنا بخدمتك. نتمنى لك يوماً سعيداً، ونشكرك على ثقتك بـ مجلة دار النجوم.", "assistant")]);
           setChatStatus("online");
+          lastActivityTimeRef.current = Date.now(); // ✅ إعادة ضبط المؤقت
           isSendingRef.current = false; 
           setTimeout(() => closeAgentSession(), 2500); 
           return;
@@ -688,6 +718,7 @@ export default function Home() {
         if (requestedDept && requestedDept.id !== currentAgent.department) {
            setMessages(prev => [...prev, createMessage("agent", `هذا الطلب يخص قسم ${requestedDept.name}، سأقوم بتحويلك الآن إلى الزميل المختص مع الاحتفاظ بسجل المحادثة.`, "assistant")]);
            setChatStatus("online");
+           lastActivityTimeRef.current = Date.now(); // ✅ إعادة ضبط المؤقت
            isSendingRef.current = false; 
            setTimeout(() => initiateDepartmentTransfer(requestedDept.id), 1000);
            return;
@@ -700,6 +731,7 @@ export default function Home() {
         ];
         setMessages(prev => [...prev, createMessage("agent", generalReplies[Math.floor(Math.random() * generalReplies.length)], "assistant")]);
         setChatStatus("online");
+        lastActivityTimeRef.current = Date.now(); // ✅ إعادة ضبط المؤقت
         isSendingRef.current = false;
       }, 1500);
       return; 
@@ -777,8 +809,8 @@ export default function Home() {
   const getStatusText = () => {
     switch (chatStatus) {
       case "typing": return "يكتب الآن..."; 
+      case "waiting": return "جاري المعالجة...";
       case "online": return "متصل الآن";
-      case "waiting": return "في قائمة الانتظار..."; 
       case "inactive": return "انتهت المحادثة مؤقتاً";
       case "closed": return "عاد المساعد الذكي"; 
       default: return "غير نشط";
@@ -788,8 +820,8 @@ export default function Home() {
   const getStatusColor = () => {
     switch (chatStatus) {
       case "typing": return "bg-yellow-400 animate-pulse"; 
+      case "waiting": return "bg-orange-400 animate-pulse";
       case "online": return "bg-green-400 animate-pulse";
-      case "waiting": return "bg-orange-400 animate-pulse"; 
       case "inactive": return "bg-gray-500";
       case "closed": return "bg-green-400 animate-pulse"; 
       default: return "bg-gray-400";
@@ -927,7 +959,7 @@ export default function Home() {
         onPointerUp={handlePointerUp} 
         onPointerCancel={handlePointerUp} 
         onClick={handleClick}
-        className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none"
+        className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none rounded-full overflow-hidden"
         style={{ 
           left: `${iconPos.x}px`, 
           top: `${iconPos.y}px`, 
@@ -954,7 +986,7 @@ export default function Home() {
                 <circle cx="24" cy="15" r="2.8" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x - 0.3}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
                 <circle cx="25.5" cy="13.5" r="1.2" fill="white" opacity="0.9" style={{ transform: `translate(${eyePos.x * 0.3}px, ${eyePos.y * 0.3}px)` }} />
               </g>
-              <path d={chatStatus === "typing" ? "M 11 24 Q 18 31 25 24" : "M 12 24 Q 18 28 24 24"} stroke="white" strokeWidth="2.5" strokeLinecap="round" fill={chatStatus === "typing" ? "white" : "none"} className="transition-all duration-500 ease-in-out" style={{ transformOrigin: '18px 24px' }} />
+              <path d={chatStatus === "typing" || chatStatus === "waiting" ? "M 11 24 Q 18 31 25 24" : "M 12 24 Q 18 28 24 24"} stroke="white" strokeWidth="2.5" strokeLinecap="round" fill={chatStatus === "typing" || chatStatus === "waiting" ? "white" : "none"} className="transition-all duration-500 ease-in-out" style={{ transformOrigin: '18px 24px' }} />
             </g>
           </svg>
         </div>
@@ -988,7 +1020,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+        <div ref={chatContainerRef} className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
           {isDragOver && (
             <div className="absolute inset-0 bg-purple-600/20 border-2 border-dashed border-purple-500 rounded-xl flex items-center justify-center z-10">
               <div className="text-center">
@@ -999,7 +1031,7 @@ export default function Home() {
           )}
           
           {messages.map((msg) => {
-            if (msg.sender === "system") return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%] whitespace-pre-line">{msg.text}</span></div>;
+            if (msg.sender === "system") return <div key={msg.id} className="flex justify-center my-2"><span className="text-[11px] bg-gray-800/80 text-gray-300 px-3 py-1.5 rounded-full border border-gray-700 text-center max-w-[90%] whitespace-pre-line backdrop-blur-sm">{msg.text}</span></div>;
             const isUser = msg.sender === "user";
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
@@ -1028,13 +1060,24 @@ export default function Home() {
             </div>
           )}
 
-          {chatStatus === "typing" && !showDepartmentSelection && (
+          {(chatStatus === "typing" || chatStatus === "waiting") && !showDepartmentSelection && (
             <div className="flex flex-col items-start">
-              <span className="text-[10px] text-gray-400 mb-1 ml-1">{currentSpeaker === "agent" && currentAgent ? currentAgent.name : "المساعد الذكي"}</span>
+              <span className="text-[10px] text-gray-400 mb-1 ml-1">
+                {chatStatus === "waiting" ? "النظام" : (currentSpeaker === "agent" && currentAgent ? currentAgent.name : "المساعد الذكي")}
+              </span>
               <div className="bg-[#1f2937] border border-purple-500/30 rounded-2xl rounded-tl-sm p-3 flex gap-1.5 items-center h-10">
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '0ms' }}></span>
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '200ms' }}></span>
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '400ms' }}></span>
+                {chatStatus === "waiting" ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-xs text-purple-300">جاري المعالجة...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '0ms' }}></span>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '200ms' }}></span>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '400ms' }}></span>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -1074,7 +1117,7 @@ export default function Home() {
               rows={1} disabled={showDepartmentSelection}
               className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            <button onClick={sendMessage} disabled={(!text.trim() && uploadedFiles.length === 0) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            <button onClick={sendMessage} disabled={(!text.trim() && uploadedFiles.length === 0) || chatStatus === "typing" || chatStatus === "waiting" || showDepartmentSelection || isSendingRef.current} className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
             </button>
           </div>
