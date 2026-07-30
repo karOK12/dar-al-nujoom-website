@@ -451,13 +451,13 @@ export default function Home() {
   }, [isDragging, open]);
 
   // ============================================================
-  // DRAG & DROP LOGIC WITH SNAP TO EDGE
+  // DRAG & DROP LOGIC WITH SNAP TO EDGE (Using Right/Bottom)
   // ============================================================
   const snapToEdge = useCallback((right: number, bottom: number) => {
     const screenWidth = window.innerWidth;
     const screenHeight = window.innerHeight;
     const iconSize = 64;
-    const margin = 10;
+    const margin = 24; // Match bottom-6 right-6 (1.5rem = 24px)
     
     const distToRight = right;
     const distToLeft = screenWidth - iconSize - right;
@@ -490,8 +490,11 @@ export default function Home() {
     const deltaY = e.clientY - pointerStartPos.current.y;
     if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) hasDragged.current = true;
     if (hasDragged.current) {
-      const newRight = Math.max(10, Math.min(window.innerWidth - 10, dragStartPos.current.right - deltaX));
-      const newBottom = Math.max(10, Math.min(window.innerHeight - 10, dragStartPos.current.bottom - deltaY));
+      // Moving right (positive deltaX) decreases the 'right' offset
+      // Moving down (positive deltaY) decreases the 'bottom' offset
+      const newRight = Math.max(10, Math.min(window.innerWidth - 74, dragStartPos.current.right - deltaX));
+      const newBottom = Math.max(10, Math.min(window.innerHeight - 74, dragStartPos.current.bottom - deltaY));
+      
       targetIconPos.current = { right: newRight, bottom: newBottom };
       currentIconPos.current = { right: newRight, bottom: newBottom };
       setIconPos({ right: newRight, bottom: newBottom });
