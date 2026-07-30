@@ -42,6 +42,7 @@ interface Agent {
   status: AgentStatus;
   lastActivity: string;
   isBusy: boolean;
+  greeting?: string; // ✅ رد افتتاحي مخصص لكل موظف
 }
 
 interface DepartmentOption {
@@ -71,20 +72,43 @@ interface UploadedFile {
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
+// ✅ توسيع فريق الدعم مع موظفين أكثر لكل قسم وردود افتتاحية مخصصة
 const SUPPORT_AGENTS: Agent[] = [
-  { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "ممثل مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-002", name: "منى العلي", img: "https://i.pravatar.cc/150?img=44", role: "أخصائية مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-003", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=47", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-004", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=32", role: "مديرة الإعلانات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-005", name: "أحمد المحاسب", img: "https://i.pravatar.cc/150?img=11", role: "قسم المحاسبة", department: 'accounting', status: 'away', lastActivity: new Date().toISOString(), isBusy: true },
-  { employeeId: "EMP-006", name: "ليلى الشراكات", img: "https://i.pravatar.cc/150?img=5", role: "منسقة شراكات", department: 'partnerships', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-007", name: "عمر المتابعة", img: "https://i.pravatar.cc/150?img=12", role: "متابعة الطلبات", department: 'orders', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-008", name: "فاطمة الخدمة", img: "https://i.pravatar.cc/150?img=9", role: "خدمة العملاء", department: 'general', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  // المبيعات - 3 موظفين
+  { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "ممثل مبيعات أول", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "أهلاً وسهلاً بك، معك خالد من قسم المبيعات. سعيد بخدمتك اليوم، كيف يمكنني مساعدتك في اختيار الباقة المناسبة؟" },
+  { employeeId: "EMP-002", name: "منى العلي", img: "https://i.pravatar.cc/150?img=44", role: "أخصائية مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "مرحباً بك! أنا منى، أخصائية المبيعات. يسعدني مساعدتك في العثور على العرض الأنسب لاحتياجاتك." },
+  { employeeId: "EMP-009", name: "يوسف الحربي", img: "https://i.pravatar.cc/150?img=13", role: "مستشار مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "أهلاً بك! معك يوسف، مستشار المبيعات. دعني أساعدك في اختيار الباقة المثالية لمشروعك." },
+  
+  // الدعم الفني - 3 موظفين
+  { employeeId: "EMP-003", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=47", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "مرحباً! أنا نورة من الدعم الفني المتقدم. اطلعت على طلبك، دعني أساعدك في حل المشكلة بأسرع وقت." },
+  { employeeId: "EMP-010", name: "ماجد التميمي", img: "https://i.pravatar.cc/150?img=14", role: "مهندس دعم فني", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "أهلاً بك! معك ماجد، مهندس الدعم الفني. سأقوم بفحص المشكلة التقنية التي تواجهك وحلها فوراً." },
+  { employeeId: "EMP-011", name: "هند القحطاني", img: "https://i.pravatar.cc/150?img=48", role: "أخصائية دعم تقني", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "مرحباً! أنا هند من الفريق التقني. سعيدة بمساعدتك، أخبرني بالتفاصيل وسأجد الحل المناسب." },
+  
+  // الإعلانات - 2 موظفين
+  { employeeId: "EMP-004", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=32", role: "مديرة الإعلانات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "أهلاً وسهلاً! معك سارة، مديرة قسم الإعلانات. يسعدني مساعدتك في حجز المساحات الإعلانية المناسبة." },
+  { employeeId: "EMP-012", name: "فيصل الدوسري", img: "https://i.pravatar.cc/150?img=15", role: "منسق إعلانات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "مرحباً بك! أنا فيصل، منسق الإعلانات. دعني أساعدك في تصميم حملة إعلانية مميزة." },
+  
+  // المحاسبة - 2 موظفين
+  { employeeId: "EMP-005", name: "أحمد المحاسب", img: "https://i.pravatar.cc/150?img=11", role: "محاسب أول", department: 'accounting', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "أهلاً بك! معك أحمد من قسم المحاسبة. كيف يمكنني مساعدتك في matters الفواتير والمدفوعات؟" },
+  { employeeId: "EMP-013", name: "ريم العتيبي", img: "https://i.pravatar.cc/150?img=49", role: "أخصائية محاسبة", department: 'accounting', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "مرحباً! أنا ريم، أخصائية المحاسبة. سعيدة بمساعدتك في أي استفسار مالي." },
+  
+  // الشراكات - 2 موظفين
+  { employeeId: "EMP-006", name: "ليلى الشراكات", img: "https://i.pravatar.cc/150?img=5", role: "منسقة شراكات", department: 'partnerships', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "أهلاً وسهلاً! معك ليلى من قسم الشراكات. يسعدني مناقشة فرص التعاون معك." },
+  { employeeId: "EMP-014", name: "طارق الشمري", img: "https://i.pravatar.cc/150?img=16", role: "مدير شراكات", department: 'partnerships', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "مرحباً بك! أنا طارق، مدير الشراكات. دعني أساعدك في بناء شراكة استراتيجية ناجحة." },
+  
+  // الطلبات - 2 موظفين
+  { employeeId: "EMP-007", name: "عمر المتابعة", img: "https://i.pravatar.cc/150?img=12", role: "متابعة الطلبات", department: 'orders', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "أهلاً بك! معك عمر من قسم متابعة الطلبات. سأساعدك في تتبع شحنتك وحالة طلبك." },
+  { employeeId: "EMP-015", name: "سلطان الغامدي", img: "https://i.pravatar.cc/150?img=17", role: "أخصائي شحن", department: 'orders', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "مرحباً! أنا سلطان، أخصائي الشحن والتوصيل. كيف يمكنني مساعدتك في طلبك؟" },
+  
+  // عام - 3 موظفين
+  { employeeId: "EMP-008", name: "فاطمة الخدمة", img: "https://i.pravatar.cc/150?img=9", role: "خدمة العملاء", department: 'general', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "أهلاً وسهلاً بك! معك فاطمة من خدمة العملاء. كيف يمكنني مساعدتك اليوم؟" },
+  { employeeId: "EMP-016", name: "عبدالله الزهراني", img: "https://i.pravatar.cc/150?img=18", role: "ممثل خدمة عملاء", department: 'general', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "مرحباً بك! أنا عبدالله، ممثل خدمة العملاء. سعيد بخدمتك، تفضل كيف أساعدك؟" },
+  { employeeId: "EMP-017", name: "مها السبيعي", img: "https://i.pravatar.cc/150?img=50", role: "أخصائية علاقات عامة", department: 'general', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "أهلاً بك! معك مها من العلاقات العامة. يسعدني الإجابة على استفساراتك." },
 ];
 
 const DEPARTMENT_OPTIONS: DepartmentOption[] = [
-  { id: 'sales', name: 'المبيعات', icon: '🛒', description: 'حجز باقات، استفسارات عن الأسعار والعروض' },
-  { id: 'technical', name: 'الدعم الفني', icon: '️', description: 'حل المشاكل التقنية، أخطاء الموقع، تسجيل الدخول' },
+  { id: 'sales', name: 'المبيعات', icon: '', description: 'حجز باقات، استفسارات عن الأسعار والعروض' },
+  { id: 'technical', name: 'الدعم الفني', icon: '🛠️', description: 'حل المشاكل التقنية، أخطاء الموقع، تسجيل الدخول' },
   { id: 'ads', name: 'الإعلانات والرعاية', icon: '📢', description: 'حجز مساحات إعلانية، رعاية البرامج والمحتوى' },
   { id: 'accounting', name: 'المحاسبة', icon: '💳', description: 'الفواتير، طرق الدفع، الاسترجاع المالي' },
   { id: 'partnerships', name: 'الشراكات', icon: '🤝', description: 'تعاون مع المؤثرين، شركاء استراتيجيين' },
@@ -303,7 +327,6 @@ export default function Home() {
   const tempEndedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastMessageIdRef = useRef<string>("");
 
-  // ✅ إضافة refs جديدة لتتبع القيم السابقة ومنع إعادة الـ render غير الضرورية
   const prevIconPosRef = useRef({ x: iconPos.x, y: iconPos.y });
   const prevIdleOffsetRef = useRef(0);
   const prevScaleRef = useRef(1);
@@ -399,7 +422,7 @@ export default function Home() {
   }, [isDragging]);
 
   // ============================================================
-  // ✅ ADVANCED ANIMATION LOOP - محسّن لمنع الرمش
+  // ADVANCED ANIMATION LOOP
   // ============================================================
   useEffect(() => {
     let rafId: number;
@@ -630,7 +653,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // ✅ AGENT INACTIVITY TIMEOUT
+  // AGENT INACTIVITY TIMEOUT
   // ============================================================
   useEffect(() => {
     if (currentSpeaker !== "agent") {
@@ -667,7 +690,7 @@ export default function Home() {
   }, [currentSpeaker]);
 
   // ============================================================
-  // ✅ RESET TIMER ON NEW MESSAGE
+  // RESET TIMER ON NEW MESSAGE
   // ============================================================
   useEffect(() => {
     if (currentSpeaker === "agent" && messages.length > 0) {
@@ -702,12 +725,19 @@ export default function Home() {
     }, 2500);
   }, []);
 
+  // ✅ startAgentSession مع ردود افتتاحية مخصصة لكل موظف
   const startAgentSession = useCallback((agent: Agent) => {
     setCurrentAgent(agent);
     setSessionAgents(prev => prev.find(a => a.employeeId === agent.employeeId) ? prev : [...prev, agent]);
-    setCurrentSpeaker("agent"); setIsQueued(false); setShowDepartmentSelection(false);
+    setCurrentSpeaker("agent"); 
+    setIsQueued(false); 
+    setShowDepartmentSelection(false);
     isFirstUserMessageAfterTransferRef.current = true;
-    setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). اطلعت على المحادثة السابقة، تفضل كيف يمكنني مساعدتك؟`, "assistant")]);
+    
+    // ✅ استخدام الرد الافتتاحي المخصص للموظف إذا كان موجوداً
+    const greeting = agent.greeting || `أهلاً بك، أنا ${agent.name} (${agent.role}). اطلعت على المحادثة السابقة، تفضل كيف يمكنني مساعدتك؟`;
+    
+    setMessages(prev => [...prev, createMessage("agent", greeting, "assistant")]);
     setChatStatus("online"); 
     lastActivityTimeRef.current = Date.now();
   }, []);
@@ -718,16 +748,19 @@ export default function Home() {
     setMessages(prev => [...prev, createMessage("system", "يسعدنا خدمتك! يرجى اختيار القسم المناسب ليتم توجيهك للموظف المختص فوراً:", "assistant")]);
   }, []);
 
+  // ✅ تحسين نظام الانتقال بين الأقسام
   const initiateDepartmentTransfer = useCallback((dept: Department) => {
     setChatStatus("waiting");
     const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
-    setMessages(prev => [...prev, createMessage("system", `⏳ جاري البحث عن أفضل موظف متاح في قسم **${deptOption?.name}** لتولي طلبك...`)]);
+    
+    // ✅ رسالة انتقال احترافية
+    setMessages(prev => [...prev, createMessage("system", `⏳ يرجى الانتظار، سيتم تحويلك الآن إلى زميلي المختص في قسم **${deptOption?.name}** لمساعدتك بأسرع وقت ممكن...`, "assistant")]);
     setShowDepartmentSelection(false);
     
     setTimeout(() => {
       const availableAgent = findAvailableAgent(dept);
       if (availableAgent) { 
-        setMessages(prev => [...prev, createMessage("system", `✅ تم العثور على الموظف المختص. جاري تحويل المحادثة الآن...`)]);
+        setMessages(prev => [...prev, createMessage("system", `✅ تم العثور على الموظف المختص. جاري تحويل المحادثة الآن...`, "assistant")]);
         setTimeout(() => {
           startAgentSession(availableAgent); 
         }, 800);
@@ -1066,7 +1099,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* ✅ أيقونة المساعد - محسّنة لمنع الرمش */}
+      {/* ✅ أيقونة المساعد - تم إزالة الخلفية السوداء */}
       <div 
         ref={chatButtonRef} 
         onPointerDown={handlePointerDown} 
@@ -1082,7 +1115,8 @@ export default function Home() {
           height: '64px',
           willChange: 'transform',
           WebkitBackfaceVisibility: 'hidden',
-          backfaceVisibility: 'hidden'
+          backfaceVisibility: 'hidden',
+          background: 'transparent'
         }} 
         title="مركز المساعدة"
       >
@@ -1093,7 +1127,8 @@ export default function Home() {
             transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
             boxShadow: 'none',
             WebkitBackfaceVisibility: 'hidden',
-            backfaceVisibility: 'hidden'
+            backfaceVisibility: 'hidden',
+            background: 'transparent'
           }}
           onAnimationEnd={(e) => e.currentTarget.classList.add('icon-entered')}
         >
@@ -1170,16 +1205,21 @@ export default function Home() {
             );
           })}
 
+          {/* ✅ تحسين ترتيب خيارات الأقسام */}
           {showDepartmentSelection && currentSpeaker === "bot" && (
-            <div className="grid grid-cols-1 gap-2 mt-2 animate-slide-in-right">
+            <div className="grid grid-cols-1 gap-2.5 mt-3 animate-slide-in-right">
               {DEPARTMENT_OPTIONS.map((dept) => (
-                <button key={dept.id} onClick={() => initiateDepartmentTransfer(dept.id)} className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group flex items-center gap-3">
-                  <span className="text-2xl">{dept.icon}</span>
-                  <div className="flex-1">
-                    <div className="font-bold text-sm text-purple-300 group-hover:text-purple-200">{dept.name}</div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">{dept.description}</div>
+                <button 
+                  key={dept.id} 
+                  onClick={() => initiateDepartmentTransfer(dept.id)} 
+                  className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3.5 transition-all duration-200 group flex items-center gap-3.5 shadow-sm hover:shadow-md"
+                >
+                  <span className="text-2xl flex-shrink-0">{dept.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-sm text-purple-300 group-hover:text-purple-200 mb-0.5">{dept.name}</div>
+                    <div className="text-[11px] text-gray-400 leading-relaxed">{dept.description}</div>
                   </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500 group-hover:text-purple-400 transform group-hover:-translate-x-1 transition-transform"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500 group-hover:text-purple-400 transform group-hover:-translate-x-1 transition-transform flex-shrink-0"><polyline points="15 18 9 12 15 6"></polyline></svg>
                 </button>
               ))}
             </div>
