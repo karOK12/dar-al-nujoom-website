@@ -990,13 +990,6 @@ export default function Home() {
         .animate-blink-human { animation: blink-human 0.12s ease-in-out; transform-origin: center; }
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
-        @keyframes move-right-to-left { 
-          0% { transform: translateX(100px); } 
-          100% { transform: translateX(0); } 
-        }
-        .animate-move-right-to-left { 
-          animation: move-right-to-left 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; 
-        }
       `}</style>
 
       {loadingProgress > 0 && (
@@ -1045,7 +1038,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* ✅ أيقونة المساعد: تم إزالة الظل تماماً وإصلاح مشكلة الرمش في الحواف العلوية */}
+      {/* ✅ أيقونة المساعد: تم إزالة كلاس الأنيميشن المتعارض وإضافة will-change لمنع الرمش تماماً */}
       <div 
         ref={chatButtonRef} 
         onPointerDown={handlePointerDown} 
@@ -1053,7 +1046,7 @@ export default function Home() {
         onPointerUp={handlePointerUp} 
         onPointerCancel={handlePointerUp} 
         onClick={handleClick}
-        className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none rounded-full animate-move-right-to-left"
+        className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none rounded-full"
         style={{ 
           left: `${iconPos.x}px`, 
           top: `${iconPos.y}px`, 
@@ -1061,16 +1054,17 @@ export default function Home() {
           height: '64px', 
           transform: `translateX(${idleOffsetX}px) scale(${springScale}) translateZ(0)`, 
           transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
-          boxShadow: 'none !important',
+          boxShadow: 'none',
           outline: 'none',
           WebkitBackfaceVisibility: 'hidden',
-          backfaceVisibility: 'hidden'
+          backfaceVisibility: 'hidden',
+          willChange: 'transform'
         }} 
         title="مركز المساعدة"
       >
         <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border border-white/10 overflow-hidden"
              style={{ 
-               boxShadow: 'none !important',
+               boxShadow: 'none',
                WebkitBackfaceVisibility: 'hidden',
                backfaceVisibility: 'hidden'
              }}>
