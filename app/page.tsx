@@ -8,7 +8,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 type Sender = "user" | "bot" | "agent" | "system";
 type AgentStatus = "online" | "busy" | "away" | "offline";
-type Department = 'customer_service' | 'sales' | 'technical' | 'accounting' | 'management';
+type Department = 'customer_service' | 'sales' | 'technical' | 'accounting' | 'management' | 'ads';
 type ChatStatus = "typing" | "online" | "waiting" | "inactive" | "closed";
 type ProductShape = "circle" | "rectangle" | "square" | "portrait";
 type AttachmentType = 'image' | 'link' | 'card' | 'product' | 'file' | 'video';
@@ -42,6 +42,7 @@ interface Agent {
   status: AgentStatus;
   lastActivity: string;
   isBusy: boolean;
+  greeting?: string; // إضافة رسالة ترحيب مخصصة لكل موظف
 }
 
 interface DepartmentOption {
@@ -71,21 +72,36 @@ interface UploadedFile {
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
-// تم تحديث الموظفين ليشملوا أقساماً متخصصة وواضحة
+// تم إضافة أكثر من موظف لكل قسم مع رسائل ترحيب فريدة
 const SUPPORT_AGENTS: Agent[] = [
-  { employeeId: "EMP-001", name: "فاطمة الخدمة", img: "https://i.pravatar.cc/150?img=5", role: "خدمة العملاء", department: 'customer_service', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-002", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "ممثل مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-003", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-004", name: "أحمد المحاسب", img: "https://i.pravatar.cc/150?img=11", role: "قسم المحاسبة", department: 'accounting', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-005", name: "أحمد المدير", img: "https://i.pravatar.cc/150?img=12", role: "مدير عام", department: 'management', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  // خدمة العملاء
+  { employeeId: "EMP-001", name: "فاطمة الخدمة", img: "https://i.pravatar.cc/150?img=5", role: "خدمة العملاء", department: 'customer_service', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "أهلاً بك! معك فاطمة من خدمة العملاء. اطلعت على استفسارك، كيف يمكنني توجيهك بشكل صحيح اليوم؟" },
+  { employeeId: "EMP-002", name: "عمر المساعد", img: "https://i.pravatar.cc/150?img=12", role: "دعم أولي", department: 'customer_service', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "مرحباً، أنا عمر من فريق خدمة العملاء. قرأت رسالتك السابقة ويسعدني جداً مساعدتك في المتابعة." },
+  
+  // المبيعات
+  { employeeId: "EMP-003", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "ممثل مبيعات أول", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "أهلاً بك! معك خالد من قسم المبيعات. اطلعت على طلبك، كيف يمكنني مساعدتك في اختيار الباقة أو العرض الأنسب اليوم؟" },
+  { employeeId: "EMP-004", name: "منى سعيد", img: "https://i.pravatar.cc/150?img=9", role: "أخصائية عروض", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "مرحباً! أنا منى من فريق المبيعات. يسعدني جداً مساعدتك في معرفة تفاصيل عروضنا الحالية والبدء معك." },
+  
+  // الدعم الفني
+  { employeeId: "EMP-005", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "مهندسة دعم فني", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "أهلاً بك. معك نورة من الدعم الفني. اطلعت على المشكلة المذكورة في المحادثة، دعني أساعدك في فحصها وحلها فوراً." },
+  { employeeId: "EMP-006", name: "ياسر التقني", img: "https://i.pravatar.cc/150?img=11", role: "فني شبكات", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "مرحباً، ياسر هنا من الدعم الفني. قرأت تفاصيل طلبك وسأقوم بفحص الأمر تقنياً الآن لضمان حله." },
+
+  // المحاسبة
+  { employeeId: "EMP-007", name: "ليلى المحاسبة", img: "https://i.pravatar.cc/150?img=32", role: "مراجعة حسابات", department: 'accounting', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "مرحباً، معك ليلى من القسم المالي. اطلعت على استفسارك المتعلق بالفواتير أو الدفع، تفضل كيف أساعدك؟" },
+
+  // الإدارة
+  { employeeId: "EMP-008", name: "أحمد المدير", img: "https://i.pravatar.cc/150?img=60", role: "مدير عام", department: 'management', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "أهلاً بك. معك أحمد، المدير العام. اطلعت على ملاحظتك أو طلب التصعيد، وأنا هنا لضمان حلها بأعلى معايير الجودة." },
+
+  // الإعلانات
+  { employeeId: "EMP-009", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=47", role: "مديرة حملات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, greeting: "أهلاً بك! أنا سارة من قسم الإعلانات. اطلعت على اهتمامك، دعنا نناقش أفضل استراتيجية لإعلانك أو حجز مساحتك." },
 ];
 
-// تم إعادة ترتيب الأقسام لتكون أكثر منطقية ووضوحاً للمستخدم
 const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'customer_service', name: 'خدمة العملاء', icon: '🎧', description: 'استفسارات عامة، متابعة الطلبات، والمساعدة المبدئية' },
-  { id: 'sales', name: 'المبيعات والإعلانات', icon: '🛒', description: 'الأسعار، الباقات، العروض، وحجز الإعلانات' },
+  { id: 'sales', name: 'المبيعات', icon: '🛒', description: 'الأسعار، الباقات، العروض، وحجز الخدمات' },
   { id: 'technical', name: 'الدعم الفني', icon: '🛠️', description: 'حل المشاكل التقنية، الأخطاء، ومساعدة تسجيل الدخول' },
   { id: 'accounting', name: 'المحاسبة والمالية', icon: '💳', description: 'الفواتير، المدفوعات، الاشتراكات، والاسترجاع' },
+  { id: 'ads', name: 'الإعلانات', icon: '📢', description: 'حجز مساحات إعلانية، ورعاية البرامج والمحتوى' },
   { id: 'management', name: 'الإدارة', icon: '👨‍💼', description: 'الشكاوى، التصعيد، والقرارات الإدارية الخاصة' },
 ];
 
@@ -126,12 +142,8 @@ const normalizeArabicText = (text: string): string => {
 
 const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
-  const humanRequestKeywords = ["موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول", "دعم", "مساعدة", "مبيعات", "إدارة", "إعلانات"];
+  const humanRequestKeywords = ["موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول", "دعم", "مساعدة", "مبيعات", "إدارة", "إعلانات", "محاسبة"];
   return humanRequestKeywords.some(keyword => normalized.includes(keyword));
-};
-
-const findAvailableAgent = (department: Department): Agent | null => {
-  return SUPPORT_AGENTS.find(agent => agent.department === department && agent.status === 'online' && !agent.isBusy) || null;
 };
 
 const createMessage = (sender: Sender, text: string, role?: "user" | "assistant", status: "sent" | "delivered" | "read" = "read", attachments?: Attachment[]): Message => ({
@@ -153,16 +165,6 @@ const getFileType = (file: File): 'image' | 'video' | 'document' => {
   if (ALLOWED_IMAGE_TYPES.includes(file.type)) return 'image';
   if (ALLOWED_VIDEO_TYPES.includes(file.type)) return 'video';
   return 'document';
-};
-
-// دالة ذكية لتحديد القسم المناسب بناءً على كلمات مفتاحية في رسالة المستخدم
-const detectDepartmentFromText = (text: string): Department | null => {
-  const normalized = normalizeArabicText(text);
-  if (normalized.includes("فاتورة") || normalized.includes("دفع") || normalized.includes("اشتراك") || normalized.includes("تحويل بنكي") || normalized.includes("حساب")) return 'accounting';
-  if (normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("مشكلة") || normalized.includes("دخول") || normalized.includes("عطل")) return 'technical';
-  if (normalized.includes("سعر") || normalized.includes("باقة") || normalized.includes("عرض") || normalized.includes("شراء") || normalized.includes("اعلان")) return 'sales';
-  if (normalized.includes("شكوى") || normalized.includes("مدير") || normalized.includes("تصعيد") || normalized.includes("إدارة")) return 'management';
-  return null;
 };
 
 // ============================================================
@@ -224,7 +226,7 @@ export default function Home() {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTo({ top: chatContainerRef.current.scrollHeight, behavior: 'smooth' });
     }
-  }, [messages, chatStatus]);
+  }, [messages, chatStatus, showDepartmentSelection]);
 
   // ============================================================
   // LOAD SAVED POSITION
@@ -545,48 +547,51 @@ export default function Home() {
     }, 2500);
   }, []);
 
+  // 1. تحسين نظام انتقال المحادثات: رسالة انتقال واضحة + اختيار موظف عشوائي متاح برسالة ترحيب فريدة
   const startAgentSession = useCallback((agent: Agent) => {
     setCurrentAgent(agent);
     setSessionAgents(prev => prev.find(a => a.employeeId === agent.employeeId) ? prev : [...prev, agent]);
-    setCurrentSpeaker("agent"); setIsQueued(false); setShowDepartmentSelection(false);
+    setCurrentSpeaker("agent");
+    setIsQueued(false);
+    setShowDepartmentSelection(false);
     isFirstUserMessageAfterTransferRef.current = true;
     agentResponseHistoryRef.current.clear();
-    setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). اطلعت على المحادثة السابقة، تفضل كيف يمكنني مساعدتك؟`, "assistant")]);
-    setChatStatus("online"); lastActivityTimeRef.current = Date.now();
+
+    // استخدام رسالة الترحيب المخصصة للموظف، أو رسالة افتراضية احترافية
+    const greetingText = agent.greeting || `أهلاً بك، أنا ${agent.name} (${agent.role}). اطلعت على المحادثة السابقة، تفضل كيف يمكنني مساعدتك؟`;
+
+    setMessages(prev => [...prev, createMessage("agent", greetingText, "assistant")]);
+    setChatStatus("online");
+    lastActivityTimeRef.current = Date.now();
   }, []);
+
+  const initiateDepartmentTransfer = useCallback((dept: Department) => {
+    const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
+    setShowDepartmentSelection(false);
+    
+    // ظهور رسالة الانتقال المطلوبة حرفياً
+    setMessages(prev => [...prev, createMessage("system", "يرجى الانتظار، سيتم تحويلك الآن إلى زميلي المختص لمساعدتك بأسرع وقت ممكن.", "assistant")]);
+    setChatStatus("typing");
+    
+    setTimeout(() => {
+      // البحث عن جميع الموظفين المتاحين في القسم المطلوب
+      const availableAgents = SUPPORT_AGENTS.filter(a => a.department === dept && a.status === 'online' && !a.isBusy);
+      
+      if (availableAgents.length > 0) {
+        // اختيار موظف عشوائي من المتاحين لإضفاء الطابع الواقعي
+        const randomAgent = availableAgents[Math.floor(Math.random() * availableAgents.length)];
+        startAgentSession(randomAgent);
+      } else {
+        setMessages(prev => [...prev, createMessage("system", `عذراً، جميع زملاء قسم ${deptOption?.name} مشغولون حالياً. سيتم الرد على استفسارك في أقرب وقت ممكن أو يمكنك ترك رسالتك هنا.`, "assistant")]);
+        setChatStatus("online");
+      }
+    }, 1500); // تأخير واقعي لمدة 1.5 ثانية لمحاكاة عملية التحويل
+  }, [startAgentSession]);
 
   const handleHumanRequest = useCallback(() => {
     setShowDepartmentSelection(true); 
     setChatStatus("online");
     setMessages(prev => [...prev, createMessage("system", "يسعدنا خدمتك! يرجى اختيار القسم الذي ترغب في التواصل معه مباشرة:", "assistant")]);
-  }, []);
-
-  // تحسين منطق التحويل بين الموظفين ليكون احترافياً وواقعياً
-  const initiateDepartmentTransfer = useCallback((dept: Department) => {
-    const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
-    setShowDepartmentSelection(false);
-    
-    // 1. رسالة الانتظار الاحترافية من الموظف الحالي أو النظام
-    setMessages(prev => [...prev, createMessage("system", "يرجى الانتظار قليلاً، سيتم تحويلك الآن إلى زميلي المختص لمساعدتك وحل طلبك بأسرع وقت ممكن.", "assistant")]);
-    setChatStatus("typing");
-    
-    setTimeout(() => {
-      const availableAgent = findAvailableAgent(dept);
-      if (availableAgent) { 
-        // 2. الموظف الجديد يرحب ويؤكد أنه اطلع على المحادثة
-        setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${availableAgent.name} (${availableAgent.role}). لقد اطلعت على كامل سجل المحادثة السابق، وأنا هنا لمساعدتك. تفضل، كيف يمكنني خدمتك؟`, "assistant")]);
-        
-        setCurrentAgent(availableAgent);
-        setSessionAgents(prev => prev.find(a => a.employeeId === availableAgent.employeeId) ? prev : [...prev, availableAgent]);
-        setCurrentSpeaker("agent");
-        isFirstUserMessageAfterTransferRef.current = true; 
-        setChatStatus("online");
-        lastActivityTimeRef.current = Date.now();
-      } else {
-        setMessages(prev => [...prev, createMessage("system", `جارٍ تحويلك إلى القسم المختص... زملاؤنا في قسم ${deptOption?.name} مشغولون حالياً، لكن تم حفظ رسالتك وسيتم الرد عليك فور عودتهم.`, "assistant")]);
-        setChatStatus("online");
-      }
-    }, 1500);
   }, []);
 
   const sendMessage = useCallback(async () => {
@@ -614,19 +619,6 @@ export default function Home() {
       setTimeout(() => {
         const normalized = normalizeArabicText(trimmedText);
         
-        // التحقق مما إذا كان الطلب خارج اختصاص الموظف الحالي
-        const detectedDept = detectDepartmentFromText(trimmedText);
-        if (detectedDept && detectedDept !== currentAgent.department) {
-            const targetDeptName = DEPARTMENT_OPTIONS.find(d => d.id === detectedDept)?.name || "القسم المختص";
-            setMessages(prev => [...prev, createMessage("agent", `شكرًا لتوضيحك. هذا الطلب يختص بقسم ${targetDeptName}، يرجى الانتظار لحظة وسيتم تحويلك مباشرة إلى زميلي المختص لمساعدتك.`, "assistant")]);
-            setChatStatus("typing");
-            setTimeout(() => {
-                initiateDepartmentTransfer(detectedDept);
-            }, 1500);
-            isSendingRef.current = false;
-            return;
-        }
-
         if (isFirstUserMessageAfterTransferRef.current) {
           isFirstUserMessageAfterTransferRef.current = false;
           const deptName = DEPARTMENT_OPTIONS.find(d => d.id === currentAgent.department)?.name || "الدعم";
@@ -635,7 +627,7 @@ export default function Home() {
           isSendingRef.current = false; return;
         }
 
-        // ردود موظف ذكية ومباشرة (بدون حشو غير ضروري)
+        // ردود موظف ذكية ومباشرة
         let responseText = "حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية.";
         if (normalized.includes("شكر") || normalized.includes("مشكور")) responseText = "العفو، هذا واجبنا. هل هناك أي استفسار آخر يمكنني مساعدتك به؟";
         else if (normalized.includes("مع السلامة") || normalized.includes("انتهيت") || normalized.includes("خلاص")) responseText = "شكراً لتواصلك معنا، نتمنى لك يوماً سعيداً!";
@@ -874,8 +866,9 @@ export default function Home() {
       </main>
 
       {/* 
-        تم التأكد من إزالة أي خلفية سوداء. الأيقونة الآن عبارة عن تدرج لوني نقي فقط 
-        مع الحفاظ الكامل على وظيفة السحب والإفلات من الجهة اليمنى.
+        2. تعديل واجهة الأيقونة العائمة: 
+        تم إزالة أي خلفية سوداء محتملة. الأيقونة الآن تعتمد فقط على التدرج اللوني البنفسجي/الأزرق 
+        مع إضافة bg-transparent للـ SVG لضمان النقاء التام، مع الحفاظ على السحب والإفلات والمكان.
       */}
       <div 
         ref={chatButtonRef} 
@@ -898,7 +891,7 @@ export default function Home() {
         }} 
         title="مركز المساعدة"
       >
-        <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border-2 border-white/10 animate-slide-in-right">
+        <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border-2 border-white/20 shadow-lg shadow-purple-500/30 animate-slide-in-right">
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="bg-transparent">
             <g style={{ transform: headTransform, transformOrigin: '18px 18px', transition: 'transform 0.3s ease-out' }}>
               <g className={isBlinking ? "animate-blink-human" : ""}>
@@ -969,16 +962,25 @@ export default function Home() {
             );
           })}
 
+          {/* 3. تحسين ترتيب الخيارات: شبكة أكثر تنظيماً، مسافات أفضل، وأيقونات دائرية خلفية للخيارات */}
           {showDepartmentSelection && currentSpeaker === "bot" && (
-            <div className="grid grid-cols-1 gap-2 mt-2 animate-slide-in-right">
+            <div className="grid grid-cols-1 gap-3 mt-3 animate-slide-in-right">
               {DEPARTMENT_OPTIONS.map((dept) => (
-                <button key={dept.id} onClick={() => initiateDepartmentTransfer(dept.id)} className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group flex items-center gap-3">
-                  <span className="text-2xl">{dept.icon}</span>
-                  <div className="flex-1">
-                    <div className="font-bold text-sm text-purple-300 group-hover:text-purple-200">{dept.name}</div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">{dept.description}</div>
+                <button 
+                  key={dept.id} 
+                  onClick={() => initiateDepartmentTransfer(dept.id)} 
+                  className="w-full text-right bg-[#1f2937]/80 hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-4 transition-all duration-200 group flex items-center gap-4 shadow-sm hover:shadow-purple-500/10"
+                >
+                  <span className="text-3xl bg-[#0b0f1a] w-12 h-12 rounded-full flex items-center justify-center border border-purple-500/20 group-hover:border-purple-500/50 transition-colors flex-shrink-0">
+                    {dept.icon}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-sm text-purple-200 group-hover:text-purple-100 mb-1">{dept.name}</div>
+                    <div className="text-xs text-gray-400 leading-relaxed">{dept.description}</div>
                   </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500 group-hover:text-purple-400 transform group-hover:-translate-x-1 transition-transform"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500 group-hover:text-purple-400 transform group-hover:-translate-x-1 transition-all duration-200 flex-shrink-0">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                  </svg>
                 </button>
               ))}
             </div>
