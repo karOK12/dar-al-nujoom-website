@@ -111,7 +111,7 @@ const LOCAL_KNOWLEDGE_BASE = [
   { 
     keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض"], 
     targetDept: 'sales' as Department,
-    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الأساسية:\n الأسبوعية: 135$\n الشهرية: 405$\n الاحترافية: 810$",
+    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الأساسية:\n🔹 الأسبوعية: 135$\n🔹 الشهرية: 405$\n🔹 الاحترافية: 810$",
     link: "/pricing",
     linkText: "صفحة الأسعار والتفاصيل الكاملة",
     linkDesc: "اطلع على جميع الباقات والشروط"
@@ -189,7 +189,6 @@ const getFileType = (file: File): 'image' | 'video' | 'document' => {
 const getSmartAgentResponse = (message: string, agent: Agent): string => {
   const normalized = normalizeArabicText(message);
   
-  // ردود ذكية بناءً على محتوى الرسالة
   const responsePatterns = [
     {
       keywords: ["مشروع", "اعلان", "إعلان", "ترويج"],
@@ -229,14 +228,12 @@ const getSmartAgentResponse = (message: string, agent: Agent): string => {
     }
   ];
 
-  // البحث عن رد مناسب
   for (const pattern of responsePatterns) {
     if (pattern.keywords.some(keyword => normalized.includes(keyword))) {
       return pattern.responses[Math.floor(Math.random() * pattern.responses.length)];
     }
   }
 
-  // ردود عامة متنوعة
   const generalReplies = [
     `فهمت استفسارك. دعني أفكر في أفضل حل يناسبك. هل يمكنك تزويدي بمزيد من التفاصيل؟`,
     `ملاحظة جيدة! سأبحث عن المعلومات اللازمة وأعود لك بالرد المناسب. هل هناك أي تفاصيل إضافية تود مشاركتها؟`,
@@ -615,7 +612,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // ✅ AGENT INACTIVITY TIMEOUT - تم الإصلاح
+  // ✅ AGENT INACTIVITY TIMEOUT
   // ============================================================
   useEffect(() => {
     if (currentSpeaker !== "agent") {
@@ -652,13 +649,12 @@ export default function Home() {
   }, [currentSpeaker]);
 
   // ============================================================
-  // ✅ RESET TIMER ON NEW MESSAGE - تم الإصلاح
+  // ✅ RESET TIMER ON NEW MESSAGE
   // ============================================================
   useEffect(() => {
     if (currentSpeaker === "agent" && messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
       
-      // التحقق من أن هذه رسالة جديدة وليست نفس الرسالة السابقة
       if (lastMsg.id !== lastMessageIdRef.current) {
         lastMessageIdRef.current = lastMsg.id;
         
@@ -728,7 +724,7 @@ export default function Home() {
   }, [startAgentSession]);
 
   // ============================================================
-  // SEND MESSAGE LOGIC - تم تحسين الردود الذكية
+  // SEND MESSAGE LOGIC
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -777,7 +773,7 @@ export default function Home() {
       }
     }
 
-    // 2. Handle Agent Chat Flow - تم التحسين
+    // 2. Handle Agent Chat Flow
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
       setTimeout(() => {
@@ -818,7 +814,6 @@ export default function Home() {
            return;
         }
 
-        // ✅ استخدام الردود الذكية المتنوعة
         const smartResponse = getSmartAgentResponse(trimmedText, currentAgent);
         setMessages(prev => [...prev, createMessage("agent", smartResponse, "assistant")]);
         setChatStatus("online");
@@ -1026,7 +1021,7 @@ export default function Home() {
           </div>
         </div>
         <div className="md:hidden px-2 pb-3">
-          <input type="text" placeholder=" ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
+          <input type="text" placeholder="🔎 ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
         </div>
       </header>
 
@@ -1050,7 +1045,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* أيقونة المساعد */}
+      {/* ✅ أيقونة المساعد: تم إزالة الظل تماماً وإصلاح مشكلة الرمش في الحواف العلوية */}
       <div 
         ref={chatButtonRef} 
         onPointerDown={handlePointerDown} 
@@ -1058,20 +1053,28 @@ export default function Home() {
         onPointerUp={handlePointerUp} 
         onPointerCancel={handlePointerUp} 
         onClick={handleClick}
-        className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none rounded-full overflow-hidden animate-move-right-to-left"
+        className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none rounded-full animate-move-right-to-left"
         style={{ 
           left: `${iconPos.x}px`, 
           top: `${iconPos.y}px`, 
           width: '64px', 
           height: '64px', 
-          transform: `translateX(${idleOffsetX}px) scale(${springScale})`, 
+          transform: `translateX(${idleOffsetX}px) scale(${springScale}) translateZ(0)`, 
           transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
-          boxShadow: 'none'
+          boxShadow: 'none !important',
+          outline: 'none',
+          WebkitBackfaceVisibility: 'hidden',
+          backfaceVisibility: 'hidden'
         }} 
         title="مركز المساعدة"
       >
-        <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border-2 border-white/10">
-          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border border-white/10 overflow-hidden"
+             style={{ 
+               boxShadow: 'none !important',
+               WebkitBackfaceVisibility: 'hidden',
+               backfaceVisibility: 'hidden'
+             }}>
+          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter: 'none' }}>
             <g style={{ transform: headTransform, transformOrigin: '18px 18px', transition: 'transform 0.3s ease-out' }}>
               <g className={isBlinking ? "animate-blink-human" : ""}>
                 <circle cx="12" cy="15" r="5.5" fill="white" />
