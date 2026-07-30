@@ -8,7 +8,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 type Sender = "user" | "bot" | "agent" | "system";
 type AgentStatus = "online" | "away" | "offline";
-type Department = 'sales' | 'technical' | 'ads' | 'management';
+type Department = 'sales' | 'technical' | 'ads' | 'accounting' | 'partnerships' | 'orders' | 'general';
 type ChatStatus = "typing" | "online" | "waiting" | "inactive" | "closed";
 type ProductShape = "circle" | "rectangle" | "square" | "portrait";
 type AttachmentType = 'image' | 'link' | 'card' | 'product' | 'file' | 'video';
@@ -71,19 +71,25 @@ interface UploadedFile {
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
-// تم تحديث الأقسام والموظفين لمطابقة متطلبات الدردشة المباشرة
 const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "ممثل مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-002", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-003", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=32", role: "مديرة الإعلانات", department: 'ads', status: 'offline', lastActivity: new Date().toISOString(), isBusy: false }, // مثال لموظف غير متصل
-  { employeeId: "EMP-004", name: "أحمد المدير", img: "https://i.pravatar.cc/150?img=11", role: "مدير عام", department: 'management', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-002", name: "منى العلي", img: "https://i.pravatar.cc/150?img=44", role: "أخصائية مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-003", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=47", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-004", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=32", role: "مديرة الإعلانات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-005", name: "أحمد المحاسب", img: "https://i.pravatar.cc/150?img=11", role: "قسم المحاسبة", department: 'accounting', status: 'away', lastActivity: new Date().toISOString(), isBusy: true },
+  { employeeId: "EMP-006", name: "ليلى الشراكات", img: "https://i.pravatar.cc/150?img=5", role: "منسقة شراكات", department: 'partnerships', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-007", name: "عمر المتابعة", img: "https://i.pravatar.cc/150?img=12", role: "متابعة الطلبات", department: 'orders', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-008", name: "فاطمة الخدمة", img: "https://i.pravatar.cc/150?img=9", role: "خدمة العملاء", department: 'general', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
 ];
 
 const DEPARTMENT_OPTIONS: DepartmentOption[] = [
-  { id: 'sales', name: 'التواصل مع المبيعات', icon: '🛒', description: 'حجز باقات، استفسارات عن الأسعار والعروض' },
-  { id: 'technical', name: 'التواصل مع الدعم الفني', icon: '🛠️', description: 'حل المشاكل التقنية، أخطاء الموقع، تسجيل الدخول' },
-  { id: 'ads', name: 'التواصل مع الإعلانات', icon: '📢', description: 'حجز مساحات إعلانية، رعاية البرامج والمحتوى' },
-  { id: 'management', name: 'التواصل مع الإدارة', icon: '👨‍💼', description: 'شكاوى، مقترحات، أو طلبات إدارية خاصة' },
+  { id: 'sales', name: 'المبيعات', icon: '🛒', description: 'حجز باقات، استفسارات عن الأسعار والعروض' },
+  { id: 'technical', name: 'الدعم الفني', icon: '🛠️', description: 'حل المشاكل التقنية، أخطاء الموقع، تسجيل الدخول' },
+  { id: 'ads', name: 'الإعلانات والرعاية', icon: '📢', description: 'حجز مساحات إعلانية، رعاية البرامج والمحتوى' },
+  { id: 'accounting', name: 'المحاسبة', icon: '💳', description: 'الفواتير، طرق الدفع، الاسترجاع المالي' },
+  { id: 'partnerships', name: 'الشراكات', icon: '🤝', description: 'تعاون مع المؤثرين، شركاء استراتيجيين' },
+  { id: 'orders', name: 'متابعة الطلبات', icon: '📦', description: 'حالة الطلب، أرقام التتبع، الشحن والتوصيل' },
+  { id: 'general', name: 'استفسار عام', icon: '❓', description: 'أي استفسار آخر غير مذكور أعلاه' },
 ];
 
 const SESSION_TIMEOUTS = { IDLE_TO_CLOSED: 60, QUEUE_CHECK_INTERVAL: 8000 };
@@ -105,10 +111,19 @@ const LOCAL_KNOWLEDGE_BASE = [
     link: "/pricing",
     linkText: "صفحة الأسعار والتفاصيل الكاملة",
     linkDesc: "اطلع على جميع الباقات والشروط"
+  },
+  { 
+    keywords: ["سياسة", "خصوصية"], 
+    targetDept: 'general' as Department,
+    explanation: "يمكنك الاطلاع على كافة التفاصيل المتعلقة بحماية البيانات:",
+    link: "/privacy",
+    linkText: "سياسة الخصوصية",
+    linkDesc: "سياسة حماية البيانات والخصوصية"
   }
 ];
 
 const GREETING_KEYWORDS = ["مرحبا", "هلا", "سلام", "صباح", "مساء", "اهلين", "السلام"];
+const EXPLICIT_EMAIL_KEYWORDS = ["ايميل", "بريد", "email", "عنوان البريد"];
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
@@ -134,7 +149,7 @@ const normalizeArabicText = (text: string): string => {
 
 const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
-  const humanRequestKeywords = ["موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول", "دعم", "مساعدة", "مبيعات", "إدارة", "إعلانات"];
+  const humanRequestKeywords = ["موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول", "دعم", "مساعدة"];
   return humanRequestKeywords.some(keyword => normalized.includes(keyword));
 };
 
@@ -179,6 +194,11 @@ export default function Home() {
   const [chatStatus, setChatStatus] = useState<ChatStatus>("online");
   const [isQueued, setIsQueued] = useState(false);
   const [showDepartmentSelection, setShowDepartmentSelection] = useState(false);
+  
+  const [isTicketMode, setIsTicketMode] = useState(false);
+  const [ticketStep, setTicketStep] = useState<'name' | 'details' | 'submitting'>('name');
+  const [ticketDept, setTicketDept] = useState<Department | null>(null);
+  const [ticketUserName, setTicketUserName] = useState("");
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
@@ -489,6 +509,7 @@ export default function Home() {
       setMessages(parsed.messages || []);
       setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
       setChatStatus("online"); setIsQueued(false); setShowDepartmentSelection(false);
+      setIsTicketMode(false); setTicketStep('name'); setTicketDept(null); setTicketUserName("");
       isFirstUserMessageAfterTransferRef.current = true;
       return true;
     } catch (e) { return false; }
@@ -517,6 +538,7 @@ export default function Home() {
       setMessages([createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
       setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
       setIsQueued(false); setShowDepartmentSelection(false); setChatStatus("online");
+      setIsTicketMode(false); setTicketStep('name'); setTicketDept(null); setTicketUserName("");
       lastActivityTimeRef.current = Date.now();
       isFirstUserMessageAfterTransferRef.current = true;
       if (typeof window !== "undefined") localStorage.removeItem("dar-alnujum-chat-state");
@@ -532,30 +554,27 @@ export default function Home() {
     setChatStatus("online"); lastActivityTimeRef.current = Date.now();
   }, []);
 
-  // عرض أزرار الأقسام المطلوبة مباشرة
   const handleHumanRequest = useCallback(() => {
     setShowDepartmentSelection(true); 
     setChatStatus("online");
-    setMessages(prev => [...prev, createMessage("system", "يسعدنا خدمتك! يرجى اختيار القسم الذي ترغب في التواصل معه مباشرة:", "assistant")]);
+    setMessages(prev => [...prev, createMessage("system", "يسعدنا خدمتك! يرجى اختيار القسم المناسب ليتم توجيهك للموظف المختص فوراً:", "assistant")]);
   }, []);
 
-  // منطق التحويل المباشر للموظف أو إشعار عدم الاتصال
+  // تم جعل التحويل فورياً وسلساً بدون تأخير مصطنع يسبب تعليق مؤشر "يكتب"
   const initiateDepartmentTransfer = useCallback((dept: Department) => {
     const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
     setShowDepartmentSelection(false);
-    setChatStatus("typing");
     
-    setTimeout(() => {
-      const availableAgent = findAvailableAgent(dept);
-      if (availableAgent) {
-        // الموظف متصل: بدء الدردشة المباشرة
-        startAgentSession(availableAgent);
-      } else {
-        // الموظف غير متصل: إظهار الرسالة المطلوبة وحفظها في صندوق الوارد (محاكاة)
-        setMessages(prev => [...prev, createMessage("system", `الموظف غير متصل حاليًا، سيتم الرد عليك عند عودته. (تم حفظ رسالتك في صندوق وارد قسم ${deptOption?.name})`, "assistant")]);
-        setChatStatus("online");
-      }
-    }, 1000);
+    const availableAgent = findAvailableAgent(dept);
+    if (availableAgent) { 
+      startAgentSession(availableAgent); 
+    } else {
+      setIsTicketMode(true);
+      setTicketDept(dept);
+      setTicketStep('name');
+      setMessages(prev => [...prev, createMessage("bot", `جميع موظفي قسم ${deptOption?.name} مشغولون حالياً.\n\nلا تقلق! يمكننا إنشاء تذكرة دعم لك.\n\nيرجى كتابة **اسمك الكريم** للبدء:`, "assistant")]);
+      setChatStatus("online");
+    }
   }, [startAgentSession]);
 
   const sendMessage = useCallback(async () => {
@@ -574,7 +593,36 @@ export default function Home() {
     setUploadedFiles([]);
     lastActivityTimeRef.current = Date.now();
 
-    // 1. Handle Agent Chat Flow
+    if (isTicketMode) {
+      if (ticketStep === 'name') {
+        setTicketUserName(trimmedText);
+        setTicketStep('details');
+        const deptName = DEPARTMENT_OPTIONS.find(d => d.id === ticketDept)?.name || "الدعم";
+        setTimeout(() => {
+          setMessages(prev => [...prev, createMessage("bot", `أهلاً بك يا ${trimmedText}. \n\nيرجى وصف مشكلتك أو استفسارك الخاص بقسم **${deptName}** بالتفصيل:`, "assistant")]);
+          setChatStatus("online");
+          isSendingRef.current = false;
+        }, 600);
+        return;
+      } 
+      if (ticketStep === 'details') {
+        setTicketStep('submitting');
+        setChatStatus("typing");
+        setTimeout(() => {
+          const ticketId = Math.floor(1000 + Math.random() * 9000);
+          const deptName = DEPARTMENT_OPTIONS.find(d => d.id === ticketDept)?.name || "الدعم";
+          setMessages(prev => [...prev, createMessage("bot", `✅ **تم إنشاء التذكرة بنجاح!**\n\n🎫 رقم التذكرة: #${ticketId}\n📌 القسم: ${deptName}\n👤 الاسم: ${ticketUserName}\n📝 التفاصيل: ${trimmedText}\n\nسيقوم الفريق بمراجعة طلبك والرد عليك في أقرب وقت. شكراً لصبرك!`, "assistant")]);
+          setIsTicketMode(false);
+          setTicketStep('name');
+          setTicketDept(null);
+          setTicketUserName("");
+          setChatStatus("online");
+          isSendingRef.current = false;
+        }, 1500);
+        return;
+      }
+    }
+
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
       setTimeout(() => {
@@ -586,27 +634,26 @@ export default function Home() {
           isFirstUserMessageAfterTransferRef.current = false;
           const deptName = DEPARTMENT_OPTIONS.find(d => d.id === currentAgent.department)?.name || "الدعم";
           setMessages(prev => [...prev, createMessage("agent", `أهلاً وسهلاً بك، معك ${currentAgent.name} من ${deptName}. كيف أقدر أساعدك اليوم؟`, "assistant")]);
-          setChatStatus("online");
+          setChatStatus("online"); // ✅ تم الإصلاح: إعادة الحالة إلى online
           isSendingRef.current = false; return;
         }
 
         if (isThanks) {
           setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر يمكنني مساعدتك به؟", "assistant")]);
-          setChatStatus("online");
+          setChatStatus("online"); // ✅ تم الإصلاح
           isSendingRef.current = false; return;
         }
 
         if (isEndConversation) {
           setMessages(prev => [...prev, createMessage("agent", "شكراً لتواصلك معنا، سعدنا بخدمتك. نتمنى لك يوماً سعيداً، ونشكرك على ثقتك بـ مجلة دار النجوم.", "assistant")]);
-          setChatStatus("online");
+          setChatStatus("online"); // ✅ تم الإصلاح
           isSendingRef.current = false; setTimeout(() => closeAgentSession(), 2500); return;
         }
 
-        // Smart internal transfer if user asks for another department while talking to an agent
         const requestedDept = DEPARTMENT_OPTIONS.find(d => normalized.includes(d.id) || normalized.includes(d.name));
         if (requestedDept && requestedDept.id !== currentAgent.department) {
            setMessages(prev => [...prev, createMessage("agent", `هذا الطلب يخص قسم ${requestedDept.name}، سأقوم بتحويلك الآن إلى الزميل المختص.`, "assistant")]);
-           setChatStatus("online");
+           setChatStatus("online"); // ✅ تم الإصلاح
            isSendingRef.current = false; 
            setTimeout(() => initiateDepartmentTransfer(requestedDept.id), 1000); 
            return;
@@ -618,24 +665,27 @@ export default function Home() {
           "شكراً لتوضيح ذلك. دعني أتحقق من الأمر وأعود لك بالحل الأنسب."
         ];
         setMessages(prev => [...prev, createMessage("agent", generalReplies[Math.floor(Math.random() * generalReplies.length)], "assistant")]);
-        setChatStatus("online");
+        setChatStatus("online"); // ✅ تم الإصلاح
         isSendingRef.current = false;
       }, 1200);
       return; 
     }
 
-    // 2. Handle Bot Flow
     setChatStatus("typing");
     try {
       const normalized = normalizeArabicText(trimmedText);
       const isJustGreeting = GREETING_KEYWORDS.some(k => normalized.includes(k)) && normalized.length < 20;
+      const isExplicitEmailRequest = EXPLICIT_EMAIL_KEYWORDS.some(k => normalized.includes(k));
 
-      // طلب تواصل بشري -> عرض أزرار الأقسام
+      if (isExplicitEmailRequest) {
+        setMessages(prev => [...prev, createMessage("bot", "يمكنك التواصل معنا عبر البريد الإلكتروني الرسمي:\n📧 info@dar-alnujum.com", "assistant")]);
+        setChatStatus("online"); isSendingRef.current = false; return;
+      }
+
       if (wantsHumanContact(trimmedText) && !showDepartmentSelection) {
         handleHumanRequest(); isSendingRef.current = false; return;
       }
 
-      // Local Knowledge Base
       const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
       if (kbMatch) {
         const reply = `${kbMatch.explanation}\n\nللمزيد من التفاصيل:`;
@@ -644,13 +694,11 @@ export default function Home() {
         setChatStatus("online"); isSendingRef.current = false; return;
       }
 
-      // Greeting
       if (isJustGreeting) {
         setMessages(prev => [...prev, createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
         setChatStatus("online"); isSendingRef.current = false; return;
       }
 
-      // Fallback to AI API
       const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: (m.sender === "bot" || m.sender === "agent") ? "assistant" : "user", content: m.text }));
       if (apiMessages.length === 0 || apiMessages[apiMessages.length - 1].role !== "user") {
          apiMessages.push({ role: "user", content: trimmedText });
@@ -674,7 +722,7 @@ export default function Home() {
     } finally {
       setChatStatus("online"); isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, initiateDepartmentTransfer, closeAgentSession, uploadedFiles]);
+  }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, initiateDepartmentTransfer, closeAgentSession, uploadedFiles, isTicketMode, ticketStep, ticketDept, ticketUserName]);
 
   useEffect(() => { saveStateToStorage(); }, [saveStateToStorage]);
   
@@ -826,7 +874,6 @@ export default function Home() {
         </section>
       </main>
 
-      {/* أيقونة المساعد */}
       <div ref={chatButtonRef} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={handleClick}
         className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none"
         style={{ left: `${iconPos.x}px`, top: `${iconPos.y}px`, width: '64px', height: '64px', transform: `translateX(${idleOffsetX}px) scale(${springScale})`, transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', boxShadow: isDragging ? '0 20px 25px -5px rgba(147, 51, 234, 0.5), 0 8px 10px -6px rgba(147, 51, 234, 0.5)' : '0 10px 15px -3px rgba(147, 51, 234, 0.3), 0 4px 6px -2px rgba(147, 51, 234, 0.2)' }} title="مركز المساعدة">
@@ -849,7 +896,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* صندوق الدردشة */}
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-40 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -902,15 +948,10 @@ export default function Home() {
             );
           })}
 
-          {/* أزرار اختيار الأقسام المطلوبة */}
           {showDepartmentSelection && currentSpeaker === "bot" && (
             <div className="grid grid-cols-1 gap-2 mt-2 animate-slide-in-right">
               {DEPARTMENT_OPTIONS.map((dept) => (
-                <button 
-                  key={dept.id} 
-                  onClick={() => initiateDepartmentTransfer(dept.id)} 
-                  className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group flex items-center gap-3"
-                >
+                <button key={dept.id} onClick={() => initiateDepartmentTransfer(dept.id)} className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group flex items-center gap-3">
                   <span className="text-2xl">{dept.icon}</span>
                   <div className="flex-1">
                     <div className="font-bold text-sm text-purple-300 group-hover:text-purple-200">{dept.name}</div>
@@ -934,7 +975,6 @@ export default function Home() {
           )}
         </div>
 
-        {/* File Upload Preview */}
         {uploadedFiles.length > 0 && (
           <div className="p-3 border-t border-gray-700 bg-[#1f2937]/30">
             <div className="flex gap-2 overflow-x-auto pb-2">
@@ -963,7 +1003,7 @@ export default function Home() {
             <input ref={fileInputRef} type="file" multiple accept={[...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOC_TYPES].join(',')} onChange={(e) => handleFileSelect(e.target.files)} className="hidden" />
             <textarea
               id="chat-input" value={text}
-              placeholder={showDepartmentSelection ? "يرجى اختيار قسم من الأعلى..." : "اكتب رسالتك هنا..."}
+              placeholder={showDepartmentSelection ? "يرجى اختيار قسم من الأعلى..." : isTicketMode ? (ticketStep === 'name' ? "اكتب اسمك الكريم..." : "اكتب تفاصيل استفسارك...") : "اكتب رسالتك هنا..."}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               rows={1} disabled={showDepartmentSelection}
