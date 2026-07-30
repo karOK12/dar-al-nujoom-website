@@ -111,7 +111,7 @@ const LOCAL_KNOWLEDGE_BASE = [
   { 
     keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض"], 
     targetDept: 'sales' as Department,
-    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الأساسية:\n🔹 الأسبوعية: 135$\n🔹 الشهرية: 405$\n🔹 الاحترافية: 810$",
+    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الأساسية:\n الأسبوعية: 135$\n🔹 الشهرية: 405$\n🔹 الاحترافية: 810$",
     link: "/pricing",
     linkText: "صفحة الأسعار والتفاصيل الكاملة",
     linkDesc: "اطلع على جميع الباقات والشروط"
@@ -717,7 +717,7 @@ export default function Home() {
         setIsTicketMode(true);
         setTicketDept(dept);
         setTicketStep('name');
-        setMessages(prev => [...prev, createMessage("bot", `⚠️ جميع موظفي قسم **${deptOption?.name}** مشغولون حالياً أو غير متاحين.\n\nلا تقلق! يمكننا إنشاء تذكرة دعم أولوية لك، وسيتم الرد عليك فوراً.\n\nيرجى كتابة **اسمك الكريم** للبدء:`, "assistant")]);
+        setMessages(prev => [...prev, createMessage("bot", `️ جميع موظفي قسم **${deptOption?.name}** مشغولون حالياً أو غير متاحين.\n\nلا تقلق! يمكننا إنشاء تذكرة دعم أولوية لك، وسيتم الرد عليك فوراً.\n\nيرجى كتابة **اسمك الكريم** للبدء:`, "assistant")]);
         setChatStatus("online");
       }
     }, 2000);
@@ -990,6 +990,13 @@ export default function Home() {
         .animate-blink-human { animation: blink-human 0.12s ease-in-out; transform-origin: center; }
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
+        @keyframes icon-enter { 
+          0% { transform: translateX(100px) scale(0.8); opacity: 0; } 
+          100% { transform: translateX(0) scale(1); opacity: 1; } 
+        }
+        .animate-icon-enter { 
+          animation: icon-enter 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; 
+        }
       `}</style>
 
       {loadingProgress > 0 && (
@@ -1038,7 +1045,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* ✅ أيقونة المساعد: تم إزالة كلاس الأنيميشن المتعارض وإضافة will-change لمنع الرمش تماماً */}
+      {/* ✅ أيقونة المساعد: تم فصل الحركة الأولية عن الحركة المستمرة لمنع الرمش */}
       <div 
         ref={chatButtonRef} 
         onPointerDown={handlePointerDown} 
@@ -1051,23 +1058,24 @@ export default function Home() {
           left: `${iconPos.x}px`, 
           top: `${iconPos.y}px`, 
           width: '64px', 
-          height: '64px', 
-          transform: `translateX(${idleOffsetX}px) scale(${springScale}) translateZ(0)`, 
-          transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
-          boxShadow: 'none',
-          outline: 'none',
+          height: '64px',
+          willChange: 'transform',
           WebkitBackfaceVisibility: 'hidden',
-          backfaceVisibility: 'hidden',
-          willChange: 'transform'
+          backfaceVisibility: 'hidden'
         }} 
         title="مركز المساعدة"
       >
-        <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border border-white/10 overflow-hidden"
-             style={{ 
-               boxShadow: 'none',
-               WebkitBackfaceVisibility: 'hidden',
-               backfaceVisibility: 'hidden'
-             }}>
+        {/* عنصر داخلي منفصل للحركة المستمرة (idle + scale) */}
+        <div 
+          className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border border-white/10 overflow-hidden animate-icon-enter"
+          style={{ 
+            transform: `translateX(${idleOffsetX}px) scale(${springScale}) translateZ(0)`, 
+            transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            boxShadow: 'none',
+            WebkitBackfaceVisibility: 'hidden',
+            backfaceVisibility: 'hidden'
+          }}
+        >
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter: 'none' }}>
             <g style={{ transform: headTransform, transformOrigin: '18px 18px', transition: 'transform 0.3s ease-out' }}>
               <g className={isBlinking ? "animate-blink-human" : ""}>
