@@ -93,8 +93,8 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
 ];
 
 const SESSION_TIMEOUTS = { 
-  IDLE_TO_TEMP_ENDED: 59, // 59 ثانية للوضع المؤقت
-  TEMP_ENDED_TO_CLOSED: 5, // 5 ثواني إضافية قبل العودة التلقائية
+  IDLE_TO_TEMP_ENDED: 59,
+  TEMP_ENDED_TO_CLOSED: 5,
   QUEUE_CHECK_INTERVAL: 8000 
 };
 
@@ -111,7 +111,7 @@ const LOCAL_KNOWLEDGE_BASE = [
   { 
     keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض"], 
     targetDept: 'sales' as Department,
-    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الأساسية:\n🔹 الأسبوعية: 135$\n🔹 الشهرية: 405$\n🔹 الاحترافية: 810$",
+    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الأساسية:\n الأسبوعية: 135$\n الشهرية: 405$\n الاحترافية: 810$",
     link: "/pricing",
     linkText: "صفحة الأسعار والتفاصيل الكاملة",
     linkDesc: "اطلع على جميع الباقات والشروط"
@@ -183,6 +183,72 @@ const getFileType = (file: File): 'image' | 'video' | 'document' => {
 };
 
 // ============================================================
+// SMART AGENT RESPONSES
+// ============================================================
+
+const getSmartAgentResponse = (message: string, agent: Agent): string => {
+  const normalized = normalizeArabicText(message);
+  
+  // ردود ذكية بناءً على محتوى الرسالة
+  const responsePatterns = [
+    {
+      keywords: ["مشروع", "اعلان", "إعلان", "ترويج"],
+      responses: [
+        `ممتاز! يسعدنا مساعدتك في مشروعك الإعلاني. هل يمكنك إخباري بالمزيد عن نوع المشروع والجمهور المستهدف؟`,
+        `رائع! نحن متخصصون في الحملات الإعلانية. ما هي ميزانيتك التقريبية والفترة الزمنية المطلوبة؟`,
+        `فهمت! يمكننا تصميم حملة إعلانية مخصصة لمشروعك. هل لديك محتوى جاهز أم تحتاج مساعدة في الإنتاج؟`
+      ]
+    },
+    {
+      keywords: ["سعر", "تكلفة", "كم", "أسعار"],
+      responses: [
+        `بالنسبة للأسعار، لدينا باقات متنوعة تناسب جميع الميزانيات. هل تفضل الباقة الأسبوعية (135$) أم الشهرية (405$) أم الاحترافية (810$)؟`,
+        `أسعارنا تنافسية جداً! الباقة الأسبوعية تبدأ من 135$ فقط. هل تريد تفاصيل أكثر عن كل باقة؟`
+      ]
+    },
+    {
+      keywords: ["كيف", "طريقة", "خطوات"],
+      responses: [
+        `سأشرح لك الخطوات بالتفصيل. أولاً، نحتاج تحديد أهدافك. ثانياً، نختار الباقة المناسبة. ثالثاً، نبدأ التنفيذ. هل تريد البدء الآن؟`,
+        `الطريقة بسيطة جداً! أخبرني بتفاصيل مشروعك وسأقوم بإعداد خطة عمل مخصصة لك.`
+      ]
+    },
+    {
+      keywords: ["شكر", "مشكور", "تسلم"],
+      responses: [
+        `العفو! هذا واجبنا. هل يوجد أي استفسار آخر يمكنني مساعدتك به؟`,
+        `شكراً لك! أنا هنا دائماً لمساعدتك. هل تحتاج أي شيء آخر؟`
+      ]
+    },
+    {
+      keywords: ["تمام", "حسن", "موافق", "أوكي"],
+      responses: [
+        `ممتاز! سأمضي قدماً في الإجراءات. هل تريد أي إضافات أو تعديلات؟`,
+        `تمام! سأبدأ العمل على طلبك فوراً. هل هناك أي تفاصيل أخرى تود إضافتها؟`
+      ]
+    }
+  ];
+
+  // البحث عن رد مناسب
+  for (const pattern of responsePatterns) {
+    if (pattern.keywords.some(keyword => normalized.includes(keyword))) {
+      return pattern.responses[Math.floor(Math.random() * pattern.responses.length)];
+    }
+  }
+
+  // ردود عامة متنوعة
+  const generalReplies = [
+    `فهمت استفسارك. دعني أفكر في أفضل حل يناسبك. هل يمكنك تزويدي بمزيد من التفاصيل؟`,
+    `ملاحظة جيدة! سأبحث عن المعلومات اللازمة وأعود لك بالرد المناسب. هل هناك أي تفاصيل إضافية تود مشاركتها؟`,
+    `شكراً لتواصلك! أنا أعمل على إيجاد الحل الأمثل لك. هل تريد أن أساعدك في شيء آخر بينما أبحث؟`,
+    `أقدر صبرك! دعني أتحقق من الخيارات المتاحة وأقدم لك أفضل الحلول. هل لديك أي تفضيلات خاصة؟`,
+    `ممتاز! سأقوم بمراجعة طلبك بدقة. هل تريد أن نحدد موعداً للمتابعة أو تفضل الرد هنا؟`
+  ];
+
+  return generalReplies[Math.floor(Math.random() * generalReplies.length)];
+};
+
+// ============================================================
 // MAIN COMPONENT
 // ============================================================
 
@@ -238,6 +304,7 @@ export default function Home() {
   const isSendingRef = useRef(false);
   const isFirstUserMessageAfterTransferRef = useRef(true);
   const tempEndedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastMessageIdRef = useRef<string>("");
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
@@ -548,7 +615,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // ✅ AGENT INACTIVITY TIMEOUT - تم التعديل
+  // ✅ AGENT INACTIVITY TIMEOUT - تم الإصلاح
   // ============================================================
   useEffect(() => {
     if (currentSpeaker !== "agent") {
@@ -562,11 +629,9 @@ export default function Home() {
     const interval = setInterval(() => {
       const secondsIdle = (Date.now() - lastActivityTimeRef.current) / 1000;
       
-      // بعد 59 ثانية: تغيير الحالة لـ "انتهى مؤقت"
-      if (secondsIdle >= SESSION_TIMEOUTS.IDLE_TO_TEMP_ENDED && chatStatus !== "temp_ended") {
+      if (secondsIdle >= SESSION_TIMEOUTS.IDLE_TO_TEMP_ENDED && chatStatusRef.current !== "temp_ended") {
         setChatStatus("temp_ended");
         
-        // جدولة العودة التلقائية للمساعد بعد 5 ثواني
         tempEndedTimeoutRef.current = setTimeout(() => {
           setCurrentSpeaker("bot");
           setCurrentAgent(null);
@@ -584,28 +649,32 @@ export default function Home() {
         clearTimeout(tempEndedTimeoutRef.current);
       }
     };
-  }, [currentSpeaker, chatStatus]);
+  }, [currentSpeaker]);
 
   // ============================================================
-  // ✅ RESET TIMER WHEN USER OR AGENT SENDS MESSAGE
+  // ✅ RESET TIMER ON NEW MESSAGE - تم الإصلاح
   // ============================================================
   useEffect(() => {
     if (currentSpeaker === "agent" && messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
-      // إعادة ضبط المؤقت عند أي رسالة (من المستخدم أو الموظف)
-      if (lastMsg.sender === "agent" || lastMsg.sender === "user") {
-        // إذا كنا في وضع "انتهى مؤقت"، نعود لـ "متصل الآن"
-        if (chatStatus === "temp_ended") {
-          setChatStatus("online");
-          if (tempEndedTimeoutRef.current) {
-            clearTimeout(tempEndedTimeoutRef.current);
-            tempEndedTimeoutRef.current = null;
+      
+      // التحقق من أن هذه رسالة جديدة وليست نفس الرسالة السابقة
+      if (lastMsg.id !== lastMessageIdRef.current) {
+        lastMessageIdRef.current = lastMsg.id;
+        
+        if (lastMsg.sender === "agent" || lastMsg.sender === "user") {
+          if (chatStatusRef.current === "temp_ended") {
+            setChatStatus("online");
+            if (tempEndedTimeoutRef.current) {
+              clearTimeout(tempEndedTimeoutRef.current);
+              tempEndedTimeoutRef.current = null;
+            }
           }
+          lastActivityTimeRef.current = Date.now();
         }
-        lastActivityTimeRef.current = Date.now();
       }
     }
-  }, [messages, currentSpeaker, chatStatus]);
+  }, [messages, currentSpeaker]);
 
   const closeAgentSession = useCallback(() => {
     setTimeout(() => {
@@ -659,7 +728,7 @@ export default function Home() {
   }, [startAgentSession]);
 
   // ============================================================
-  // SEND MESSAGE LOGIC
+  // SEND MESSAGE LOGIC - تم تحسين الردود الذكية
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -696,7 +765,7 @@ export default function Home() {
         setTimeout(() => {
           const ticketId = Math.floor(1000 + Math.random() * 9000);
           const deptName = DEPARTMENT_OPTIONS.find(d => d.id === ticketDept)?.name || "الدعم";
-          setMessages(prev => [...prev, createMessage("bot", `✅ **تم إنشاء التذكرة بنجاح!**\n\n🎫 رقم التذكرة: #${ticketId}\n📌 القسم: ${deptName}\n👤 الاسم: ${ticketUserName}\n التفاصيل: ${trimmedText}\n\nسيقوم فريق ${deptName} بمراجعة طلبك والرد عليك في أقرب وقت ممكن. شكراً لصبرك!`, "assistant")]);
+          setMessages(prev => [...prev, createMessage("bot", `✅ **تم إنشاء التذكرة بنجاح!**\n\n🎫 رقم التذكرة: #${ticketId}\n📌 القسم: ${deptName}\n👤 الاسم: ${ticketUserName}\n📝 التفاصيل: ${trimmedText}\n\nسيقوم فريق ${deptName} بمراجعة طلبك والرد عليك في أقرب وقت ممكن. شكراً لصبرك!`, "assistant")]);
           setIsTicketMode(false);
           setTicketStep('name');
           setTicketDept(null);
@@ -708,7 +777,7 @@ export default function Home() {
       }
     }
 
-    // 2. Handle Agent Chat Flow
+    // 2. Handle Agent Chat Flow - تم التحسين
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
       setTimeout(() => {
@@ -726,7 +795,7 @@ export default function Home() {
         }
 
         if (isThanks) {
-          setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر يمكنني مساعدتك به؟", "assistant")]);
+          setMessages(prev => [...prev, createMessage("agent", "العفو! هذا واجبنا. هل يوجد أي استفسار آخر يمكنني مساعدتك به؟", "assistant")]);
           setChatStatus("online");
           isSendingRef.current = false; 
           return;
@@ -749,12 +818,9 @@ export default function Home() {
            return;
         }
 
-        const generalReplies = [
-          "حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية.",
-          "بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.",
-          "شكراً لتوضيح ذلك. دعني أتحقق من الأمر وأعود لك بالحل الأنسب."
-        ];
-        setMessages(prev => [...prev, createMessage("agent", generalReplies[Math.floor(Math.random() * generalReplies.length)], "assistant")]);
+        // ✅ استخدام الردود الذكية المتنوعة
+        const smartResponse = getSmartAgentResponse(trimmedText, currentAgent);
+        setMessages(prev => [...prev, createMessage("agent", smartResponse, "assistant")]);
         setChatStatus("online");
         isSendingRef.current = false;
       }, 1500);
@@ -835,7 +901,7 @@ export default function Home() {
       case "typing": return "يكتب الآن..."; 
       case "waiting": return "جاري المعالجة...";
       case "online": return "متصل الآن";
-      case "temp_ended": return "انتهى مؤقت"; // ✅ الجديد
+      case "temp_ended": return "انتهى مؤقت";
       case "inactive": return "انتهت المحادثة مؤقتاً";
       case "closed": return "عاد المساعد الذكي"; 
       default: return "غير نشط";
@@ -847,7 +913,7 @@ export default function Home() {
       case "typing": return "bg-yellow-400 animate-pulse"; 
       case "waiting": return "bg-orange-400 animate-pulse";
       case "online": return "bg-green-400 animate-pulse";
-      case "temp_ended": return "bg-orange-500 animate-pulse"; // ✅ برتقالي للوضع المؤقت
+      case "temp_ended": return "bg-orange-500 animate-pulse";
       case "inactive": return "bg-gray-500";
       case "closed": return "bg-green-400 animate-pulse"; 
       default: return "bg-gray-400";
@@ -960,7 +1026,7 @@ export default function Home() {
           </div>
         </div>
         <div className="md:hidden px-2 pb-3">
-          <input type="text" placeholder="🔎 ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
+          <input type="text" placeholder=" ابحث عن محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
         </div>
       </header>
 
@@ -984,7 +1050,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* ✅ أيقونة المساعد: تم إضافة حركة من اليمين لليسار */}
+      {/* أيقونة المساعد */}
       <div 
         ref={chatButtonRef} 
         onPointerDown={handlePointerDown} 
@@ -1027,7 +1093,7 @@ export default function Home() {
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-40 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
-            {sessionAgents.length === 0 || chatStatus === "temp_ended" ? ( // ✅ إظهار المساعد عند انتهاء المؤقت
+            {sessionAgents.length === 0 || chatStatus === "temp_ended" ? (
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="4" y="8" width="16" height="12" rx="3" fill="white" opacity="0.95"/><circle cx="9" cy="14" r="1.5" fill="#7c3aed"/><circle cx="15" cy="14" r="1.5" fill="#7c3aed"/><path d="M9 17 Q12 19 15 17" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" fill="none"/><line x1="12" y1="8" x2="12" y2="5" stroke="white" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="4" r="1.5" fill="white"/></svg>
