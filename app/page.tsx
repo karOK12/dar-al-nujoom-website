@@ -84,7 +84,7 @@ const SUPPORT_AGENTS: Agent[] = [
 
 const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'sales', name: 'المبيعات', icon: '🛒', description: 'حجز باقات، استفسارات عن الأسعار والعروض' },
-  { id: 'technical', name: 'الدعم الفني', icon: '🛠️', description: 'حل المشاكل التقنية، أخطاء الموقع، تسجيل الدخول' },
+  { id: 'technical', name: 'الدعم الفني', icon: '️', description: 'حل المشاكل التقنية، أخطاء الموقع، تسجيل الدخول' },
   { id: 'ads', name: 'الإعلانات والرعاية', icon: '📢', description: 'حجز مساحات إعلانية، رعاية البرامج والمحتوى' },
   { id: 'accounting', name: 'المحاسبة', icon: '💳', description: 'الفواتير، طرق الدفع، الاسترجاع المالي' },
   { id: 'partnerships', name: 'الشراكات', icon: '🤝', description: 'تعاون مع المؤثرين، شركاء استراتيجيين' },
@@ -111,7 +111,7 @@ const LOCAL_KNOWLEDGE_BASE = [
   { 
     keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض"], 
     targetDept: 'sales' as Department,
-    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الأساسية:\n الأسبوعية: 135$\n🔹 الشهرية: 405$\n🔹 الاحترافية: 810$",
+    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الأساسية:\n🔹 الأسبوعية: 135$\n🔹 الشهرية: 405$\n🔹 الاحترافية: 810$",
     link: "/pricing",
     linkText: "صفحة الأسعار والتفاصيل الكاملة",
     linkDesc: "اطلع على جميع الباقات والشروط"
@@ -303,6 +303,11 @@ export default function Home() {
   const tempEndedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastMessageIdRef = useRef<string>("");
 
+  // ✅ إضافة refs جديدة لتتبع القيم السابقة ومنع إعادة الـ render غير الضرورية
+  const prevIconPosRef = useRef({ x: iconPos.x, y: iconPos.y });
+  const prevIdleOffsetRef = useRef(0);
+  const prevScaleRef = useRef(1);
+
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
@@ -394,7 +399,7 @@ export default function Home() {
   }, [isDragging]);
 
   // ============================================================
-  // ADVANCED ANIMATION LOOP
+  // ✅ ADVANCED ANIMATION LOOP - محسّن لمنع الرمش
   // ============================================================
   useEffect(() => {
     let rafId: number;
@@ -416,12 +421,25 @@ export default function Home() {
       if (!isDragging) {
         currentIconPos.current.x += (targetIconPos.current.x - currentIconPos.current.x) * 0.15;
         currentIconPos.current.y += (targetIconPos.current.y - currentIconPos.current.y) * 0.15;
-        if (Math.abs(currentIconPos.current.x - targetIconPos.current.x) < 0.5 && Math.abs(currentIconPos.current.y - targetIconPos.current.y) < 0.5) {
-          currentIconPos.current.x = targetIconPos.current.x;
-          currentIconPos.current.y = targetIconPos.current.y;
+        
+        const posChanged = Math.abs(currentIconPos.current.x - prevIconPosRef.current.x) > 0.5 || 
+                           Math.abs(currentIconPos.current.y - prevIconPosRef.current.y) > 0.5;
+        
+        if (posChanged) {
+          if (Math.abs(currentIconPos.current.x - targetIconPos.current.x) < 0.5 && 
+              Math.abs(currentIconPos.current.y - targetIconPos.current.y) < 0.5) {
+            currentIconPos.current.x = targetIconPos.current.x;
+            currentIconPos.current.y = targetIconPos.current.y;
+          }
+          setIconPos({ x: currentIconPos.current.x, y: currentIconPos.current.y });
+          prevIconPosRef.current = { x: currentIconPos.current.x, y: currentIconPos.current.y };
         }
-        setIconPos({ x: currentIconPos.current.x, y: currentIconPos.current.y });
-        setSpringScale(prev => prev + (1.0 - prev) * 0.15);
+        
+        const newScale = prevScaleRef.current + (1.0 - prevScaleRef.current) * 0.15;
+        if (Math.abs(newScale - prevScaleRef.current) > 0.001) {
+          setSpringScale(newScale);
+          prevScaleRef.current = newScale;
+        }
       }
       rafId = requestAnimationFrame(animate);
     };
@@ -717,7 +735,7 @@ export default function Home() {
         setIsTicketMode(true);
         setTicketDept(dept);
         setTicketStep('name');
-        setMessages(prev => [...prev, createMessage("bot", `️ جميع موظفي قسم **${deptOption?.name}** مشغولون حالياً أو غير متاحين.\n\nلا تقلق! يمكننا إنشاء تذكرة دعم أولوية لك، وسيتم الرد عليك فوراً.\n\nيرجى كتابة **اسمك الكريم** للبدء:`, "assistant")]);
+        setMessages(prev => [...prev, createMessage("bot", `⚠️ جميع موظفي قسم **${deptOption?.name}** مشغولون حالياً أو غير متاحين.\n\nلا تقلق! يمكننا إنشاء تذكرة دعم أولوية لك، وسيتم الرد عليك فوراً.\n\nيرجى كتابة **اسمك الكريم** للبدء:`, "assistant")]);
         setChatStatus("online");
       }
     }, 2000);
@@ -761,7 +779,7 @@ export default function Home() {
         setTimeout(() => {
           const ticketId = Math.floor(1000 + Math.random() * 9000);
           const deptName = DEPARTMENT_OPTIONS.find(d => d.id === ticketDept)?.name || "الدعم";
-          setMessages(prev => [...prev, createMessage("bot", `✅ **تم إنشاء التذكرة بنجاح!**\n\n🎫 رقم التذكرة: #${ticketId}\n📌 القسم: ${deptName}\n👤 الاسم: ${ticketUserName}\n📝 التفاصيل: ${trimmedText}\n\nسيقوم فريق ${deptName} بمراجعة طلبك والرد عليك في أقرب وقت ممكن. شكراً لصبرك!`, "assistant")]);
+          setMessages(prev => [...prev, createMessage("bot", `✅ **تم إنشاء التذكرة بنجاح!**\n\n🎫 رقم التذكرة: #${ticketId}\n📌 القسم: ${deptName}\n👤 الاسم: ${ticketUserName}\n التفاصيل: ${trimmedText}\n\nسيقوم فريق ${deptName} بمراجعة طلبك والرد عليك في أقرب وقت ممكن. شكراً لصبرك!`, "assistant")]);
           setIsTicketMode(false);
           setTicketStep('name');
           setTicketDept(null);
@@ -997,6 +1015,9 @@ export default function Home() {
         .animate-icon-enter { 
           animation: icon-enter 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; 
         }
+        .icon-entered {
+          animation: none !important;
+        }
       `}</style>
 
       {loadingProgress > 0 && (
@@ -1045,7 +1066,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* ✅ أيقونة المساعد: تم فصل الحركة الأولية عن الحركة المستمرة لمنع الرمش */}
+      {/* ✅ أيقونة المساعد - محسّنة لمنع الرمش */}
       <div 
         ref={chatButtonRef} 
         onPointerDown={handlePointerDown} 
@@ -1053,7 +1074,7 @@ export default function Home() {
         onPointerUp={handlePointerUp} 
         onPointerCancel={handlePointerUp} 
         onClick={handleClick}
-        className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none rounded-full"
+        className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none"
         style={{ 
           left: `${iconPos.x}px`, 
           top: `${iconPos.y}px`, 
@@ -1065,7 +1086,6 @@ export default function Home() {
         }} 
         title="مركز المساعدة"
       >
-        {/* عنصر داخلي منفصل للحركة المستمرة (idle + scale) */}
         <div 
           className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border border-white/10 overflow-hidden animate-icon-enter"
           style={{ 
@@ -1075,6 +1095,7 @@ export default function Home() {
             WebkitBackfaceVisibility: 'hidden',
             backfaceVisibility: 'hidden'
           }}
+          onAnimationEnd={(e) => e.currentTarget.classList.add('icon-entered')}
         >
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter: 'none' }}>
             <g style={{ transform: headTransform, transformOrigin: '18px 18px', transition: 'transform 0.3s ease-out' }}>
