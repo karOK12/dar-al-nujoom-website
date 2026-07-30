@@ -147,25 +147,36 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
-  // حالات سحب الأيقونة
   const [iconPos, setIconPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 80 : 0, y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [springScale, setSpringScale] = useState(1);
+  const [headTransform, setHeadTransform] = useState("translateY(0px) rotate(0deg)");
   
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
+  
+  const [selectedFile, setSelectedFile] = useState<{ file: File; preview: string } | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  
   const targetEyePos = useRef({ x: 0, y: 0 });
   const currentEyePos = useRef({ x: 0, y: 0 });
-  
+  const microSaccade = useRef({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  const pointerStartPos = useRef({ x: 0, y: 0 });
+  const hasDragged = useRef(false);
+  const currentIconPos = useRef({ x: iconPos.x, y: iconPos.y });
+  const targetIconPos = useRef({ x: iconPos.x, y: iconPos.y });
+  const hasNudged = useRef(false);
 
   const currentSpeakerRef = useRef(currentSpeaker);
   const chatStatusRef = useRef(chatStatus);
   const lastActivityTimeRef = useRef(Date.now());
   const isSendingRef = useRef(false);
   const previousAgentRepliesRef = useRef<Set<string>>(new Set());
-  const hasDragged = useRef(false);
-  const dragStartPos = useRef({ x: 0, y: 0 });
-  const pointerStartPos = useRef({ x: 0, y: 0 });
   
   const awaitingFinalConfirmationRef = useRef(false);
   const conversationContextRef = useRef<string[]>([]);
@@ -178,7 +189,19 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // شريط التحميل العلوي (RTL من اليمين لليسار)
+  // 1. أيقونة المساعد: حركة دخول ناعمة ثم حركة بسيطة لليسار مرة واحدة فقط
+  // ============================================================
+  useEffect(() => {
+    if (!hasNudged.current && !isDragging) {
+      hasNudged.current = true;
+      setTimeout(() => {
+        setIconPos(prev => ({ ...prev, x: Math.max(0, prev.x - 15) }));
+      }, 800); // تتوافق مع مدة أنيميشن الدخول
+    }
+  }, [isDragging]);
+
+  // ============================================================
+  // شريط التحميل: يبدأ من اليسار ويتجه لليمين
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -340,16 +363,8 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // SESSION LIFECYCLE MANAGEMENT & 59s TIMEOUT
+  // 5. انتهاء جلسة الموظف (59 ثانية)
   // ============================================================
-  useEffect(() => {
-    if (currentSpeaker === "agent" || currentSpeaker === "bot") {
-      if (chatStatus === "inactive") {
-        setChatStatus("online");
-      }
-    }
-  }, [messages, currentSpeaker]);
-
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
 
@@ -358,27 +373,15 @@ export default function Home() {
       const elapsedSeconds = (now - lastActivityTimeRef.current) / 1000;
 
       if (elapsedSeconds >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
-        setMessages(prev => [...prev, createMessage(
-          "system",
-          "انتهت المحادثة مؤقتاً بسبب عدم وجود رد.",
-          "assistant"
-        )]);
-        setChatStatus("inactive");
-
-        setTimeout(() => {
-          setMessages([]); 
-          setCurrentSpeaker("bot");
-          setCurrentAgent(null);
-          setSessionAgents([]);
-          setChatStatus("online");
-          conversationPhaseRef.current = "initial";
-          lastHandledTopicRef.current = null;
-          lastActivityTimeRef.current = Date.now(); 
-
-          setTimeout(() => {
-            setMessages([createMessage("bot", "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟", "assistant")]);
-          }, 500);
-        }, 2000);
+        // حذف جميع الرسائل والعودة للمساعد الذكي برسالة الترحيب فقط
+        setMessages([createMessage("bot", "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟ يمكنك سؤالي عن الأخبار، البرامج، أسعار الإعلانات، أو أي استفسار آخر.", "assistant")]);
+        setCurrentSpeaker("bot");
+        setCurrentAgent(null);
+        setSessionAgents([]);
+        setChatStatus("online");
+        conversationPhaseRef.current = "initial";
+        lastHandledTopicRef.current = null;
+        lastActivityTimeRef.current = Date.now();
       }
     }, 1000);
 
@@ -444,7 +447,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // ESCALATION & TRANSFER LOGIC
+  // 4. نظام تحويل الموظفين
   // ============================================================
   const handleHumanRequest = useCallback(() => {
     setShowDepartmentSelection(true);
@@ -457,7 +460,7 @@ export default function Home() {
     setChatStatus("typing");
     const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
     
-    setMessages(prev => [...prev, createMessage("system", `جاري البحث عن موظف متاح في ${deptOption?.name}...`)]);
+    setMessages(prev => [...prev, createMessage("system", `يرجى الانتظار... يتم الآن تحويلك إلى الموظف المختص في قسم ${deptOption?.name}.`, "assistant")]);
     setShowDepartmentSelection(false);
 
     setTimeout(() => {
@@ -492,13 +495,7 @@ export default function Home() {
     const targetAgent = findAvailableAgent(targetDept) || SUPPORT_AGENTS.find(a => a.department === targetDept);
     if (!targetAgent) return;
 
-    const transferMsg = createMessage(
-      "agent",
-      `لحظة واحدة، سأحولك الآن إلى زميلي المختص بهذا النوع من الطلبات.`,
-      "assistant"
-    );
-    
-    setMessages(prev => [...prev, transferMsg]);
+    setMessages(prev => [...prev, createMessage("agent", `سيتم الآن تحويلك إلى زميلي المختص بهذا القسم.`, "assistant")]);
     
     setTimeout(() => {
       setSessionAgents(prev => {
@@ -517,7 +514,7 @@ export default function Home() {
       setTimeout(() => {
         const newAgentWelcome = createMessage(
           "agent",
-          `مرحباً، أنا ${targetAgent!.name} من قسم ${targetDept === 'ads' ? 'الإعلانات' : targetDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}. اطلعت على كامل المحادثة بينك وبين الأستاذ ${currentAgentName}، وسأتابع معك من هذه النقطة. كيف أقدر أساعدك؟`,
+          `مرحباً، أنا ${targetAgent!.name} من قسم ${targetDept === 'ads' ? 'الإعلانات' : targetDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}. اطلعت على كامل المحادثة، وسأتابع معك من هذه النقطة.`,
           "assistant"
         );
         
@@ -530,17 +527,59 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // SEND MESSAGE & API HANDLING
+  // 3. إرسال الصور والملفات + SEND MESSAGE LOGIC
   // ============================================================
+  const handleFileSelect = useCallback((file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      alert("حجم الملف يتجاوز الحد المسموح (10MB)");
+      return;
+    }
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!allowedTypes.includes(file.type)) {
+      alert("نوع الملف غير مدعوم");
+      return;
+    }
+
+    lastActivityTimeRef.current = Date.now(); // منع انتهاء الجلسة أثناء تجهيز الملف
+
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedFile({ file, preview: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setSelectedFile({ file, preview: '' });
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileSelect(e.dataTransfer.files[0]);
+    }
+  }, [handleFileSelect]);
+
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
-    if (!trimmedText || isSendingRef.current) return;
+    if ((!trimmedText && !selectedFile) || isSendingRef.current) return;
 
     isSendingRef.current = true;
     lastActivityTimeRef.current = Date.now();
 
-    setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
+    const attachments: Attachment[] | undefined = selectedFile 
+      ? [{ 
+          type: selectedFile.file.type.startsWith('image/') ? 'image' : 'link',
+          url: selectedFile.preview || URL.createObjectURL(selectedFile.file),
+          title: selectedFile.file.name,
+          description: `حجم الملف: ${(selectedFile.file.size / 1024 / 1024).toFixed(2)} MB`
+        }] 
+      : undefined;
+
+    setMessages(prev => [...prev, createMessage("user", trimmedText || (selectedFile?.file.type.startsWith('image/') ? "صورة" : "ملف"), "user", "sent", attachments)]);
     setText("");
+    setSelectedFile(null);
     
     conversationContextRef.current.push(trimmedText);
     if (conversationContextRef.current.length > 5) {
@@ -676,12 +715,11 @@ export default function Home() {
           }
         }
 
-        // تم تحسين ردود الموظفين لتكون أكثر طبيعية واحترافية
         const generalReplies = currentDept === 'ads' 
-          ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب لمتجرك؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك لنبدأ منها؟", "يسعدني ذلك. هل تفضل أن نركز على منصة معينة أم نغطي جميع المنصات؟"]
+          ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب لمتجرك؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك لنبدأ منها؟"]
           : currentDept === 'technical'
-          ? ["حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية أو رسالة الخطأ لتسريع الحل.", "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح متى بدأت المشكلة بالضبط؟", "فهمت الأمر. دعني أتحقق من هذا الأمر فوراً وأعود لك بالحل."]
-          : ["بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.", "حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟", "أهلاً بك. تفضل بطرح استفسارك وسأجيبك بأقصى سرعة."];
+          ? ["حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية عن المشكلة.", "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح المشكلة أكثر؟"]
+          : ["بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.", "حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟"];
         
         const available = generalReplies.filter(r => !previousAgentRepliesRef.current.has(r));
         const agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : generalReplies[0];
@@ -735,7 +773,7 @@ export default function Home() {
       setChatStatus("online");
       isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, currentAgent, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession]);
+  }, [text, currentSpeaker, currentAgent, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession, selectedFile]);
 
   // ============================================================
   // EFFECTS
@@ -755,7 +793,7 @@ export default function Home() {
   }, [open, messages.length, loadStateFromStorage]);
 
   // ============================================================
-  // RENDER HELPERS
+  // 6. ترتيب واجهة المحادثة (RENDER HELPERS)
   // ============================================================
   const getStatusText = () => {
     switch (chatStatus) {
@@ -851,10 +889,11 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
+      {/* 7. شريط التحميل: يبدأ من اليسار ويتجه لليمين */}
       {loadingProgress > 0 && (
-        <div className="fixed top-0 right-0 left-auto z-[100] h-1 bg-gray-800/50 w-full">
+        <div className="fixed top-0 left-0 z-[100] h-1 bg-gray-800/50 w-full">
           <div 
-            className="h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)]"
+            className="h-full bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)]"
             style={{ 
               width: `${loadingProgress}%`,
               transition: loadingProgress === 100 ? 'width 0.5s ease-out, opacity 0.5s ease-out' : 'width 0.4s ease-out',
@@ -884,8 +923,8 @@ export default function Home() {
       </header>
 
       <div className="bg-[#111827] border-b border-gray-800 overflow-hidden relative py-3">
-        {/* تم إلغاء التظليل الموجود على اليسار والإبقاء على اليمين فقط */}
         <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-[#111827] to-transparent z-10 pointer-events-none"></div>
+        <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-[#111827] to-transparent z-10 pointer-events-none"></div>
         <div className="flex animate-seamless-scroll w-max">
           {renderSeamlessItems()}
         </div>
@@ -907,7 +946,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* زر الدردشة - تم الحفاظ على السحب والإفلات مع حركة تلقائية لليسار لمرة واحدة فقط */}
+      {/* 1 & 2. أيقونة المساعد: حركة دخول + سحب وإفلات سلس */}
       <div 
         ref={chatButtonRef}
         onPointerDown={(e) => {
@@ -940,7 +979,7 @@ export default function Home() {
             setOpen(!open);
           }
         }}
-        className="fixed w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-grab active:cursor-grabbing hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right select-none"
+        className="fixed w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-grab active:cursor-grabbing hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right select-none touch-none"
         style={{ 
           left: `${iconPos.x}px`, 
           top: `${iconPos.y}px`,
@@ -997,16 +1036,32 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50">
+        {/* 3. دعم سحب وإفلات الملفات داخل المحادثة */}
+        <div 
+          ref={chatContainerRef}
+          className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50 relative"
+          onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={handleDrop}
+        >
+          {isDragOver && (
+            <div className="absolute inset-0 bg-purple-600/20 border-2 border-dashed border-purple-500 rounded-xl flex items-center justify-center z-10 backdrop-blur-sm">
+              <div className="text-center">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mx-auto mb-2 text-purple-400"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <p className="text-purple-300 font-bold">أفلت الصورة أو الملف هنا</p>
+              </div>
+            </div>
+          )}
+
           {messages.map((msg) => {
             if (msg.sender === "system") {
-              return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%]">{msg.text}</span></div>;
+              return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%] whitespace-pre-line">{msg.text}</span></div>;
             }
             const isUser = msg.sender === "user";
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
                 {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
-                <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
+                <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative whitespace-pre-wrap ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
                   {msg.text}
                   
                   {msg.attachments && msg.attachments.length > 0 && (
@@ -1015,12 +1070,11 @@ export default function Home() {
                         if (att.type === 'image' && att.url) {
                           return <img key={idx} src={att.url} alt="attachment" className="rounded-lg max-w-full h-auto border border-gray-600" />;
                         }
-                        if ((att.type === 'link' || att.type === 'card' || att.type === 'product') && att.url) {
+                        if (att.type === 'link' && att.url) {
                           return (
                             <a key={idx} href={att.url} target="_blank" rel="noopener noreferrer" className="block bg-[#0b0f1a]/50 hover:bg-[#0b0f1a] border border-purple-500/30 rounded-lg p-2 transition-colors">
                               {att.title && <div className="font-bold text-xs text-purple-300 mb-1">{att.title}</div>}
                               {att.description && <div className="text-[10px] text-gray-400">{att.description}</div>}
-                              <div className="text-[10px] text-blue-400 mt-1 truncate">{att.url}</div>
                             </a>
                           );
                         }
@@ -1064,7 +1118,48 @@ export default function Home() {
         </div>
 
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
+          {/* 3. معاينة الصورة/الملف قبل الإرسال */}
+          {selectedFile && (
+            <div className="mb-2 p-2 bg-[#0b0f1a] rounded-lg border border-gray-700 flex items-center gap-3 relative">
+              {selectedFile.file.type.startsWith('image/') ? (
+                <img src={selectedFile.preview} alt="preview" className="w-12 h-12 object-cover rounded-md" />
+              ) : (
+                <div className="w-12 h-12 bg-purple-600/20 rounded-md flex items-center justify-center">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white truncate">{selectedFile.file.name}</p>
+                <p className="text-xs text-gray-400">{(selectedFile.file.size / 1024 / 1024).toFixed(2)} MB</p>
+              </div>
+              <button 
+                onClick={() => setSelectedFile(null)}
+                className="p-1 hover:bg-red-500/20 rounded-full text-red-400 hover:text-red-300 transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+          )}
+          
           <div className="flex gap-2 items-end">
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-gray-700 text-white hover:bg-gray-600"
+              title="إرفاق صورة أو ملف"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+            </button>
+            <input 
+              ref={fileInputRef}
+              type="file" 
+              accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleFileSelect(e.target.files[0]);
+                }
+              }}
+            />
             <textarea
               id="chat-input"
               value={text}
@@ -1077,7 +1172,7 @@ export default function Home() {
             />
             <button 
               onClick={sendMessage} 
-              disabled={!text.trim() || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
+              disabled={(!text.trim() && !selectedFile) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
               className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
