@@ -236,8 +236,8 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
-  // FIX: Use right and bottom for default bottom-right positioning
-  const [iconPos, setIconPos] = useState({ right: 24, bottom: 24 });
+  // FIX: Adjusted to 16px for a tighter, lower bottom-right corner positioning
+  const [iconPos, setIconPos] = useState({ right: 16, bottom: 16 });
   const [isDragging, setIsDragging] = useState(false);
   const [springScale, setSpringScale] = useState(1);
   const [idleOffsetX, setIdleOffsetX] = useState(0);
@@ -255,11 +255,12 @@ export default function Home() {
   const chatButtonRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const dragStartPos = useRef({ right: 24, bottom: 24 });
+  // Updated refs to match the new 16px default position
+  const dragStartPos = useRef({ right: 16, bottom: 16 });
   const pointerStartPos = useRef({ x: 0, y: 0 });
   const hasDragged = useRef(false);
-  const currentIconPos = useRef({ right: 24, bottom: 24 });
-  const targetIconPos = useRef({ right: 24, bottom: 24 });
+  const currentIconPos = useRef({ right: 16, bottom: 16 });
+  const targetIconPos = useRef({ right: 16, bottom: 16 });
 
   const currentSpeakerRef = useRef(currentSpeaker);
   const chatStatusRef = useRef(chatStatus);
@@ -297,8 +298,9 @@ export default function Home() {
       if (savedPos) {
         try {
           const parsed = JSON.parse(savedPos);
-          const right = Math.max(10, Math.min(window.innerWidth - 74, parsed.right || 24));
-          const bottom = Math.max(10, Math.min(window.innerHeight - 74, parsed.bottom || 24));
+          // Updated default fallback to 16
+          const right = Math.max(10, Math.min(window.innerWidth - 74, parsed.right || 16));
+          const bottom = Math.max(10, Math.min(window.innerHeight - 74, parsed.bottom || 16));
           setIconPos({ right, bottom });
           currentIconPos.current = { right, bottom };
           targetIconPos.current = { right, bottom };
@@ -457,7 +459,7 @@ export default function Home() {
     const screenWidth = window.innerWidth;
     const screenHeight = window.innerHeight;
     const iconSize = 64;
-    const margin = 24; // Match bottom-6 right-6 (1.5rem = 24px)
+    const margin = 16; // Adjusted to 16px for a tighter bottom-right corner fit
     
     const distToRight = right;
     const distToLeft = screenWidth - iconSize - right;
@@ -920,7 +922,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* FIX: Icon anchored to bottom-right using 'right' and 'bottom' properties */}
+      {/* FIX: Icon anchored to bottom-right using 'right' and 'bottom' properties, adjusted to 16px for a lower, tighter corner fit */}
       <div ref={chatButtonRef} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={handleClick}
         className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none"
         style={{ 
