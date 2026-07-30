@@ -30,6 +30,8 @@ interface Message {
   time: string;
   status?: "sent" | "delivered" | "read";
   attachments?: Attachment[];
+  quickReplies?: string[];
+  contextLink?: { title: string; url: string };
 }
 
 interface Agent {
@@ -86,152 +88,42 @@ const TRENDING_PRODUCTS: TrendingProduct[] = [
   { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=150&h=200&fit=crop", shape: "portrait" },
 ];
 
-const SITE_PAGES = {
-  pricing: { url: "/pricing", name: "الأسعار والباقات" },
-  services: { url: "/services", name: "الخدمات" },
-  ads: { url: "/ads", name: "الإعلانات" },
-  programs: { url: "/programs", name: "البرامج" },
-  content: { url: "/content", name: "المحتوى" },
-  news: { url: "/news", name: "الأخبار" },
-  festivals: { url: "/festivals", name: "المهرجانات" },
-  gallery: { url: "/gallery", name: "المعرض" },
-  contact: { url: "/contact", name: "اتصل بنا" },
-  partnership: { url: "/partnership", name: "الشراكات" },
-  latestEpisodes: { url: "/programs/latest", name: "أحدث الحلقات" },
-  upcomingPrograms: { url: "/programs/upcoming", name: "البرامج القادمة" },
-  liveStream: { url: "/live", name: "البث المباشر" },
-  currentFestivals: { url: "/festivals/current", name: "المهرجانات الحالية" },
-  upcomingFestivals: { url: "/festivals/upcoming", name: "المهرجانات القادمة" },
-  festivalPhotos: { url: "/festivals/photos", name: "صور المهرجانات" },
-  festivalVideos: { url: "/festivals/videos", name: "فيديوهات المهرجانات" },
-  festivalCoverage: { url: "/festivals/coverage", name: "تغطيات المهرجانات" },
-  login: { url: "/login", name: "تسجيل الدخول" },
-  register: { url: "/register", name: "إنشاء حساب" },
-  resetPassword: { url: "/reset-password", name: "استعادة كلمة المرور" },
-  reportIssue: { url: "/support/report", name: "الإبلاغ عن مشكلة" },
-  supportAgent: { url: "/support/agent", name: "التواصل مع موظف الدعم" },
-  breakingNews: { url: "/news/breaking", name: "الأخبار العاجلة" },
-  localNews: { url: "/news/local", name: "الأخبار المحلية" },
-  worldNews: { url: "/news/world", name: "الأخبار العالمية" },
-  whatsapp: { url: "https://wa.me/", name: "واتساب" },
-  email: { url: "mailto:info@dar-alnujum.com", name: "البريد الإلكتروني" },
-  companySite: { url: "/", name: "موقع الشركة" },
-  contactForm: { url: "/contact/form", name: "نموذج التواصل" },
-  adPrices: { url: "/pricing/ads", name: "أسعار الإعلانات" },
-  packages: { url: "/pricing/packages", name: "الباقات" },
-  customQuote: { url: "/pricing/quote", name: "طلب عرض سعر" },
-  subscriptions: { url: "/pricing/subscriptions", name: "الاشتراكات" },
-  salesContact: { url: "/contact/sales", name: "التواصل مع المبيعات" },
-};
-
-const CONTEXTUAL_DATA = {
-  pricing: {
-    keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض", "بكم", "كم", "اشتراكات", "باقات", "خصم", "تخفيض", "عرض", "تسعيرة"],
-    response: "يسعدني تزويدك بتفاصيل أسعارنا وباقاتنا. يمكنك الاطلاع على الخيارات أدناه:",
-    quickReplies: ["أسعار الإعلانات", "الباقات والاشتراكات", "طلب عرض سعر مخصص", "التواصل مع المبيعات"],
-    link: { title: SITE_PAGES.pricing.name, url: SITE_PAGES.pricing.url, description: "جميع الأسعار والباقات" },
-    quickReplyLinks: {
-      "أسعار الإعلانات": SITE_PAGES.adPrices,
-      "الباقات والاشتراكات": SITE_PAGES.packages,
-      "طلب عرض سعر مخصص": SITE_PAGES.customQuote,
-      "التواصل مع المبيعات": SITE_PAGES.salesContact,
-    }
+// 7 & 9. الروابط الذكية وفهم اختلاف الصياغة
+const SMART_LINKS = {
+  pricing: { 
+    url: "/pricing", 
+    title: "الأسعار والباقات",
+    keywords: ["سعر", "اسعار", "اعلان", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض", "بكم", "كم", "تسعيرة", "أسعاركم", "تكلفة الإعلان", "عرض سعر"]
   },
-  content: {
-    keywords: ["برامج", "محتوى", "فيديو", "محتويات", "حلقات", "بث", "مشاهدة", "اخبار", "مهرجان"],
-    response: "يسعدني مساعدتك في استكشاف محتوى قناة دار النجوم. يرجى اختيار ما تبحث عنه:",
-    quickReplies: ["جميع البرامج", "أحدث الحلقات", "البرامج القادمة", "البث المباشر"],
-    link: { title: SITE_PAGES.content.name, url: SITE_PAGES.content.url, description: "برامج، حلقات، ومحتوى حصري" },
-    quickReplyLinks: {
-      "جميع البرامج": SITE_PAGES.programs,
-      "أحدث الحلقات": SITE_PAGES.latestEpisodes,
-      "البرامج القادمة": SITE_PAGES.upcomingPrograms,
-      "البث المباشر": SITE_PAGES.liveStream,
-    }
+  ads: { 
+    url: "/ads", 
+    title: "الإعلانات والمبيعات",
+    keywords: ["اعلانات", "دعاية", "مبيعات", "حجز اعلان", "ترويج"]
   },
-  festivals: {
-    keywords: ["مهرجان", "مهرجانات", "تغطية", "حفل", "فعالية", "فعاليات"],
-    response: "يسعدني مساعدتك في متابعة المهرجانات والفعاليات. يرجى اختيار ما يهمك:",
-    quickReplies: ["المهرجانات الحالية", "المهرجانات القادمة", "الصور", "الفيديوهات", "التغطيات"],
-    link: { title: SITE_PAGES.festivals.name, url: SITE_PAGES.festivals.url, description: "جميع المهرجانات والفعاليات" },
-    quickReplyLinks: {
-      "المهرجانات الحالية": SITE_PAGES.currentFestivals,
-      "المهرجانات القادمة": SITE_PAGES.upcomingFestivals,
-      "الصور": SITE_PAGES.festivalPhotos,
-      "الفيديوهات": SITE_PAGES.festivalVideos,
-      "التغطيات": SITE_PAGES.festivalCoverage,
-    }
+  services: { 
+    url: "/services", 
+    title: "الخدمات",
+    keywords: ["خدمات", "خدمة", "ماذا تقدمون", "خدماتكم"]
   },
-  news: {
-    keywords: ["خبر", "اخبار", "عاجل", "محلي", "عالمي", "آخر الأخبار"],
-    response: "يسعدني تزويدك بآخر الأخبار والتحديثات. يرجى اختيار القسم المناسب:",
-    quickReplies: ["آخر الأخبار", "الأخبار العاجلة", "الأخبار المحلية", "الأخبار العالمية"],
-    link: { title: SITE_PAGES.news.name, url: SITE_PAGES.news.url, description: "جميع الأخبار والتحديثات" },
-    quickReplyLinks: {
-      "آخر الأخبار": SITE_PAGES.news,
-      "الأخبار العاجلة": SITE_PAGES.breakingNews,
-      "الأخبار المحلية": SITE_PAGES.localNews,
-      "الأخبار العالمية": SITE_PAGES.worldNews,
-    }
+  content: { 
+    url: "/content", 
+    title: "المحتوى والبرامج",
+    keywords: ["برامج", "محتوى", "فيديو", "فيديوهات", "حلقات", "مقالات"]
   },
-  support: {
-    keywords: ["دعم", "مشكلة", "خطأ", "دخول", "حساب", "كلمة مرور", "فني", "تسجيل", "باسوورد", "لوقن"],
-    response: "أعتذر عن أي إزعاج. فريق الدعم الفني جاهز لمساعدتك. يرجى تحديد المشكلة:",
-    quickReplies: ["تسجيل الدخول", "إنشاء حساب", "استعادة كلمة المرور", "الإبلاغ عن مشكلة", "التواصل مع موظف الدعم"],
-    link: { title: "مركز المساعدة", url: "/support", description: "حلول سريعة للأسئلة الشائعة" },
-    quickReplyLinks: {
-      "تسجيل الدخول": SITE_PAGES.login,
-      "إنشاء حساب": SITE_PAGES.register,
-      "استعادة كلمة المرور": SITE_PAGES.resetPassword,
-      "الإبلاغ عن مشكلة": SITE_PAGES.reportIssue,
-      "التواصل مع موظف الدعم": SITE_PAGES.supportAgent,
-    }
+  news: { 
+    url: "/news", 
+    title: "الأخبار",
+    keywords: ["اخبار", "خبر", "عاجل", "أخبار عاجلة"]
   },
-  contact: {
-    keywords: ["تواصل", "اتصل", "واتساب", "بريد", "موقع", "تواصلوا", "راسل", "راسلنا"],
-    response: "يسعدنا تواصلك معنا. يمكنك اختيار الطريقة الأنسب لك:",
-    quickReplies: ["واتساب", "البريد الإلكتروني", "موقع الشركة", "نموذج التواصل"],
-    link: { title: SITE_PAGES.contact.name, url: SITE_PAGES.contact.url, description: "جميع قنوات التواصل الرسمية" },
-    quickReplyLinks: {
-      "واتساب": SITE_PAGES.whatsapp,
-      "البريد الإلكتروني": SITE_PAGES.email,
-      "موقع الشركة": SITE_PAGES.companySite,
-      "نموذج التواصل": SITE_PAGES.contactForm,
-    }
+  support: { 
+    url: "/support", 
+    title: "الدعم الفني",
+    keywords: ["دعم", "دعم فني", "مساعدة", "مشكلة", "خطأ", "لا يعمل", "حساب", "تسجيل الدخول", "كلمة المرور", "نسيت كلمة المرور"]
   },
-  services: {
-    keywords: ["خدمات", "خدمة", "نقدم", "تقدمون", "متوفر"],
-    response: "يسعدني تعريفك على خدماتنا المتنوعة. يمكنك استكشاف المزيد من خلال الرابط:",
-    quickReplies: ["جميع الخدمات", "خدمات الإعلانات", "خدمات المحتوى", "الشراكات"],
-    link: { title: SITE_PAGES.services.name, url: SITE_PAGES.services.url, description: "جميع الخدمات التي نقدمها" },
-    quickReplyLinks: {
-      "جميع الخدمات": SITE_PAGES.services,
-      "خدمات الإعلانات": SITE_PAGES.ads,
-      "خدمات المحتوى": SITE_PAGES.content,
-      "الشراكات": SITE_PAGES.partnership,
-    }
-  },
-  gallery: {
-    keywords: ["معرض", "صور", "فيديوهات", "معرض الصور", "استوديو"],
-    response: "يسعدني عرض معرض الصور والفيديوهات الخاص بنا. تفضل بالاطلاع:",
-    quickReplies: ["معرض الصور", "معرض الفيديوهات", "جميع المحتوى المرئي"],
-    link: { title: SITE_PAGES.gallery.name, url: SITE_PAGES.gallery.url, description: "معرض الصور والفيديوهات" },
-    quickReplyLinks: {
-      "معرض الصور": SITE_PAGES.festivalPhotos,
-      "معرض الفيديوهات": SITE_PAGES.festivalVideos,
-      "جميع المحتوى المرئي": SITE_PAGES.gallery,
-    }
-  },
-  partnership: {
-    keywords: ["شراكة", "شراكات", "تعاون", "رعاية", "شريك"],
-    response: "يسعدنا اهتمامك بالشراكة معنا. يمكنك الاطلاع على تفاصيل الشراكات:",
-    quickReplies: ["تفاصيل الشراكات", "رعاية البرامج", "التواصل مع الإدارة"],
-    link: { title: SITE_PAGES.partnership.name, url: SITE_PAGES.partnership.url, description: "فرص الشراكة والتعاون" },
-    quickReplyLinks: {
-      "تفاصيل الشراكات": SITE_PAGES.partnership,
-      "رعاية البرامج": SITE_PAGES.ads,
-      "التواصل مع الإدارة": SITE_PAGES.contact,
-    }
+  contact: { 
+    url: "/contact", 
+    title: "تواصل معنا",
+    keywords: ["تواصل", "اتصل", "تواصل معنا", "رقم الهاتف", "ايميل", "بريد"]
   }
 };
 
@@ -262,87 +154,21 @@ const findAvailableAgent = (department: Department): Agent | null => {
   return SUPPORT_AGENTS.find(agent => agent.department === department && agent.status === 'online' && !agent.isBusy) || null;
 };
 
-const createMessage = (sender: Sender, text: string, role?: "user" | "assistant", status: "sent" | "delivered" | "read" = "read", attachments?: Attachment[]): Message => ({
+const createMessage = (sender: Sender, text: string, role?: "user" | "assistant", status: "sent" | "delivered" | "read" = "read", attachments?: Attachment[], quickReplies?: string[], contextLink?: { title: string; url: string }): Message => ({
   id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
   sender, text, role,
   time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-  status, attachments
+  status, attachments, quickReplies, contextLink
 });
 
-const detectContext = (userText: string): keyof typeof CONTEXTUAL_DATA | null => {
-  const n = normalizeArabicText(userText);
-  for (const [key, data] of Object.entries(CONTEXTUAL_DATA)) {
-    if (data.keywords.some(k => n.includes(k))) {
-      return key as keyof typeof CONTEXTUAL_DATA;
+const detectSmartContext = (userText: string) => {
+  const normalized = normalizeArabicText(userText);
+  for (const [key, data] of Object.entries(SMART_LINKS)) {
+    if (data.keywords.some(k => normalized.includes(k))) {
+      return { category: key, link: { title: data.title, url: data.url } };
     }
   }
   return null;
-};
-
-const getAgentResponseData = (userText: string, agentDept: Department) => {
-  const n = normalizeArabicText(userText);
-  const detectedContext = detectContext(userText);
-  
-  const isAds = ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض", "بكم", "كم"].some(k => n.includes(k));
-  const isTech = ["دعم", "مشكلة", "خطأ", "دخول", "حساب", "كلمة مرور", "فني"].some(k => n.includes(k));
-
-  if (agentDept === 'technical' && (isAds || detectedContext === 'pricing')) {
-    return { 
-      shouldTransfer: true, 
-      targetDept: 'ads' as Department, 
-      text: "يرجى الانتظار قليلاً، سأقوم بتحويلك إلى الزميل المختص في قسم المبيعات والإعلانات حتى تحصل على أفضل مساعدة.",
-      quickReplies: [],
-      link: null,
-      quickReplyLinks: {}
-    };
-  }
-  if (agentDept === 'ads' && isTech) {
-    return { 
-      shouldTransfer: true, 
-      targetDept: 'technical' as Department, 
-      text: "يرجى الانتظار قليلاً، سأقوم بتحويلك إلى الزميل المختص في قسم الدعم الفني حتى تحصل على أفضل مساعدة.",
-      quickReplies: [],
-      link: null,
-      quickReplyLinks: {}
-    };
-  }
-
-  if (detectedContext) {
-    const data = CONTEXTUAL_DATA[detectedContext];
-    return { 
-      shouldTransfer: false, 
-      text: data.response,
-      quickReplies: data.quickReplies,
-      link: data.link,
-      quickReplyLinks: data.quickReplyLinks || {}
-    };
-  }
-
-  const defaultReplies = [
-    "أشكرك على تواصلك معنا. سأراجع طلبك الآن.",
-    "يرجى الانتظار لحظة أثناء التحقق من المعلومات.",
-    "تم العثور على المعلومات المطلوبة، يسعدني تزويدك بالتفاصيل.",
-    "إذا احتجت أي مساعدة إضافية فأنا حاضر.",
-    "مرحباً بك، يسعدني مساعدتك. كيف يمكنني خدمتك اليوم؟"
-  ];
-  
-  const availableReplies = defaultReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-  const chosenReply = availableReplies.length > 0 ? availableReplies[Math.floor(Math.random() * availableReplies.length)] : defaultReplies[0];
-  previousAgentRepliesRef.current.add(chosenReply);
-  if (previousAgentRepliesRef.current.size > 5) previousAgentRepliesRef.current.clear();
-
-  return {
-    shouldTransfer: false,
-    text: chosenReply,
-    quickReplies: ["الأسعار والباقات", "البرامج والمحتوى", "الدعم الفني", "التواصل معنا"],
-    link: null,
-    quickReplyLinks: {
-      "الأسعار والباقات": SITE_PAGES.pricing,
-      "البرامج والمحتوى": SITE_PAGES.content,
-      "الدعم الفني": SITE_PAGES.reportIssue,
-      "التواصل معنا": SITE_PAGES.contact,
-    }
-  };
 };
 
 // ============================================================
@@ -366,7 +192,6 @@ export default function Home() {
   
   const [iconPos, setIconPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 80 : 0, y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const [iconAnimationState, setIconAnimationState] = useState<'entering' | 'stable'>('entering');
   
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
@@ -383,116 +208,19 @@ export default function Home() {
   const isSendingRef = useRef(false);
   const previousAgentRepliesRef = useRef<Set<string>>(new Set());
   
-  const awaitingFinalConfirmationRef = useRef(false);
-  const conversationContextRef = useRef<string[]>([]);
-  const lastHandledTopicRef = useRef<string | null>(null);
-  const conversationPhaseRef = useRef<"initial" | "ongoing" | "clarifying" | "closing" | "ended">("initial");
-  const lastAgentMessageRef = useRef<string>("");
-  const messageCountRef = useRef<number>(0);
-
   const dragStartPos = useRef({ x: 0, y: 0 });
   const pointerStartPos = useRef({ x: 0, y: 0 });
   const hasDragged = useRef(false);
-  const hasEnteredRef = useRef(false);
 
-  const [activeQuickReplies, setActiveQuickReplies] = useState<string[]>([]);
-  const [contextualLink, setContextualLink] = useState<{title: string, url: string, description: string} | null>(null);
-  const [quickReplyLinks, setQuickReplyLinks] = useState<Record<string, {url: string, name: string}>>({});
+  // 2. رفع الصور
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
-  // 1. حركة الدخول الأولى
-  useEffect(() => {
-    if (!hasEnteredRef.current && typeof window !== 'undefined') {
-      hasEnteredRef.current = true;
-      setIconPos({ x: window.innerWidth + 100, y: window.innerHeight - 80 });
-      setTimeout(() => {
-        setIconPos({ x: window.innerWidth - 80, y: window.innerHeight - 80 });
-      }, 100);
-      setTimeout(() => {
-        setIconAnimationState('stable');
-      }, 900);
-    }
-  }, []);
-
-  // 6. إدارة حالة الموظف وعدم الرد
-  useEffect(() => {
-    if (currentSpeaker !== "agent") return;
-
-    let inactivityTimer: NodeJS.Timeout;
-    let closedTimer: NodeJS.Timeout;
-
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg && lastMsg.sender === "user") {
-      clearTimeout(inactivityTimer);
-      clearTimeout(closedTimer);
-      setChatStatus("online");
-
-      inactivityTimer = setTimeout(() => {
-        setChatStatus("inactive");
-        closedTimer = setTimeout(() => {
-          setChatStatus("closed");
-          setTimeout(() => {
-            setMessages(prev => [...prev, createMessage("bot", "انتهت جلسة الدعم الحالية، يسعدني مساعدتك بأي استفسار جديد.", "assistant")]);
-            setCurrentSpeaker("bot");
-            setCurrentAgent(null);
-            setSessionAgents([]);
-            setChatStatus("online");
-            setActiveQuickReplies([]);
-            setContextualLink(null);
-            setQuickReplyLinks({});
-            setSelectedImage(null);
-            lastActivityTimeRef.current = Date.now();
-          }, 2000);
-        }, SESSION_TIMEOUTS.INACTIVE_TO_CLOSED);
-      }, SESSION_TIMEOUTS.IDLE_TO_INACTIVE);
-    }
-
-    return () => {
-      clearTimeout(inactivityTimer);
-      clearTimeout(closedTimer);
-    };
-  }, [messages, currentSpeaker]);
-
-  const saveStateToStorage = useCallback(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({
-        messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued
-      }));
-    } catch (e) { console.error('Save state error:', e); }
-  }, [messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued]);
-
-  const loadStateFromStorage = useCallback((): boolean => {
-    if (typeof window === 'undefined') return false;
-    try {
-      const saved = localStorage.getItem('dar-alnujum-chat-state');
-      if (!saved) return false;
-      const parsed = JSON.parse(saved);
-      setMessages(parsed.messages || []);
-      setCurrentSpeaker("bot");
-      setCurrentAgent(null);
-      setSessionAgents([]);
-      setChatStatus("online");
-      setIsQueued(false);
-      setShowDepartmentSelection(false);
-      previousAgentRepliesRef.current.clear();
-      awaitingFinalConfirmationRef.current = false;
-      conversationContextRef.current = [];
-      lastHandledTopicRef.current = null;
-      conversationPhaseRef.current = "initial";
-      lastAgentMessageRef.current = "";
-      messageCountRef.current = 0;
-      return true;
-    } catch (e) { 
-      console.error('Load state error:', e); 
-      return false; 
-    }
-  }, []);
-
-  // 2. نظام السحب والإفلات الاحترافي
+  // ============================================================
+  // 1. تحسين نظام السحب والإفلات (Snap to Edge)
+  // ============================================================
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -523,8 +251,9 @@ export default function Home() {
     setIsDragging(false);
     chatButtonRef.current?.releasePointerCapture(e.pointerId);
     
+    // الالتصاق بأقرب طرف (يمين أو يسار)
     const distToLeft = iconPos.x;
-    const distToRight = window.innerWidth - iconPos.x - 64;
+    const distToRight = window.innerWidth - (iconPos.x + 64);
     const finalX = distToLeft < distToRight ? 16 : window.innerWidth - 80;
     const finalY = Math.max(16, Math.min(window.innerHeight - 80, iconPos.y));
     
@@ -538,18 +267,121 @@ export default function Home() {
     hasDragged.current = false;
   }, []);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ============================================================
+  // 2. منطق رفع الصور
+  // ============================================================
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-      };
+      reader.onloadend = () => setSelectedImage(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
 
-  const handleSendMessage = useCallback(async (forcedText?: string) => {
+  // ============================================================
+  // 6. انتهاء المحادثة وإدارة الجلسة
+  // ============================================================
+  useEffect(() => {
+    if (currentSpeaker !== "agent") return;
+
+    let inactivityTimer: NodeJS.Timeout;
+    let closedTimer: NodeJS.Timeout;
+
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.sender === "user") {
+      clearTimeout(inactivityTimer);
+      clearTimeout(closedTimer);
+      setChatStatus("online");
+
+      inactivityTimer = setTimeout(() => {
+        setChatStatus("inactive");
+        closedTimer = setTimeout(() => {
+          setChatStatus("closed");
+          setTimeout(() => {
+            setMessages(prev => [...prev, createMessage("bot", "انتهت جلسة الدعم الحالية، يسعدني مساعدتك بأي استفسار جديد.", "assistant")]);
+            setCurrentSpeaker("bot");
+            setCurrentAgent(null);
+            setSessionAgents([]);
+            setChatStatus("online");
+            lastActivityTimeRef.current = Date.now();
+          }, 2000);
+        }, SESSION_TIMEOUTS.INACTIVE_TO_CLOSED);
+      }, SESSION_TIMEOUTS.IDLE_TO_INACTIVE);
+    }
+
+    return () => {
+      clearTimeout(inactivityTimer);
+      clearTimeout(closedTimer);
+    };
+  }, [messages, currentSpeaker]);
+
+  // ============================================================
+  // 3 & 4 & 5. تدقيق ردود الموظفين وسلوكهم والتحويل
+  // ============================================================
+  const getAgentResponse = (userText: string, agentDept: Department) => {
+    const normalized = normalizeArabicText(userText);
+    const context = detectSmartContext(userText);
+    
+    // 5. التحويل بين الموظفين إذا لم يكن مختصاً
+    const isAdsQuery = ["سعر", "اعلان", "باقة", "مبيعات"].some(k => normalized.includes(k));
+    const isTechQuery = ["دعم", "مشكلة", "خطأ", "دخول", "حساب"].some(k => normalized.includes(k));
+    
+    if (agentDept === 'technical' && isAdsQuery) {
+      return { 
+        shouldTransfer: true, 
+        targetDept: 'ads' as Department, 
+        text: "يرجى الانتظار قليلاً، سأقوم بتحويلك إلى الزميل المختص في قسم المبيعات والإعلانات حتى تحصل على أفضل مساعدة.",
+        contextLink: context?.link
+      };
+    }
+    if (agentDept === 'ads' && isTechQuery) {
+      return { 
+        shouldTransfer: true, 
+        targetDept: 'technical' as Department, 
+        text: "يرجى الانتظار قليلاً، سأقوم بتحويلك إلى الزميل المختص في قسم الدعم الفني لحل مشكلتك بشكل أسرع.",
+        contextLink: context?.link
+      };
+    }
+
+    // 6. انتهاء المحادثة
+    const closingKeywords = ["لا", "شكراً", "شكرا", "يعطيك العافية", "انتهينا", "خلاص"];
+    if (closingKeywords.some(k => normalized.includes(k)) && normalized.length < 30) {
+      return {
+        shouldTransfer: false,
+        text: "شكراً لتواصلك معنا، سعدنا بخدمتك. إذا احتجت أي مساعدة مستقبلاً فنحن دائماً في خدمتك. نتمنى لك يوماً سعيداً.",
+        shouldCloseSession: true
+      };
+    }
+
+    // 3 & 4. ردود مرتبطة بالسؤال وعدم التكرار
+    const defaultReplies = [
+      "أشكرك على تواصلك معنا. سأراجع طلبك الآن.",
+      "يرجى الانتظار لحظة أثناء التحقق من المعلومات.",
+      "تم العثور على المعلومات المطلوبة، يسعدني تزويدك بالتفاصيل.",
+      "إذا احتجت أي مساعدة إضافية فأنا حاضر."
+    ];
+    
+    const availableReplies = defaultReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+    const chosenReply = availableReplies.length > 0 ? availableReplies[Math.floor(Math.random() * availableReplies.length)] : defaultReplies[0];
+    previousAgentRepliesRef.current.add(chosenReply);
+    if (previousAgentRepliesRef.current.size > 5) previousAgentRepliesRef.current.clear();
+
+    // 8. أزرار الخيارات السريعة
+    const quickReplies = ["الأسعار", "الإعلانات", "الدعم الفني", "تواصل معنا"];
+
+    return {
+      shouldTransfer: false,
+      text: context ? `يسعدني مساعدتك. يمكنك الاطلاع على التفاصيل من هنا:` : chosenReply,
+      contextLink: context?.link,
+      quickReplies
+    };
+  };
+
+  // ============================================================
+  // SEND MESSAGE LOGIC
+  // ============================================================
+  const sendMessage = useCallback(async (forcedText?: string) => {
     const trimmedText = (forcedText || text).trim();
     if ((!trimmedText && !selectedImage) || isSendingRef.current) return;
 
@@ -561,18 +393,12 @@ export default function Home() {
     }
 
     setMessages(prev => [...prev, createMessage("user", trimmedText || "صورة", "user", "sent", newAttachments.length > 0 ? newAttachments : undefined)]);
-    if (!forcedText) setText("");
-    setSelectedImage(null);
+    if (!forcedText) {
+      setText("");
+      setSelectedImage(null);
+    }
     
     lastActivityTimeRef.current = Date.now();
-    if (trimmedText) {
-      conversationContextRef.current.push(trimmedText);
-      if (conversationContextRef.current.length > 5) conversationContextRef.current.shift();
-    }
-
-    setActiveQuickReplies([]);
-    setContextualLink(null);
-    setQuickReplyLinks({});
 
     if (trimmedText && wantsHumanContact(trimmedText) && currentSpeaker === "bot" && !showDepartmentSelection) {
       setShowDepartmentSelection(true);
@@ -585,43 +411,17 @@ export default function Home() {
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
       setTimeout(() => {
-        const normalized = normalizeArabicText(trimmedText);
-        const closingKeywords = ["لا", "شكراً", "شكرا", "هذا كل شيء", "انتهيت", "خلص", "لا شكرا", "لا احتاج", "خلاص"];
-        const isClosing = closingKeywords.some(k => normalized.includes(k)) && normalized.length < 25;
-
-        if (isClosing) {
-          const finalReply = "أهلاً وسهلاً بك، سعدنا بخدمتك، نتمنى لك يوماً سعيداً.";
-          setMessages(prev => [...prev, createMessage("agent", finalReply, "assistant")]);
-          setChatStatus("online");
-          isSendingRef.current = false;
-          
-          setTimeout(() => {
-            setChatStatus("inactive");
-            setTimeout(() => {
-              setMessages(prev => [...prev, createMessage("bot", "انتهت جلسة الدعم الحالية، يسعدني مساعدتك بأي استفسار جديد.", "assistant")]);
-              setCurrentSpeaker("bot");
-              setCurrentAgent(null);
-              setSessionAgents([]);
-              setChatStatus("online");
-              setActiveQuickReplies([]);
-              setContextualLink(null);
-              setQuickReplyLinks({});
-            }, 2000);
-          }, 1000);
-          return;
-        }
-
-        const responseData = getAgentResponseData(trimmedText, currentAgent.department);
+        const responseData = getAgentResponse(trimmedText, currentAgent.department);
         
         if (responseData.shouldTransfer && responseData.targetDept) {
-          setMessages(prev => [...prev, createMessage("agent", responseData.text, "assistant")]);
+          setMessages(prev => [...prev, createMessage("agent", responseData.text, "assistant", "read", undefined, undefined, responseData.contextLink)]);
           setTimeout(() => {
             const targetAgent = findAvailableAgent(responseData.targetDept!) || SUPPORT_AGENTS.find(a => a.department === responseData.targetDept);
             if (targetAgent) {
               setSessionAgents(prev => prev.find(a => a.employeeId === targetAgent!.employeeId) ? prev : [...prev, targetAgent!]);
               setCurrentAgent(targetAgent);
               setTimeout(() => {
-                setMessages(prev => [...prev, createMessage("agent", `مرحباً، أنا ${targetAgent!.name}. اطلعت على المحادثة، تفضل كيف يمكنني مساعدتك؟`, "assistant")]);
+                setMessages(prev => [...prev, createMessage("agent", `مرحباً، أنا ${targetAgent!.name}. اطلعت على كامل المحادثة السابقة، تفضل كيف يمكنني مساعدتك؟`, "assistant")]);
                 setChatStatus("online");
                 isSendingRef.current = false;
               }, 1000);
@@ -630,23 +430,28 @@ export default function Home() {
           return;
         }
 
-        setMessages(prev => [...prev, createMessage("agent", responseData.text, "assistant")]);
-        if (responseData.quickReplies && responseData.quickReplies.length > 0) {
-          setActiveQuickReplies(responseData.quickReplies);
-        }
-        if (responseData.link) {
-          setContextualLink(responseData.link);
-        }
-        if (responseData.quickReplyLinks) {
-          setQuickReplyLinks(responseData.quickReplyLinks);
-        }
+        setMessages(prev => [...prev, createMessage("agent", responseData.text, "assistant", "read", undefined, responseData.quickReplies, responseData.contextLink)]);
         
-        setChatStatus("online");
+        if (responseData.shouldCloseSession) {
+          setTimeout(() => {
+            setChatStatus("inactive");
+            setTimeout(() => {
+              setMessages(prev => [...prev, createMessage("bot", "يسعدني مساعدتك بأي استفسار جديد.", "assistant")]);
+              setCurrentSpeaker("bot");
+              setCurrentAgent(null);
+              setSessionAgents([]);
+              setChatStatus("online");
+            }, 2000);
+          }, 1500);
+        } else {
+          setChatStatus("online");
+        }
         isSendingRef.current = false;
       }, 1500);
       return; 
     }
 
+    // Bot Flow
     setChatStatus("typing");
     try {
       const normalized = normalizeArabicText(trimmedText);
@@ -659,18 +464,9 @@ export default function Home() {
         return;
       }
 
-      const detectedContext = detectContext(trimmedText);
-      if (detectedContext) {
-        const data = CONTEXTUAL_DATA[detectedContext];
-        setMessages(prev => [...prev, createMessage("bot", data.response, "assistant", "read", data.link ? [{
-          type: 'link',
-          url: data.link.url,
-          title: data.link.title,
-          description: data.link.description
-        }] : [])]);
-        setActiveQuickReplies(data.quickReplies);
-        if (data.quickReplyLinks) setQuickReplyLinks(data.quickReplyLinks);
-        if (data.link) setContextualLink(data.link);
+      const context = detectSmartContext(trimmedText);
+      if (context) {
+        setMessages(prev => [...prev, createMessage("bot", `يسعدني مساعدتك. يمكنك الاطلاع على التفاصيل من هنا:`, "assistant", "read", [{ type: 'link', url: context.link.url, title: context.link.title, description: "اضغط هنا للانتقال" }], ["الأسعار", "الإعلانات", "الدعم الفني", "تواصل معنا"], context.link)]);
         setChatStatus("online");
         isSendingRef.current = false;
         return;
@@ -690,15 +486,7 @@ export default function Home() {
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       
-      const botResponse: Message = createMessage(
-        "bot", 
-        data.text || data.message || "عذراً، لم أتمكن من الرد حالياً.", 
-        "assistant", 
-        "read",
-        data.attachments || [] 
-      );
-
-      setMessages(prev => [...prev, botResponse]);
+      setMessages(prev => [...prev, createMessage("bot", data.text || data.message || "عذراً، لم أتمكن من الرد حالياً.", "assistant", "read", data.attachments || [], ["الأسعار", "الإعلانات", "الدعم الفني", "تواصل معنا"])]);
 
     } catch (error) {
       console.error("Chat API Error:", error);
@@ -709,20 +497,9 @@ export default function Home() {
     }
   }, [text, currentSpeaker, currentAgent, showDepartmentSelection, messages, selectedImage]);
 
-  useEffect(() => { saveStateToStorage(); }, [saveStateToStorage]);
-
-  useEffect(() => {
-    if (!open || messages.length > 0) return;
-    const hasSaved = loadStateFromStorage();
-    if (!hasSaved) {
-      setChatStatus("typing");
-      setTimeout(() => {
-        setMessages([createMessage("bot", "أهلاً وسهلاً بك في قناة مجلة دار النجوم. يسعدني مساعدتك، كيف أستطيع خدمتك اليوم؟", "assistant")]);
-        setChatStatus("online");
-      }, 800);
-    }
-  }, [open, messages.length, loadStateFromStorage]);
-
+  // ============================================================
+  // RENDER HELPERS
+  // ============================================================
   const getStatusText = () => {
     switch (chatStatus) {
       case "typing": return "يكتب الآن...";
@@ -768,6 +545,9 @@ export default function Home() {
     });
   };
 
+  // ============================================================
+  // JSX
+  // ============================================================
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
       <style jsx global>{`
@@ -792,49 +572,15 @@ export default function Home() {
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
 
-        @keyframes float-icon {
-          0%, 100% { transform: translate(0, 0) rotate(0deg); }
-          20% { transform: translate(-5px, -1px) rotate(-1deg); }
-          40% { transform: translate(-3px, 1px) rotate(1deg); }
-          60% { transform: translate(-6px, -1px) rotate(-0.5deg); }
-          80% { transform: translate(-4px, 1px) rotate(0.5deg); }
-        }
-        .animate-float-icon {
-          animation: float-icon 5s ease-in-out infinite;
-        }
-
-        @keyframes subtle-wiggle {
-          0%, 100% { transform: rotate(0deg); }
-          25% { transform: rotate(-0.5deg); }
-          75% { transform: rotate(0.5deg); }
-        }
-        .animate-wiggle {
-          animation: subtle-wiggle 2s ease-in-out infinite;
-        }
-
-        .smooth-snap {
-          transition: left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
         .chat-container {
           scroll-behavior: smooth;
           scrollbar-width: thin;
           scrollbar-color: #a855f7 #1f2937;
         }
-        .chat-container::-webkit-scrollbar {
-          width: 6px;
-        }
-        .chat-container::-webkit-scrollbar-track {
-          background: #1f2937;
-          border-radius: 10px;
-        }
-        .chat-container::-webkit-scrollbar-thumb {
-          background: #a855f7;
-          border-radius: 10px;
-        }
-        .chat-container::-webkit-scrollbar-thumb:hover {
-          background: #9333ea;
-        }
+        .chat-container::-webkit-scrollbar { width: 6px; }
+        .chat-container::-webkit-scrollbar-track { background: #1f2937; border-radius: 10px; }
+        .chat-container::-webkit-scrollbar-thumb { background: #a855f7; border-radius: 10px; }
+        .chat-container::-webkit-scrollbar-thumb:hover { background: #9333ea; }
       `}</style>
 
       {loadingProgress > 0 && (
@@ -893,6 +639,7 @@ export default function Home() {
         </section>
       </main>
 
+      {/* أيقونة المحادثة المحسنة */}
       <div 
         ref={chatButtonRef}
         onPointerDown={handlePointerDown}
@@ -900,40 +647,38 @@ export default function Home() {
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onClick={handleClick}
-        className={`fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none ${iconAnimationState === 'stable' && !isDragging ? 'smooth-snap' : ''}`}
+        className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none"
         style={{ 
           left: `${iconPos.x}px`, 
           top: `${iconPos.y}px`, 
           width: '64px', 
-          height: '64px'
+          height: '64px',
+          transition: isDragging ? 'none' : 'left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'
         }}
         title="مركز المساعدة"
       >
-        <div className={`w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 border-2 border-white/10 ${iconAnimationState === 'stable' && !isDragging ? 'animate-float-icon' : ''}`}>
-          <div className={`${iconAnimationState === 'stable' && !isDragging ? 'animate-wiggle' : ''}`}>
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <g className="animate-cartoon-breathe">
-                <g className={isBlinking ? "animate-blink-human" : ""}>
-                  <circle cx="10" cy="14" r="5" fill="white" />
-                  <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
-                </g>
-                <g className={isBlinking ? "animate-blink-human" : ""} style={{ animationDelay: '0.05s' }}>
-                  <circle cx="22" cy="14" r="5" fill="white" />
-                  <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
-                </g>
-                <path 
-                  d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" 
-                  stroke="white" 
-                  strokeWidth="2.5" 
-                  strokeLinecap="round" 
-                  className={chatStatus === "typing" ? "animate-cartoon-talk" : "animate-cartoon-smile"} 
-                />
-              </g>
-            </svg>
-          </div>
+        <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 border-2 border-white/10 animate-cartoon-breathe">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g className={isBlinking ? "animate-blink-human" : ""}>
+              <circle cx="10" cy="14" r="5" fill="white" />
+              <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+            </g>
+            <g className={isBlinking ? "animate-blink-human" : ""} style={{ animationDelay: '0.05s' }}>
+              <circle cx="22" cy="14" r="5" fill="white" />
+              <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+            </g>
+            <path 
+              d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" 
+              stroke="white" 
+              strokeWidth="2.5" 
+              strokeLinecap="round" 
+              className={chatStatus === "typing" ? "animate-cartoon-talk" : "animate-cartoon-smile"} 
+            />
+          </g>
         </div>
       </div>
 
+      {/* صندوق الدردشة */}
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -962,13 +707,13 @@ export default function Home() {
         </div>
 
         <div ref={chatContainerRef} className="h-80 overflow-y-auto p-4 space-y-4 chat-container bg-[#0b0f1a]/50">
-          {messages.map((msg) => {
+          {messages.map((msg, index) => {
             if (msg.sender === "system") {
               return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%]">{msg.text}</span></div>;
             }
             const isUser = msg.sender === "user";
             return (
-              <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"} animate-slide-in-right`}>
+              <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
                 {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
                 <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
                   {msg.text}
@@ -977,13 +722,11 @@ export default function Home() {
                     <div className="mt-2 space-y-2">
                       {msg.attachments.map((att, idx) => {
                         if (att.type === 'image' && att.url) return <img key={idx} src={att.url} alt="attachment" className="rounded-lg max-w-full h-auto border border-gray-600" />;
-                        if (att.type === 'video' && att.url) return <video key={idx} controls className="rounded-lg max-w-full h-auto border border-gray-600"><source src={att.url} type={att.fileType || 'video/mp4'} />المتصفح لا يدعم تشغيل الفيديو</video>;
-                        if ((att.type === 'link' || att.type === 'card' || att.type === 'product' || att.type === 'file') && att.url) {
+                        if ((att.type === 'link' || att.type === 'card' || att.type === 'product') && att.url) {
                           return (
                             <a key={idx} href={att.url} target="_blank" rel="noopener noreferrer" className="block bg-[#0b0f1a]/50 hover:bg-[#0b0f1a] border border-purple-500/30 rounded-lg p-2 transition-colors">
                               {att.title && <div className="font-bold text-xs text-purple-300 mb-1">{att.title}</div>}
                               {att.description && <div className="text-[10px] text-gray-400">{att.description}</div>}
-                              <div className="text-[10px] text-blue-400 mt-1 truncate">{att.url}</div>
                             </a>
                           );
                         }
@@ -995,40 +738,42 @@ export default function Home() {
                 <span className="text-[10px] text-gray-500 mt-1 px-1 flex items-center gap-1">
                   {msg.time}{isUser && <span>{msg.status === "read" ? "✓✓" : "✓"}</span>}
                 </span>
+
+                {/* 8. أزرار الخيارات السريعة تظهر بعد رد الموظف/البوت */}
+                {!isUser && msg.quickReplies && msg.quickReplies.length > 0 && index === messages.length - 1 && (
+                  <div className="flex flex-wrap gap-2 mt-2 animate-slide-in-right">
+                    {msg.quickReplies.map((reply, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          if (msg.contextLink && msg.quickReplies!.includes(reply)) {
+                            window.open(msg.contextLink.url, '_blank');
+                          }
+                          sendMessage(reply);
+                        }}
+                        className="text-xs bg-[#1f2937] hover:bg-purple-600/30 border border-purple-500/30 hover:border-purple-500 text-purple-300 hover:text-white px-3 py-1.5 rounded-full transition-all duration-200"
+                      >
+                        {reply}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
 
-          {messages.length > 0 && messages[messages.length - 1].sender !== "user" && (activeQuickReplies.length > 0 || contextualLink) && (
-            <div className="flex flex-col items-start mt-2 animate-slide-in-right">
-              {contextualLink && (
-                <a href={contextualLink.url} target="_blank" rel="noopener noreferrer" className="mb-2 flex items-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 rounded-lg px-3 py-2 transition-all w-full max-w-[85%]">
-                  <span className="text-purple-300 font-bold text-sm flex-1">{contextualLink.title}</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                </a>
-              )}
-              {activeQuickReplies.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {activeQuickReplies.map((reply, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        if (quickReplyLinks[reply]) {
-                          window.open(quickReplyLinks[reply].url, '_blank');
-                        }
-                        handleSendMessage(reply);
-                      }}
-                      className="text-xs bg-[#1f2937] hover:bg-purple-600/30 border border-purple-500/30 hover:border-purple-500 text-purple-300 hover:text-white px-3 py-1.5 rounded-full transition-all duration-200"
-                    >
-                      {reply}
-                    </button>
-                  ))}
-                </div>
-              )}
+          {showDepartmentSelection && currentSpeaker === "bot" && (
+            <div className="space-y-2 mt-2 animate-slide-in-right">
+              {DEPARTMENT_OPTIONS.map((dept) => (
+                <button key={dept.id} onClick={() => { setShowDepartmentSelection(false); sendMessage(`أريد التواصل مع ${dept.name}`); }} className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group">
+                  <div className="font-bold text-sm text-purple-300 group-hover:text-purple-200">{dept.name}</div>
+                  <div className="text-xs text-gray-400 mt-1">{dept.description}</div>
+                </button>
+              ))}
             </div>
           )}
 
-          {chatStatus === "typing" && (
+          {chatStatus === "typing" && !showDepartmentSelection && (
             <div className="flex flex-col items-start">
               <span className="text-[10px] text-gray-400 mb-1 ml-1">{currentSpeaker === "agent" && currentAgent ? currentAgent.name : "المساعد الذكي"}</span>
               <div className="bg-[#1f2937] border border-purple-500/30 rounded-2xl rounded-tl-sm p-3 flex gap-1.5 items-center h-10">
@@ -1041,9 +786,10 @@ export default function Home() {
         </div>
 
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
+          {/* 2. معاينة الصورة قبل الإرسال */}
           {selectedImage && (
             <div className="mb-2 relative inline-block">
-              <img src={selectedImage} alt="Selected" className="h-16 w-16 object-cover rounded-lg border border-gray-600" />
+              <img src={selectedImage} alt="معاينة" className="h-16 w-16 object-cover rounded-lg border border-gray-600" />
               <button
                 onClick={() => setSelectedImage(null)}
                 className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 transition-colors"
@@ -1052,28 +798,32 @@ export default function Home() {
               </button>
             </div>
           )}
+          
           <div className="flex gap-2 items-end">
+            {/* زر رفع الصورة */}
             <label className="cursor-pointer p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-gray-700 text-white hover:bg-gray-600">
               <input
                 type="file"
+                ref={fileInputRef}
                 accept="image/*"
-                onChange={handleImageUpload}
+                onChange={handleImageSelect}
                 className="hidden"
               />
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
             </label>
+            
             <textarea
               id="chat-input"
               value={text}
               placeholder={showDepartmentSelection ? "يرجى اختيار قسم من الأعلى..." : "اكتب رسالتك هنا..."}
               onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               rows={1}
               disabled={showDepartmentSelection}
               className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <button 
-              onClick={() => handleSendMessage()} 
+              onClick={() => sendMessage()} 
               disabled={(!text.trim() && !selectedImage) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
               className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
