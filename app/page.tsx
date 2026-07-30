@@ -92,7 +92,7 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'general', name: 'استفسار عام', icon: '❓', description: 'أي استفسار آخر غير مذكور أعلاه' },
 ];
 
-const SESSION_TIMEOUTS = { IDLE_TO_CLOSED: 59, QUEUE_CHECK_INTERVAL: 8000 }; // تم التعديل إلى 59 ثانية
+const SESSION_TIMEOUTS = { IDLE_TO_CLOSED: 59, QUEUE_CHECK_INTERVAL: 8000 };
 
 const TRENDING_PRODUCTS: TrendingProduct[] = [
   { id: 1, name: "كاميرا تصوير احترافية", desc: "خصم 25% لفترة محدودة", img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=150&h=150&fit=crop", shape: "circle" },
@@ -543,7 +543,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // ✅ AGENT INACTIVITY TIMEOUT (59 Seconds) - تم التعديل هنا
+  // AGENT INACTIVITY TIMEOUT (59 Seconds)
   // ============================================================
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
@@ -553,12 +553,10 @@ export default function Home() {
       
       if (secondsIdle >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
         setMessages(prev => {
-          // منع تكرار رسالة الانتهاء إذا تم تشغيل المؤقت أكثر من مرة
           if (prev.some(m => m.text.includes("انتهت مهلة الانتظار"))) return prev;
           return [...prev, createMessage("system", "⏱️ انتهت مهلة الانتظار (59 ثانية) لعدم وجود رد. جاري العودة للمساعد الذكي...", "assistant")];
         });
 
-        // العودة للمساعد الذكي بعد ثانيتين لإعطاء فرصة لقراءة الرسالة
         setTimeout(() => {
           setCurrentSpeaker("bot");
           setCurrentAgent(null);
@@ -574,13 +572,12 @@ export default function Home() {
   }, [currentSpeaker]);
 
   // ============================================================
-  // ✅ RESET TIMER WHEN AGENT REPLIES - تم التعديل هنا
+  // RESET TIMER WHEN AGENT REPLIES
   // ============================================================
   useEffect(() => {
     if (currentSpeaker === "agent" && messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg.sender === "agent") {
-        // إعادة ضبط المؤقت عندما يرد الموظف، لمنح المستخدم 59 ثانية جديدة للرد
         lastActivityTimeRef.current = Date.now();
       }
     }
@@ -605,7 +602,7 @@ export default function Home() {
     isFirstUserMessageAfterTransferRef.current = true;
     setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). اطلعت على المحادثة السابقة، تفضل كيف يمكنني مساعدتك؟`, "assistant")]);
     setChatStatus("online"); 
-    lastActivityTimeRef.current = Date.now(); // ضبط المؤقت عند بدء الجلسة
+    lastActivityTimeRef.current = Date.now();
   }, []);
 
   const handleHumanRequest = useCallback(() => {
@@ -654,7 +651,7 @@ export default function Home() {
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent", fileAttachments.length > 0 ? fileAttachments : undefined)]);
     setText("");
     setUploadedFiles([]);
-    lastActivityTimeRef.current = Date.now(); // ✅ إعادة ضبط المؤقت عند إرسال المستخدم رسالة
+    lastActivityTimeRef.current = Date.now();
 
     // 1. Handle Ticket Mode Flow
     if (isTicketMode) {
@@ -954,7 +951,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* أيقونة المساعد */}
+      {/* ✅ أيقونة المساعد: تم إزالة الظل (boxShadow: 'none') */}
       <div 
         ref={chatButtonRef} 
         onPointerDown={handlePointerDown} 
@@ -970,9 +967,7 @@ export default function Home() {
           height: '64px', 
           transform: `translateX(${idleOffsetX}px) scale(${springScale})`, 
           transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
-          boxShadow: isDragging 
-            ? '0 20px 25px -5px rgba(147, 51, 234, 0.5), 0 8px 10px -6px rgba(147, 51, 234, 0.5)' 
-            : '0 10px 15px -3px rgba(147, 51, 234, 0.3), 0 4px 6px -2px rgba(147, 51, 234, 0.2)' 
+          boxShadow: 'none' // تم إخفاء الظل تماماً
         }} 
         title="مركز المساعدة"
       >
