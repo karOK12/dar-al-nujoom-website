@@ -71,7 +71,6 @@ interface UploadedFile {
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
-// تم توسيع فريق الدعم ليشمل عدة موظفين لكل قسم
 const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "ممثل مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
   { employeeId: "EMP-002", name: "منى العلي", img: "https://i.pravatar.cc/150?img=44", role: "أخصائية مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
@@ -104,6 +103,7 @@ const TRENDING_PRODUCTS: TrendingProduct[] = [
 
 const EXACT_WELCOME_MESSAGE = "أهلاً وسهلاً بك في قناة مجلة دار النجوم. يسعدني مساعدتك، كيف أستطيع خدمتك اليوم؟";
 
+// ✅ تم تصحيح وتنسيق قاعدة المعرفة والأسعار بشكل سليم
 const LOCAL_KNOWLEDGE_BASE = [
   { 
     keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض"], 
@@ -387,7 +387,7 @@ export default function Home() {
   useEffect(() => {
     if (open) {
       targetEyePos.current = { x: 0, y: -2.5 };
-      if (chatStatus === "typing") targetEyePos.current = { x: 0, y: -3.0 };
+      if (chatStatus === "typing" || chatStatus === "waiting") targetEyePos.current = { x: 0, y: -3.0 };
     } else {
       targetEyePos.current = { x: 0, y: 0 };
     }
@@ -585,25 +585,28 @@ export default function Home() {
     setMessages(prev => [...prev, createMessage("system", "يسعدنا خدمتك! يرجى اختيار القسم المناسب ليتم توجيهك للموظف المختص فوراً:", "assistant")]);
   }, []);
 
+  // ✅ تم تحسين صيغة ونظام التحميل عند التحويل للموظف
   const initiateDepartmentTransfer = useCallback((dept: Department) => {
-    setChatStatus("typing");
+    setChatStatus("waiting");
     const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
-    setMessages(prev => [...prev, createMessage("system", `جاري البحث عن موظف متاح في قسم ${deptOption?.name}...`)]);
+    setMessages(prev => [...prev, createMessage("system", `⏳ جاري البحث عن أفضل موظف متاح في قسم **${deptOption?.name}** لتولي طلبك...`)]);
     setShowDepartmentSelection(false);
     
     setTimeout(() => {
       const availableAgent = findAvailableAgent(dept);
       if (availableAgent) { 
-        startAgentSession(availableAgent); 
+        setMessages(prev => [...prev, createMessage("system", `✅ تم العثور على الموظف المختص. جاري تحويل المحادثة الآن...`)]);
+        setTimeout(() => {
+          startAgentSession(availableAgent); 
+        }, 800);
       } else {
-        // Fallback to Ticket System
         setIsTicketMode(true);
         setTicketDept(dept);
         setTicketStep('name');
-        setMessages(prev => [...prev, createMessage("bot", `جميع موظفي قسم ${deptOption?.name} مشغولون حالياً أو غير متاحين. \n\nلا تقلق! يمكننا إنشاء تذكرة دعم لك وسيتم الرد عليك فوراً.\n\nيرجى كتابة **اسمك الكريم** للبدء:`, "assistant")]);
+        setMessages(prev => [...prev, createMessage("bot", `⚠️ جميع موظفي قسم **${deptOption?.name}** مشغولون حالياً أو غير متاحين.\n\nلا تقلق! يمكننا إنشاء تذكرة دعم أولوية لك، وسيتم الرد عليك فوراً.\n\nيرجى كتابة **اسمك الكريم** للبدء:`, "assistant")]);
         setChatStatus("online");
       }
-    }, 1500);
+    }, 2000);
   }, [startAgentSession]);
 
   // ============================================================
@@ -644,7 +647,7 @@ export default function Home() {
         setTimeout(() => {
           const ticketId = Math.floor(1000 + Math.random() * 9000);
           const deptName = DEPARTMENT_OPTIONS.find(d => d.id === ticketDept)?.name || "الدعم";
-          setMessages(prev => [...prev, createMessage("bot", `✅ **تم إنشاء التذكرة بنجاح!**\n\n🎫 رقم التذكرة: #${ticketId}\n📌 القسم: ${deptName}\n👤 الاسم: ${ticketUserName}\n📝 التفاصيل: ${trimmedText}\n\nسيقوم فريق ${deptName} بمراجعة طلبك والرد عليك في أقرب وقت ممكن عبر هذا المحادثة أو عبر وسائل التواصل المسجلة. شكراً لصبرك!`, "assistant")]);
+          setMessages(prev => [...prev, createMessage("bot", `✅ **تم إنشاء التذكرة بنجاح!**\n\n🎫 رقم التذكرة: #${ticketId}\n📌 القسم: ${deptName}\n👤 الاسم: ${ticketUserName}\n📝 التفاصيل: ${trimmedText}\n\nسيقوم فريق ${deptName} بمراجعة طلبك والرد عليك في أقرب وقت ممكن عبر هذه المحادثة أو عبر وسائل التواصل المسجلة. شكراً لصبرك!`, "assistant")]);
           setIsTicketMode(false);
           setTicketStep('name');
           setTicketDept(null);
@@ -681,7 +684,6 @@ export default function Home() {
           isSendingRef.current = false; setTimeout(() => closeAgentSession(), 2500); return;
         }
 
-        // Smart internal transfer if user asks for another department while talking to an agent
         const requestedDept = DEPARTMENT_OPTIONS.find(d => normalized.includes(d.id) || normalized.includes(d.name));
         if (requestedDept && requestedDept.id !== currentAgent.department) {
            setMessages(prev => [...prev, createMessage("agent", `هذا الطلب يخص قسم ${requestedDept.name}، سأقوم بتحويلك الآن إلى الزميل المختص مع الاحتفاظ بسجل المحادثة.`, "assistant")]);
@@ -707,18 +709,15 @@ export default function Home() {
       const isJustGreeting = GREETING_KEYWORDS.some(k => normalized.includes(k)) && normalized.length < 20;
       const isExplicitEmailRequest = EXPLICIT_EMAIL_KEYWORDS.some(k => normalized.includes(k));
 
-      // Explicit Email Request (Only show if explicitly asked)
       if (isExplicitEmailRequest) {
         setMessages(prev => [...prev, createMessage("bot", "يمكنك التواصل معنا عبر البريد الإلكتروني الرسمي:\n📧 info@dar-alnujum.com", "assistant")]);
         setChatStatus("online"); isSendingRef.current = false; return;
       }
 
-      // Human Contact Request -> Show Departments
       if (wantsHumanContact(trimmedText) && !showDepartmentSelection) {
         handleHumanRequest(); isSendingRef.current = false; return;
       }
 
-      // Local Knowledge Base
       const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
       if (kbMatch) {
         const reply = `${kbMatch.explanation}\n\nللمزيد من التفاصيل:`;
@@ -727,13 +726,11 @@ export default function Home() {
         setChatStatus("online"); isSendingRef.current = false; return;
       }
 
-      // Greeting
       if (isJustGreeting) {
         setMessages(prev => [...prev, createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
         setChatStatus("online"); isSendingRef.current = false; return;
       }
 
-      // Fallback to AI API
       const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: (m.sender === "bot" || m.sender === "agent") ? "assistant" : "user", content: m.text }));
       if (apiMessages.length === 0 || apiMessages[apiMessages.length - 1].role !== "user") {
          apiMessages.push({ role: "user", content: trimmedText });
@@ -775,17 +772,23 @@ export default function Home() {
 
   const getStatusText = () => {
     switch (chatStatus) {
-      case "typing": return "يكتب الآن..."; case "online": return "متصل الآن";
-      case "waiting": return "في قائمة الانتظار..."; case "inactive": return "انتهت المحادثة مؤقتاً";
-      case "closed": return "عاد المساعد الذكي"; default: return "غير نشط";
+      case "typing": return "يكتب الآن..."; 
+      case "waiting": return "جاري المعالجة...";
+      case "online": return "متصل الآن";
+      case "inactive": return "انتهت المحادثة مؤقتاً";
+      case "closed": return "عاد المساعد الذكي"; 
+      default: return "غير نشط";
     }
   };
 
   const getStatusColor = () => {
     switch (chatStatus) {
-      case "typing": return "bg-yellow-400 animate-pulse"; case "online": return "bg-green-400 animate-pulse";
-      case "waiting": return "bg-orange-400 animate-pulse"; case "inactive": return "bg-gray-500";
-      case "closed": return "bg-green-400 animate-pulse"; default: return "bg-gray-400";
+      case "typing": return "bg-yellow-400 animate-pulse"; 
+      case "waiting": return "bg-orange-400 animate-pulse";
+      case "online": return "bg-green-400 animate-pulse";
+      case "inactive": return "bg-gray-500";
+      case "closed": return "bg-green-400 animate-pulse"; 
+      default: return "bg-gray-400";
     }
   };
 
@@ -929,7 +932,7 @@ export default function Home() {
                 <circle cx="24" cy="15" r="2.8" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x - 0.3}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
                 <circle cx="25.5" cy="13.5" r="1.2" fill="white" opacity="0.9" style={{ transform: `translate(${eyePos.x * 0.3}px, ${eyePos.y * 0.3}px)` }} />
               </g>
-              <path d={chatStatus === "typing" ? "M 11 24 Q 18 31 25 24" : "M 12 24 Q 18 28 24 24"} stroke="white" strokeWidth="2.5" strokeLinecap="round" fill={chatStatus === "typing" ? "white" : "none"} className="transition-all duration-500 ease-in-out" style={{ transformOrigin: '18px 24px' }} />
+              <path d={chatStatus === "typing" || chatStatus === "waiting" ? "M 11 24 Q 18 31 25 24" : "M 12 24 Q 18 28 24 24"} stroke="white" strokeWidth="2.5" strokeLinecap="round" fill={chatStatus === "typing" || chatStatus === "waiting" ? "white" : "none"} className="transition-all duration-500 ease-in-out" style={{ transformOrigin: '18px 24px' }} />
             </g>
           </svg>
         </div>
@@ -974,7 +977,7 @@ export default function Home() {
           )}
           
           {messages.map((msg) => {
-            if (msg.sender === "system") return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%] whitespace-pre-line">{msg.text}</span></div>;
+            if (msg.sender === "system") return <div key={msg.id} className="flex justify-center my-2"><span className="text-[11px] bg-gray-800/80 text-gray-300 px-3 py-1.5 rounded-full border border-gray-700 text-center max-w-[90%] whitespace-pre-line backdrop-blur-sm">{msg.text}</span></div>;
             const isUser = msg.sender === "user";
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
@@ -988,7 +991,6 @@ export default function Home() {
             );
           })}
 
-          {/* Department Selection Grid */}
           {showDepartmentSelection && currentSpeaker === "bot" && (
             <div className="grid grid-cols-1 gap-2 mt-2 animate-slide-in-right">
               {DEPARTMENT_OPTIONS.map((dept) => (
@@ -1004,13 +1006,25 @@ export default function Home() {
             </div>
           )}
 
-          {chatStatus === "typing" && !showDepartmentSelection && (
+          {/* ✅ تم تحسين مؤشر التحميل ليشمل حالة الانتظار (waiting) بشكل بصري جذاب */}
+          {(chatStatus === "typing" || chatStatus === "waiting") && !showDepartmentSelection && (
             <div className="flex flex-col items-start">
-              <span className="text-[10px] text-gray-400 mb-1 ml-1">{currentSpeaker === "agent" && currentAgent ? currentAgent.name : "المساعد الذكي"}</span>
+              <span className="text-[10px] text-gray-400 mb-1 ml-1">
+                {chatStatus === "waiting" ? "النظام" : (currentSpeaker === "agent" && currentAgent ? currentAgent.name : "المساعد الذكي")}
+              </span>
               <div className="bg-[#1f2937] border border-purple-500/30 rounded-2xl rounded-tl-sm p-3 flex gap-1.5 items-center h-10">
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '0ms' }}></span>
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '200ms' }}></span>
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '400ms' }}></span>
+                {chatStatus === "waiting" ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-xs text-purple-300">جاري المعالجة...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '0ms' }}></span>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '200ms' }}></span>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '400ms' }}></span>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -1051,7 +1065,7 @@ export default function Home() {
               rows={1} disabled={showDepartmentSelection}
               className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            <button onClick={sendMessage} disabled={(!text.trim() && uploadedFiles.length === 0) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            <button onClick={sendMessage} disabled={(!text.trim() && uploadedFiles.length === 0) || chatStatus === "typing" || chatStatus === "waiting" || showDepartmentSelection || isSendingRef.current} className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
             </button>
           </div>
