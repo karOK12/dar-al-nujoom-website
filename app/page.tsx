@@ -74,8 +74,8 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
 ];
 
 const SESSION_TIMEOUTS = {
-  IDLE_TO_INACTIVE: 59000, // 59 ثانية
-  INACTIVE_TO_CLOSED: 2000, // ثانيتين
+  IDLE_TO_INACTIVE: 59000,
+  INACTIVE_TO_CLOSED: 2000,
   QUEUE_CHECK_INTERVAL: 8000,
 };
 
@@ -87,32 +87,157 @@ const TRENDING_PRODUCTS: TrendingProduct[] = [
 ];
 
 // ============================================================
-// SMART CONTEXTUAL OPTIONS & LINKS
+// 3. نظام الروابط المركزي (قابل للتعديل من مكان واحد)
+// ============================================================
+const SITE_PAGES = {
+  pricing: { url: "/pricing", name: "الأسعار والباقات" },
+  services: { url: "/services", name: "الخدمات" },
+  ads: { url: "/ads", name: "الإعلانات" },
+  programs: { url: "/programs", name: "البرامج" },
+  content: { url: "/content", name: "المحتوى" },
+  news: { url: "/news", name: "الأخبار" },
+  festivals: { url: "/festivals", name: "المهرجانات" },
+  gallery: { url: "/gallery", name: "المعرض" },
+  contact: { url: "/contact", name: "اتصل بنا" },
+  partnership: { url: "/partnership", name: "الشراكات" },
+  latestEpisodes: { url: "/programs/latest", name: "أحدث الحلقات" },
+  upcomingPrograms: { url: "/programs/upcoming", name: "البرامج القادمة" },
+  liveStream: { url: "/live", name: "البث المباشر" },
+  currentFestivals: { url: "/festivals/current", name: "المهرجانات الحالية" },
+  upcomingFestivals: { url: "/festivals/upcoming", name: "المهرجانات القادمة" },
+  festivalPhotos: { url: "/festivals/photos", name: "صور المهرجانات" },
+  festivalVideos: { url: "/festivals/videos", name: "فيديوهات المهرجانات" },
+  festivalCoverage: { url: "/festivals/coverage", name: "تغطيات المهرجانات" },
+  login: { url: "/login", name: "تسجيل الدخول" },
+  register: { url: "/register", name: "إنشاء حساب" },
+  resetPassword: { url: "/reset-password", name: "استعادة كلمة المرور" },
+  reportIssue: { url: "/support/report", name: "الإبلاغ عن مشكلة" },
+  supportAgent: { url: "/support/agent", name: "التواصل مع موظف الدعم" },
+  breakingNews: { url: "/news/breaking", name: "الأخبار العاجلة" },
+  localNews: { url: "/news/local", name: "الأخبار المحلية" },
+  worldNews: { url: "/news/world", name: "الأخبار العالمية" },
+  whatsapp: { url: "https://wa.me/", name: "واتساب" },
+  email: { url: "mailto:info@dar-alnujum.com", name: "البريد الإلكتروني" },
+  companySite: { url: "/", name: "موقع الشركة" },
+  contactForm: { url: "/contact/form", name: "نموذج التواصل" },
+  adPrices: { url: "/pricing/ads", name: "أسعار الإعلانات" },
+  packages: { url: "/pricing/packages", name: "الباقات" },
+  customQuote: { url: "/pricing/quote", name: "طلب عرض سعر" },
+  subscriptions: { url: "/pricing/subscriptions", name: "الاشتراكات" },
+  salesContact: { url: "/contact/sales", name: "التواصل مع المبيعات" },
+};
+
+// ============================================================
+// 3 & 4 & 9. البيانات السياقية الموسعة
 // ============================================================
 const CONTEXTUAL_DATA = {
   pricing: {
-    keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض", "بكم", "كم", "اشتراكات"],
-    response: "يسعدني تزويدك بالتفاصيل. يمكنك الاطلاع على خياراتنا أدناه، أو اختيار أحد الخيارات السريعة:",
+    keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض", "بكم", "كم", "اشتراكات", "باقات", "خصم", "تخفيض", "عرض"],
+    response: "يسعدني تزويدك بتفاصيل أسعارنا وباقاتنا. يمكنك الاطلاع على الخيارات أدناه:",
     quickReplies: ["أسعار الإعلانات", "الباقات والاشتراكات", "طلب عرض سعر مخصص", "التواصل مع المبيعات"],
-    link: { title: "صفحة الأسعار والباقات", url: "/pricing", description: "اطلع على جميع التفاصيل" }
+    link: { title: SITE_PAGES.pricing.name, url: SITE_PAGES.pricing.url, description: "جميع الأسعار والباقات" },
+    quickReplyLinks: {
+      "أسعار الإعلانات": SITE_PAGES.adPrices,
+      "الباقات والاشتراكات": SITE_PAGES.packages,
+      "طلب عرض سعر مخصص": SITE_PAGES.customQuote,
+      "التواصل مع المبيعات": SITE_PAGES.salesContact,
+    }
   },
   content: {
-    keywords: ["برامج", "محتوى", "فيديو", "مهرجان", "خبر", "اخبار", "معرض", "فيديوهات", "مقالات"],
+    keywords: ["برامج", "محتوى", "فيديو", "محتويات", "حلقات", "بث", "مشاهدة"],
     response: "يسعدني مساعدتك في استكشاف محتوى قناة دار النجوم. يرجى اختيار ما تبحث عنه:",
-    quickReplies: ["أحدث البرامج", "الأخبار العاجلة", "المهرجانات والتغطيات", "معرض الصور والفيديو"],
-    link: { title: "استكشف المحتوى", url: "/content", description: "برامج، أخبار، ومهرجانات" }
+    quickReplies: ["جميع البرامج", "أحدث الحلقات", "البرامج القادمة", "البث المباشر"],
+    link: { title: SITE_PAGES.content.name, url: SITE_PAGES.content.url, description: "برامج، حلقات، ومحتوى حصري" },
+    quickReplyLinks: {
+      "جميع البرامج": SITE_PAGES.programs,
+      "أحدث الحلقات": SITE_PAGES.latestEpisodes,
+      "البرامج القادمة": SITE_PAGES.upcomingPrograms,
+      "البث المباشر": SITE_PAGES.liveStream,
+    }
+  },
+  festivals: {
+    keywords: ["مهرجان", "مهرجانات", "تغطية", "حفل", "فعالية", "فعاليات"],
+    response: "يسعدني مساعدتك في متابعة المهرجانات والفعاليات. يرجى اختيار ما يهمك:",
+    quickReplies: ["المهرجانات الحالية", "المهرجانات القادمة", "الصور", "الفيديوهات", "التغطيات"],
+    link: { title: SITE_PAGES.festivals.name, url: SITE_PAGES.festivals.url, description: "جميع المهرجانات والفعاليات" },
+    quickReplyLinks: {
+      "المهرجانات الحالية": SITE_PAGES.currentFestivals,
+      "المهرجانات القادمة": SITE_PAGES.upcomingFestivals,
+      "الصور": SITE_PAGES.festivalPhotos,
+      "الفيديوهات": SITE_PAGES.festivalVideos,
+      "التغطيات": SITE_PAGES.festivalCoverage,
+    }
+  },
+  news: {
+    keywords: ["خبر", "اخبار", "عاجل", "محلي", "عالمي", "آخر الأخبار"],
+    response: "يسعدني تزويدك بآخر الأخبار والتحديثات. يرجى اختيار القسم المناسب:",
+    quickReplies: ["آخر الأخبار", "الأخبار العاجلة", "الأخبار المحلية", "الأخبار العالمية"],
+    link: { title: SITE_PAGES.news.name, url: SITE_PAGES.news.url, description: "جميع الأخبار والتحديثات" },
+    quickReplyLinks: {
+      "آخر الأخبار": SITE_PAGES.news,
+      "الأخبار العاجلة": SITE_PAGES.breakingNews,
+      "الأخبار المحلية": SITE_PAGES.localNews,
+      "الأخبار العالمية": SITE_PAGES.worldNews,
+    }
   },
   support: {
-    keywords: ["دعم", "مشكلة", "خطأ", "دخول", "حساب", "كلمة مرور", "فني", "تسجيل"],
-    response: "أعتذر عن أي إزعاج. فريق الدعم الفني جاهز لمساعدتك. يرجى تحديد المشكلة أو اختيار خيار سريع:",
-    quickReplies: ["مشكلة في تسجيل الدخول", "استعادة كلمة المرور", "الإبلاغ عن خطأ في الموقع", "التواصل مع موظف الدعم"],
-    link: { title: "مركز المساعدة", url: "/support", description: "حلول سريعة للأسئلة الشائعة" }
+    keywords: ["دعم", "مشكلة", "خطأ", "دخول", "حساب", "كلمة مرور", "فني", "تسجيل", "باسوورد", "لوقن"],
+    response: "أعتذر عن أي إزعاج. فريق الدعم الفني جاهز لمساعدتك. يرجى تحديد المشكلة:",
+    quickReplies: ["تسجيل الدخول", "إنشاء حساب", "استعادة كلمة المرور", "الإبلاغ عن مشكلة", "التواصل مع موظف الدعم"],
+    link: { title: "مركز المساعدة", url: "/support", description: "حلول سريعة للأسئلة الشائعة" },
+    quickReplyLinks: {
+      "تسجيل الدخول": SITE_PAGES.login,
+      "إنشاء حساب": SITE_PAGES.register,
+      "استعادة كلمة المرور": SITE_PAGES.resetPassword,
+      "الإبلاغ عن مشكلة": SITE_PAGES.reportIssue,
+      "التواصل مع موظف الدعم": SITE_PAGES.supportAgent,
+    }
   },
   contact: {
-    keywords: ["تواصل", "اتصل", "واتساب", "بريد", "موقع"],
+    keywords: ["تواصل", "اتصل", "واتساب", "بريد", "موقع", "تواصلوا", "راسل", "راسلنا"],
     response: "يسعدنا تواصلك معنا. يمكنك اختيار الطريقة الأنسب لك:",
-    quickReplies: ["تواصل عبر واتساب", "البريد الإلكتروني", "نموذج التواصل في الموقع"],
-    link: { title: "صفحة اتصل بنا", url: "/contact", description: "جميع قنوات التواصل الرسمية" }
+    quickReplies: ["واتساب", "البريد الإلكتروني", "موقع الشركة", "نموذج التواصل"],
+    link: { title: SITE_PAGES.contact.name, url: SITE_PAGES.contact.url, description: "جميع قنوات التواصل الرسمية" },
+    quickReplyLinks: {
+      "واتساب": SITE_PAGES.whatsapp,
+      "البريد الإلكتروني": SITE_PAGES.email,
+      "موقع الشركة": SITE_PAGES.companySite,
+      "نموذج التواصل": SITE_PAGES.contactForm,
+    }
+  },
+  services: {
+    keywords: ["خدمات", "خدمة", "نقدم", "تقدمون", "متوفر"],
+    response: "يسعدني تعريفك على خدماتنا المتنوعة. يمكنك استكشاف المزيد من خلال الرابط:",
+    quickReplies: ["جميع الخدمات", "خدمات الإعلانات", "خدمات المحتوى", "الشراكات"],
+    link: { title: SITE_PAGES.services.name, url: SITE_PAGES.services.url, description: "جميع الخدمات التي نقدمها" },
+    quickReplyLinks: {
+      "جميع الخدمات": SITE_PAGES.services,
+      "خدمات الإعلانات": SITE_PAGES.ads,
+      "خدمات المحتوى": SITE_PAGES.content,
+      "الشراكات": SITE_PAGES.partnership,
+    }
+  },
+  gallery: {
+    keywords: ["معرض", "صور", "فيديوهات", "معرض الصور", "استوديو"],
+    response: "يسعدني عرض معرض الصور والفيديوهات الخاص بنا. تفضل بالاطلاع:",
+    quickReplies: ["معرض الصور", "معرض الفيديوهات", "جميع المحتوى المرئي"],
+    link: { title: SITE_PAGES.gallery.name, url: SITE_PAGES.gallery.url, description: "معرض الصور والفيديوهات" },
+    quickReplyLinks: {
+      "معرض الصور": SITE_PAGES.festivalPhotos,
+      "معرض الفيديوهات": SITE_PAGES.festivalVideos,
+      "جميع المحتوى المرئي": SITE_PAGES.gallery,
+    }
+  },
+  partnership: {
+    keywords: ["شراكة", "شراكات", "تعاون", "رعاية", "شريك"],
+    response: "يسعدنا اهتمامك بالشراكة معنا. يمكنك الاطلاع على تفاصيل الشراكات:",
+    quickReplies: ["تفاصيل الشراكات", "رعاية البرامج", "التواصل مع الإدارة"],
+    link: { title: SITE_PAGES.partnership.name, url: SITE_PAGES.partnership.url, description: "فرص الشراكة والتعاون" },
+    quickReplyLinks: {
+      "تفاصيل الشراكات": SITE_PAGES.partnership,
+      "رعاية البرامج": SITE_PAGES.ads,
+      "التواصل مع الإدارة": SITE_PAGES.contact,
+    }
   }
 };
 
@@ -169,7 +294,7 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
-  // استخدام x و y لتسهيل حسابات السحب والالتصاق بالحواف
+  // استخدام left و top مع حفظ موضع الأيقونة
   const [iconPos, setIconPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 80 : 0, y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0 });
   const [isDragging, setIsDragging] = useState(false);
   
@@ -197,16 +322,34 @@ export default function Home() {
   const dragStartPos = useRef({ x: 0, y: 0 });
   const pointerStartPos = useRef({ x: 0, y: 0 });
   const hasDragged = useRef(false);
+  const hasEnteredRef = useRef(false);
 
   // حالة الاختيارات الذكية
   const [activeQuickReplies, setActiveQuickReplies] = useState<string[]>([]);
   const [contextualLink, setContextualLink] = useState<{title: string, url: string, description: string} | null>(null);
+  const [quickReplyLinks, setQuickReplyLinks] = useState<Record<string, {url: string, name: string}>>({});
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // 5. إدارة حالة الموظف والوقت (Online -> Inactive -> Closed -> Bot)
+  // 1. حركة الدخول الأولى (Slide In من اليمين) - مرة واحدة فقط
+  // ============================================================
+  useEffect(() => {
+    if (!hasEnteredRef.current && typeof window !== 'undefined') {
+      hasEnteredRef.current = true;
+      // ابدأ من خارج الشاشة (يمين)
+      setIconPos({ x: window.innerWidth + 100, y: window.innerHeight - 80 });
+      
+      // بعد 100ms، ادخل بحركة ناعمة
+      setTimeout(() => {
+        setIconPos({ x: window.innerWidth - 80, y: window.innerHeight - 80 });
+      }, 100);
+    }
+  }, []);
+
+  // ============================================================
+  // 5. إدارة حالة الموظف (Online -> Inactive -> Closed -> Bot)
   // ============================================================
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
@@ -214,7 +357,6 @@ export default function Home() {
     let inactivityTimer: NodeJS.Timeout;
     let closedTimer: NodeJS.Timeout;
 
-    // إعادة ضبط المؤقتات فقط عند إرسال المستخدم لرسالة جديدة
     const lastMsg = messages[messages.length - 1];
     if (lastMsg && lastMsg.sender === "user") {
       clearTimeout(inactivityTimer);
@@ -222,13 +364,12 @@ export default function Home() {
       setChatStatus("online");
 
       inactivityTimer = setTimeout(() => {
-        setChatStatus("inactive"); // 🟡 غير نشط
+        setChatStatus("inactive");
         
         closedTimer = setTimeout(() => {
-          setChatStatus("closed"); // ⚫ انتهت المحادثة
+          setChatStatus("closed");
           
           setTimeout(() => {
-            // العودة للمساعد الآلي
             setMessages(prev => [...prev, createMessage("bot", "انتهت جلسة الدعم الحالية، يسعدني مساعدتك بأي استفسار جديد.", "assistant")]);
             setCurrentSpeaker("bot");
             setCurrentAgent(null);
@@ -236,6 +377,7 @@ export default function Home() {
             setChatStatus("online");
             setActiveQuickReplies([]);
             setContextualLink(null);
+            setQuickReplyLinks({});
             lastActivityTimeRef.current = Date.now();
           }, 2000);
         }, SESSION_TIMEOUTS.INACTIVE_TO_CLOSED);
@@ -247,13 +389,6 @@ export default function Home() {
       clearTimeout(closedTimer);
     };
   }, [messages, currentSpeaker]);
-
-  // ============================================================
-  // 1. حركة الأيقونة العائمة (Floating Animation)
-  // ============================================================
-  useEffect(() => {
-    // الحركة تتوقف تلقائياً عند السحب بسبب شرط !isDragging في الـ className
-  }, [isDragging]);
 
   // ============================================================
   // LOCAL STORAGE
@@ -295,7 +430,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // 2. تطوير السحب والإفلات (Snap to Edge)
+  // 2. نظام السحب والإفلات الاحترافي (Snap to Edge)
   // ============================================================
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
@@ -327,7 +462,7 @@ export default function Home() {
     setIsDragging(false);
     chatButtonRef.current?.releasePointerCapture(e.pointerId);
     
-    // الالتصاق بأقرب حافة (يمين أو يسار)
+    // 2. الالتصاق بأقرب حافة (يمين أو يسار) مع Smooth Animation
     const distToLeft = iconPos.x;
     const distToRight = window.innerWidth - iconPos.x - 64;
     const finalX = distToLeft < distToRight ? 16 : window.innerWidth - 80;
@@ -337,7 +472,6 @@ export default function Home() {
   }, [isDragging, iconPos]);
 
   const handleClick = useCallback(() => {
-    // لا تفتح المحادثة إذا كان المستخدم يسحب
     if (!hasDragged.current) {
       setOpen(prev => !prev);
     }
@@ -345,23 +479,36 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // 8. تحليل التخصص والتوجيه الذكي للموظف
+  // 4 & 8. تحليل الرسالة وتحديد السياق والتخصص
   // ============================================================
+  const detectContext = (userText: string): keyof typeof CONTEXTUAL_DATA | null => {
+    const n = normalizeArabicText(userText);
+    
+    for (const [key, data] of Object.entries(CONTEXTUAL_DATA)) {
+      if (data.keywords.some(k => n.includes(k))) {
+        return key as keyof typeof CONTEXTUAL_DATA;
+      }
+    }
+    return null;
+  };
+
   const getAgentResponseData = (userText: string, agentDept: Department) => {
     const n = normalizeArabicText(userText);
+    const detectedContext = detectContext(userText);
     
     const isAds = ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض", "بكم", "كم"].some(k => n.includes(k));
     const isTech = ["دعم", "مشكلة", "خطأ", "دخول", "حساب", "كلمة مرور", "فني"].some(k => n.includes(k));
     const isContent = ["برامج", "محتوى", "فيديو", "مهرجان", "خبر", "اخبار", "معرض", "فيديوهات"].some(k => n.includes(k));
 
-    // التحويل الذكي إذا كان الطلب خارج التخصص
-    if (agentDept === 'technical' && isAds) {
+    // 8. التحويل الذكي إذا كان الطلب خارج التخصص
+    if (agentDept === 'technical' && (isAds || detectedContext === 'pricing')) {
       return { 
         shouldTransfer: true, 
         targetDept: 'ads' as Department, 
         text: "يرجى الانتظار قليلاً، سأقوم بتحويلك إلى الزميل المختص في قسم المبيعات والإعلانات حتى تحصل على أفضل مساعدة.",
         quickReplies: [],
-        link: null
+        link: null,
+        quickReplyLinks: {}
       };
     }
     if (agentDept === 'ads' && isTech) {
@@ -370,27 +517,30 @@ export default function Home() {
         targetDept: 'technical' as Department, 
         text: "يرجى الانتظار قليلاً، سأقوم بتحويلك إلى الزميل المختص في قسم الدعم الفني حتى تحصل على أفضل مساعدة.",
         quickReplies: [],
-        link: null
+        link: null,
+        quickReplyLinks: {}
       };
     }
 
-    // الردود السياقية الذكية
-    if (isAds) {
-      return { shouldTransfer: false, ...CONTEXTUAL_DATA.pricing };
-    }
-    if (isContent) {
-      return { shouldTransfer: false, ...CONTEXTUAL_DATA.content };
-    }
-    if (isTech) {
-      return { shouldTransfer: false, ...CONTEXTUAL_DATA.support };
+    // 9. الردود السياقية الذكية حسب السياق المكتشف
+    if (detectedContext) {
+      const data = CONTEXTUAL_DATA[detectedContext];
+      return { 
+        shouldTransfer: false, 
+        text: data.response,
+        quickReplies: data.quickReplies,
+        link: data.link,
+        quickReplyLinks: data.quickReplyLinks || {}
+      };
     }
 
-    // ردود افتراضية احترافية غير مكررة
+    // 7. ردود افتراضية احترافية غير مكررة
     const defaultReplies = [
       "أشكرك على تواصلك معنا. سأراجع طلبك الآن.",
       "يرجى الانتظار لحظة أثناء التحقق من المعلومات.",
       "تم العثور على المعلومات المطلوبة، يسعدني تزويدك بالتفاصيل.",
-      "إذا احتجت أي مساعدة إضافية فأنا حاضر."
+      "إذا احتجت أي مساعدة إضافية فأنا حاضر.",
+      "مرحباً بك، يسعدني مساعدتك. كيف يمكنني خدمتك اليوم؟"
     ];
     
     const availableReplies = defaultReplies.filter(r => !previousAgentRepliesRef.current.has(r));
@@ -398,11 +548,18 @@ export default function Home() {
     previousAgentRepliesRef.current.add(chosenReply);
     if (previousAgentRepliesRef.current.size > 5) previousAgentRepliesRef.current.clear();
 
+    // عرض أفضل 4 احتمالات إذا لم يتمكن النظام من فهم المقصود
     return {
       shouldTransfer: false,
       text: chosenReply,
-      quickReplies: ["هل يوجد أي استفسار آخر يمكنني مساعدتك به؟", "تصفح قسم الأسعار", "تواصل مع الدعم الفني"],
-      link: null
+      quickReplies: ["الأسعار والباقات", "البرامج والمحتوى", "الدعم الفني", "التواصل معنا"],
+      link: null,
+      quickReplyLinks: {
+        "الأسعار والباقات": SITE_PAGES.pricing,
+        "البرامج والمحتوى": SITE_PAGES.content,
+        "الدعم الفني": SITE_PAGES.reportIssue,
+        "التواصل معنا": SITE_PAGES.contact,
+      }
     };
   };
 
@@ -424,6 +581,7 @@ export default function Home() {
     // إخفاء الاختيارات السابقة عند إرسال رسالة جديدة
     setActiveQuickReplies([]);
     setContextualLink(null);
+    setQuickReplyLinks({});
 
     if (wantsHumanContact(trimmedText) && currentSpeaker === "bot" && !showDepartmentSelection) {
       setShowDepartmentSelection(true);
@@ -439,8 +597,8 @@ export default function Home() {
         const normalized = normalizeArabicText(trimmedText);
         
         // 7. إنهاء المحادثة عند رد المستخدم بكلمات الإنهاء
-        const closingKeywords = ["لا", "شكراً", "شكرا", "هذا كل شيء", "انتهيت", "خلص", "لا شكرا", "لا احتاج"];
-        const isClosing = closingKeywords.some(k => normalized.includes(k));
+        const closingKeywords = ["لا", "شكراً", "شكرا", "هذا كل شيء", "انتهيت", "خلص", "لا شكرا", "لا احتاج", "خلاص"];
+        const isClosing = closingKeywords.some(k => normalized.includes(k)) && normalized.length < 25;
 
         if (isClosing) {
           const finalReply = "شكراً لتواصلك معنا، نتمنى لك يوماً سعيداً، ويسعدنا خدمتك في أي وقت.";
@@ -448,7 +606,6 @@ export default function Home() {
           setChatStatus("online");
           isSendingRef.current = false;
           
-          // بدء تسلسل الإغلاق
           setTimeout(() => {
             setChatStatus("inactive");
             setTimeout(() => {
@@ -457,6 +614,9 @@ export default function Home() {
               setCurrentAgent(null);
               setSessionAgents([]);
               setChatStatus("online");
+              setActiveQuickReplies([]);
+              setContextualLink(null);
+              setQuickReplyLinks({});
             }, 2000);
           }, 1000);
           return;
@@ -490,6 +650,9 @@ export default function Home() {
         if (responseData.link) {
           setContextualLink(responseData.link);
         }
+        if (responseData.quickReplyLinks) {
+          setQuickReplyLinks(responseData.quickReplyLinks);
+        }
         
         setChatStatus("online");
         isSendingRef.current = false;
@@ -505,6 +668,24 @@ export default function Home() {
 
       if (isJustGreeting) {
         setMessages(prev => [...prev, createMessage("bot", "أهلاً وسهلاً بك في قناة مجلة دار النجوم. يسعدني مساعدتك، كيف أستطيع خدمتك اليوم؟", "assistant")]);
+        setChatStatus("online");
+        isSendingRef.current = false;
+        return;
+      }
+
+      // 4. تحليل الرسالة في البوت أيضاً وعرض الاختيارات الذكية
+      const detectedContext = detectContext(trimmedText);
+      if (detectedContext) {
+        const data = CONTEXTUAL_DATA[detectedContext];
+        setMessages(prev => [...prev, createMessage("bot", data.response, "assistant", "read", data.link ? [{
+          type: 'link',
+          url: data.link.url,
+          title: data.link.title,
+          description: data.link.description
+        }] : [])]);
+        setActiveQuickReplies(data.quickReplies);
+        if (data.quickReplyLinks) setQuickReplyLinks(data.quickReplyLinks);
+        if (data.link) setContextualLink(data.link);
         setChatStatus("online");
         isSendingRef.current = false;
         return;
@@ -632,15 +813,31 @@ export default function Home() {
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
 
-        /* 1. حركة الأيقونة العائمة (Floating Animation) */
+        /* 1. حركة الأيقونة العائمة مع الاهتزاز */
         @keyframes float-icon {
-          0%, 100% { transform: translateX(0) rotate(0deg); }
-          25% { transform: translateX(-6px) rotate(-2deg); }
-          50% { transform: translateX(-3px) rotate(1deg); }
-          75% { transform: translateX(-6px) rotate(-1deg); }
+          0%, 100% { transform: translate(0, 0) rotate(0deg); }
+          20% { transform: translate(-5px, -1px) rotate(-1deg); }
+          40% { transform: translate(-3px, 1px) rotate(1deg); }
+          60% { transform: translate(-6px, -1px) rotate(-0.5deg); }
+          80% { transform: translate(-4px, 1px) rotate(0.5deg); }
         }
         .animate-float-icon {
-          animation: float-icon 4s ease-in-out infinite;
+          animation: float-icon 5s ease-in-out infinite;
+        }
+
+        /* اهتزاز بسيط جداً */
+        @keyframes subtle-wiggle {
+          0%, 100% { transform: rotate(0deg); }
+          25% { transform: rotate(-0.5deg); }
+          75% { transform: rotate(0.5deg); }
+        }
+        .animate-wiggle {
+          animation: subtle-wiggle 2s ease-in-out infinite;
+        }
+
+        /* Smooth transition للسحب */
+        .smooth-snap {
+          transition: left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
       `}</style>
 
@@ -700,7 +897,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 1 & 2. أيقونة المساعد: حركة عائمة، سحب وإفلات، التصاق بالحواف، بدون خلفية سوداء */}
+      {/* 1 & 2. أيقونة المساعد: Slide In + Floating + Wiggle + Drag & Drop + Snap to Edge */}
       <div 
         ref={chatButtonRef}
         onPointerDown={handlePointerDown}
@@ -708,7 +905,7 @@ export default function Home() {
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onClick={handleClick}
-        className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none"
+        className={`fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none ${!isDragging ? 'smooth-snap' : ''}`}
         style={{ 
           left: `${iconPos.x}px`, 
           top: `${iconPos.y}px`, 
@@ -717,26 +914,28 @@ export default function Home() {
         }}
         title="مركز المساعدة"
       >
-        <div className={`w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 border-2 border-white/10 animate-slide-in-right ${!isDragging ? 'animate-float-icon' : ''}`}>
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <g className="animate-cartoon-breathe">
-              <g className={isBlinking ? "animate-blink-human" : ""}>
-                <circle cx="10" cy="14" r="5" fill="white" />
-                <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+        <div className={`w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 border-2 border-white/10 ${!isDragging ? 'animate-float-icon' : ''}`}>
+          <div className={`${!isDragging ? 'animate-wiggle' : ''}`}>
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <g className="animate-cartoon-breathe">
+                <g className={isBlinking ? "animate-blink-human" : ""}>
+                  <circle cx="10" cy="14" r="5" fill="white" />
+                  <circle cx="10" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+                </g>
+                <g className={isBlinking ? "animate-blink-human" : ""} style={{ animationDelay: '0.05s' }}>
+                  <circle cx="22" cy="14" r="5" fill="white" />
+                  <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
+                </g>
+                <path 
+                  d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" 
+                  stroke="white" 
+                  strokeWidth="2.5" 
+                  strokeLinecap="round" 
+                  className={chatStatus === "typing" ? "animate-cartoon-talk" : "animate-cartoon-smile"} 
+                />
               </g>
-              <g className={isBlinking ? "animate-blink-human" : ""} style={{ animationDelay: '0.05s' }}>
-                <circle cx="22" cy="14" r="5" fill="white" />
-                <circle cx="22" cy="14" r="2.5" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
-              </g>
-              <path 
-                d="M10 22C10 22 14 26 16 26C18 26 22 22 22 22" 
-                stroke="white" 
-                strokeWidth="2.5" 
-                strokeLinecap="round" 
-                className={chatStatus === "typing" ? "animate-cartoon-talk" : "animate-cartoon-smile"} 
-              />
-            </g>
-          </svg>
+            </svg>
+          </div>
         </div>
       </div>
 
@@ -806,12 +1005,12 @@ export default function Home() {
             );
           })}
 
-          {/* 10. عرض الاختيارات الذكية والرابط السياقي أسفل آخر رسالة من البوت/الموظف */}
+          {/* 9. عرض الاختيارات الذكية والرابط السياقي */}
           {messages.length > 0 && messages[messages.length - 1].sender !== "user" && (activeQuickReplies.length > 0 || contextualLink) && (
             <div className="flex flex-col items-start mt-2 animate-slide-in-right">
               {contextualLink && (
                 <a href={contextualLink.url} target="_blank" rel="noopener noreferrer" className="mb-2 flex items-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 rounded-lg px-3 py-2 transition-all w-full max-w-[85%]">
-                  <span className="text-purple-300 font-bold text-sm">{contextualLink.title}</span>
+                  <span className="text-purple-300 font-bold text-sm flex-1">{contextualLink.title}</span>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                 </a>
               )}
@@ -820,7 +1019,13 @@ export default function Home() {
                   {activeQuickReplies.map((reply, idx) => (
                     <button
                       key={idx}
-                      onClick={() => sendMessage(reply)}
+                      onClick={() => {
+                        // إذا كان للرد رابط، افتحه في تاب جديد
+                        if (quickReplyLinks[reply]) {
+                          window.open(quickReplyLinks[reply].url, '_blank');
+                        }
+                        sendMessage(reply);
+                      }}
                       className="text-xs bg-[#1f2937] hover:bg-purple-600/30 border border-purple-500/30 hover:border-purple-500 text-purple-300 hover:text-white px-3 py-1.5 rounded-full transition-all duration-200"
                     >
                       {reply}
