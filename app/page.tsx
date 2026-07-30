@@ -8,7 +8,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 type Sender = "user" | "bot" | "agent" | "system";
 type AgentStatus = "online" | "away" | "offline";
-type Department = 'support' | 'ads' | 'technical';
+type Department = 'sales' | 'technical' | 'ads' | 'accounting' | 'partnerships' | 'orders' | 'general';
 type ChatStatus = "typing" | "online" | "waiting" | "inactive" | "closed";
 type ProductShape = "circle" | "rectangle" | "square" | "portrait";
 type AttachmentType = 'image' | 'link' | 'card' | 'product' | 'file' | 'video';
@@ -42,12 +42,12 @@ interface Agent {
   status: AgentStatus;
   lastActivity: string;
   isBusy: boolean;
-  isRealAgent?: boolean;
 }
 
 interface DepartmentOption {
   id: Department;
   name: string;
+  icon: string;
   description: string;
 }
 
@@ -71,17 +71,26 @@ interface UploadedFile {
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
+// تم توسيع فريق الدعم ليشمل عدة موظفين لكل قسم
 const SUPPORT_AGENTS: Agent[] = [
-  { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
-  { employeeId: "EMP-002", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
-  { employeeId: "EMP-003", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=47", role: "مسؤولة الإعلانات والمبيعات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
+  { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "ممثل مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-002", name: "منى العلي", img: "https://i.pravatar.cc/150?img=44", role: "أخصائية مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-003", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=47", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-004", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=32", role: "مديرة الإعلانات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-005", name: "أحمد المحاسب", img: "https://i.pravatar.cc/150?img=11", role: "قسم المحاسبة", department: 'accounting', status: 'away', lastActivity: new Date().toISOString(), isBusy: true },
+  { employeeId: "EMP-006", name: "ليلى الشراكات", img: "https://i.pravatar.cc/150?img=5", role: "منسقة شراكات", department: 'partnerships', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-007", name: "عمر المتابعة", img: "https://i.pravatar.cc/150?img=12", role: "متابعة الطلبات", department: 'orders', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-008", name: "فاطمة الخدمة", img: "https://i.pravatar.cc/150?img=9", role: "خدمة العملاء", department: 'general', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
 ];
 
-// تم تحديث أسماء الأقسام لتطابق طلبك تماماً
 const DEPARTMENT_OPTIONS: DepartmentOption[] = [
-  { id: 'support', name: 'استفسارات عامة وخدمة العملاء', description: 'تواصل مباشر مع موظف خدمة العملاء' },
-  { id: 'ads', name: 'قسم المبيعات والإعلانات', description: 'تواصل مباشر مع فريق المبيعات والدعاية' },
-  { id: 'technical', name: 'قسم الدعم الفني', description: 'تواصل مباشر مع فريق الدعم الفني' },
+  { id: 'sales', name: 'المبيعات', icon: '🛒', description: 'حجز باقات، استفسارات عن الأسعار والعروض' },
+  { id: 'technical', name: 'الدعم الفني', icon: '🛠️', description: 'حل المشاكل التقنية، أخطاء الموقع، تسجيل الدخول' },
+  { id: 'ads', name: 'الإعلانات والرعاية', icon: '📢', description: 'حجز مساحات إعلانية، رعاية البرامج والمحتوى' },
+  { id: 'accounting', name: 'المحاسبة', icon: '💳', description: 'الفواتير، طرق الدفع، الاسترجاع المالي' },
+  { id: 'partnerships', name: 'الشراكات', icon: '🤝', description: 'تعاون مع المؤثرين، شركاء استراتيجيين' },
+  { id: 'orders', name: 'متابعة الطلبات', icon: '📦', description: 'حالة الطلب، أرقام التتبع، الشحن والتوصيل' },
+  { id: 'general', name: 'استفسار عام', icon: '❓', description: 'أي استفسار آخر غير مذكور أعلاه' },
 ];
 
 const SESSION_TIMEOUTS = { IDLE_TO_CLOSED: 60, QUEUE_CHECK_INTERVAL: 8000 };
@@ -98,41 +107,26 @@ const EXACT_WELCOME_MESSAGE = "أهلاً وسهلاً بك في قناة مجل
 const LOCAL_KNOWLEDGE_BASE = [
   { 
     keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض"], 
-    targetDept: 'ads' as Department,
-    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الإعلانية الأساسية:\n🔹 الأسبوعية: 135$ (50,000 ظهور)\n🔹 الشهرية: 405$ (200,000 ظهور)\n🔹 الاحترافية: 810$ (500,000+ ظهور)",
+    targetDept: 'sales' as Department,
+    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الأساسية:\n🔹 الأسبوعية: 135$\n🔹 الشهرية: 405$\n🔹 الاحترافية: 810$",
     link: "/pricing",
     linkText: "صفحة الأسعار والتفاصيل الكاملة",
     linkDesc: "اطلع على جميع الباقات والشروط"
   },
   { 
     keywords: ["سياسة", "خصوصية"], 
-    targetDept: 'support' as Department,
-    explanation: "يمكنك الاطلاع على كافة التفاصيل المتعلقة بحماية البيانات والشروط القانونية:",
+    targetDept: 'general' as Department,
+    explanation: "يمكنك الاطلاع على كافة التفاصيل المتعلقة بحماية البيانات:",
     link: "/privacy",
     linkText: "سياسة الخصوصية",
     linkDesc: "سياسة حماية البيانات والخصوصية"
-  },
-  { 
-    keywords: ["شروط", "احكام"], 
-    targetDept: 'support' as Department,
-    explanation: "جميع الشروط والأحكام المنظمة لاستخدام المنصة متاحة هنا:",
-    link: "/terms",
-    linkText: "الشروط والأحكام",
-    linkDesc: "الشروط القانونية لاستخدام المنصة"
-  },
-  {
-    keywords: ["من نحن", "تعرف علينا"],
-    targetDept: 'support' as Department,
-    explanation: "نحن منصة دار النجوم الإعلامية، منصتكم الأولى لعالم المشاهير والمحتوى الحصري.",
-    link: "/about",
-    linkText: "من نحن",
-    linkDesc: "تعرف على فريقنا ورؤيتنا"
   }
 ];
 
 const GREETING_KEYWORDS = ["مرحبا", "هلا", "سلام", "صباح", "مساء", "اهلين", "السلام"];
+const EXPLICIT_EMAIL_KEYWORDS = ["ايميل", "بريد", "email", "عنوان البريد"];
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/mov', 'video/webm'];
 const ALLOWED_DOC_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
@@ -154,14 +148,9 @@ const normalizeArabicText = (text: string): string => {
     .toLowerCase();
 };
 
-// تم توسيع الكلمات المفتاحية لتشمل طلبات التواصل المباشر
 const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
-  const humanRequestKeywords = [
-    "موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", 
-    "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول",
-    "تواصل", "اتصل", "مبيعات", "دعم فني", "اعلانات", "استفسار", "بريد", "ايميل"
-  ];
+  const humanRequestKeywords = ["موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول", "دعم", "مساعدة"];
   return humanRequestKeywords.some(keyword => normalized.includes(keyword));
 };
 
@@ -207,6 +196,12 @@ export default function Home() {
   const [isQueued, setIsQueued] = useState(false);
   const [showDepartmentSelection, setShowDepartmentSelection] = useState(false);
   
+  // Ticket Creation State
+  const [isTicketMode, setIsTicketMode] = useState(false);
+  const [ticketStep, setTicketStep] = useState<'name' | 'details' | 'submitting'>('name');
+  const [ticketDept, setTicketDept] = useState<Department | null>(null);
+  const [ticketUserName, setTicketUserName] = useState("");
+  
   const [loadingProgress, setLoadingProgress] = useState(0);
   
   // Animation & Drag States
@@ -219,7 +214,6 @@ export default function Home() {
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
   
-  // File Upload States
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   
@@ -239,12 +233,6 @@ export default function Home() {
   const chatStatusRef = useRef(chatStatus);
   const lastActivityTimeRef = useRef(Date.now());
   const isSendingRef = useRef(false);
-  const previousAgentRepliesRef = useRef<Set<string>>(new Set());
-  
-  const conversationContextRef = useRef<string[]>([]);
-  const lastHandledTopicRef = useRef<string | null>(null);
-  const conversationPhaseRef = useRef<"initial" | "ongoing" | "clarifying" | "closing_pending" | "ended">("initial");
-  const messageCountRef = useRef<number>(0);
   const isFirstUserMessageAfterTransferRef = useRef(true);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
@@ -399,9 +387,7 @@ export default function Home() {
   useEffect(() => {
     if (open) {
       targetEyePos.current = { x: 0, y: -2.5 };
-      if (chatStatus === "typing") {
-        targetEyePos.current = { x: 0, y: -3.0 };
-      }
+      if (chatStatus === "typing") targetEyePos.current = { x: 0, y: -3.0 };
     } else {
       targetEyePos.current = { x: 0, y: 0 };
     }
@@ -445,21 +431,13 @@ export default function Home() {
     const distToRight = screenWidth - x - iconSize;
     const distToTop = y;
     const distToBottom = screenHeight - y - iconSize;
-    
     const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
     
-    let snappedX = x;
-    let snappedY = y;
-    
-    if (minDist === distToLeft) {
-      snappedX = margin;
-    } else if (minDist === distToRight) {
-      snappedX = screenWidth - iconSize - margin;
-    } else if (minDist === distToTop) {
-      snappedY = margin;
-    } else {
-      snappedY = screenHeight - iconSize - margin;
-    }
+    let snappedX = x, snappedY = y;
+    if (minDist === distToLeft) snappedX = margin;
+    else if (minDist === distToRight) snappedX = screenWidth - iconSize - margin;
+    else if (minDist === distToTop) snappedY = margin;
+    else snappedY = screenHeight - iconSize - margin;
     
     return { x: snappedX, y: snappedY };
   }, []);
@@ -491,12 +469,10 @@ export default function Home() {
     if (!isDragging) return;
     setIsDragging(false);
     chatButtonRef.current?.releasePointerCapture(e.pointerId);
-    
     const snapped = snapToEdge(currentIconPos.current.x, currentIconPos.current.y);
     targetIconPos.current = snapped;
     currentIconPos.current = snapped;
     setIconPos(snapped);
-    
     if (typeof window !== 'undefined') localStorage.setItem('chat-icon-pos', JSON.stringify(snapped));
   }, [isDragging, snapToEdge]);
 
@@ -510,33 +486,17 @@ export default function Home() {
   // ============================================================
   const handleFileSelect = useCallback((files: FileList | null) => {
     if (!files) return;
-    
     Array.from(files).forEach(file => {
-      if (file.size > MAX_FILE_SIZE) {
-        alert(`حجم الملف "${file.name}" يتجاوز الحد المسموح (10MB)`);
-        return;
-      }
-      
+      if (file.size > MAX_FILE_SIZE) { alert(`حجم الملف "${file.name}" يتجاوز الحد المسموح (10MB)`); return; }
       const isAllowed = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOC_TYPES].includes(file.type);
-      if (!isAllowed) {
-        alert(`نوع الملف "${file.name}" غير مدعوم`);
-        return;
-      }
+      if (!isAllowed) { alert(`نوع الملف "${file.name}" غير مدعوم`); return; }
       
       const fileType = getFileType(file);
-      const uploadedFile: UploadedFile = {
-        id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-        file,
-        progress: 0,
-        type: fileType
-      };
+      const uploadedFile: UploadedFile = { id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`, file, progress: 0, type: fileType };
       
       if (fileType === 'image' || fileType === 'video') {
         const reader = new FileReader();
-        reader.onload = (e) => {
-          uploadedFile.preview = e.target?.result as string;
-          setUploadedFiles(prev => [...prev, uploadedFile]);
-        };
+        reader.onload = (e) => { uploadedFile.preview = e.target?.result as string; setUploadedFiles(prev => [...prev, uploadedFile]); };
         reader.readAsDataURL(file);
       } else {
         setUploadedFiles(prev => [...prev, uploadedFile]);
@@ -545,43 +505,24 @@ export default function Home() {
       let progress = 0;
       const interval = setInterval(() => {
         progress += 10;
-        if (progress >= 100) {
-          progress = 100;
-          clearInterval(interval);
-        }
+        if (progress >= 100) { progress = 100; clearInterval(interval); }
         setUploadedFiles(prev => prev.map(f => f.id === uploadedFile.id ? { ...f, progress } : f));
       }, 100);
     });
   }, []);
 
-  const removeFile = useCallback((fileId: string) => {
-    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    handleFileSelect(e.dataTransfer.files);
-  }, [handleFileSelect]);
+  const removeFile = useCallback((fileId: string) => setUploadedFiles(prev => prev.filter(f => f.id !== fileId)), []);
+  const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(true); }, []);
+  const handleDragLeave = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); }, []);
+  const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); handleFileSelect(e.dataTransfer.files); }, [handleFileSelect]);
 
   // ============================================================
   // SESSION & MESSAGE LOGIC
   // ============================================================
   const saveStateToStorage = useCallback(() => {
     if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({ messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued }));
-    } catch (e) { console.error('Save state error:', e); }
+    try { localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({ messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued })); } 
+    catch (e) { console.error('Save state error:', e); }
   }, [messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued]);
 
   const loadStateFromStorage = useCallback((): boolean => {
@@ -593,9 +534,8 @@ export default function Home() {
       setMessages(parsed.messages || []);
       setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
       setChatStatus("online"); setIsQueued(false); setShowDepartmentSelection(false);
-      previousAgentRepliesRef.current.clear(); conversationContextRef.current = [];
-      lastHandledTopicRef.current = null; conversationPhaseRef.current = "initial";
-      messageCountRef.current = 0; isFirstUserMessageAfterTransferRef.current = true;
+      setIsTicketMode(false); setTicketStep('name'); setTicketDept(null); setTicketUserName("");
+      isFirstUserMessageAfterTransferRef.current = true;
       return true;
     } catch (e) { return false; }
   }, []);
@@ -612,8 +552,7 @@ export default function Home() {
       if ((Date.now() - lastActivityTimeRef.current) / 1000 >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
         setMessages(prev => [...prev, createMessage("system", "أنا موجود إذا احتجت أي مساعدة في أي وقت.", "assistant")]);
         setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
-        setChatStatus("online"); conversationPhaseRef.current = "initial";
-        lastActivityTimeRef.current = Date.now();
+        setChatStatus("online"); lastActivityTimeRef.current = Date.now();
       }
     }, 1000);
     return () => clearInterval(interval);
@@ -624,9 +563,8 @@ export default function Home() {
       setMessages([createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
       setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
       setIsQueued(false); setShowDepartmentSelection(false); setChatStatus("online");
-      lastActivityTimeRef.current = Date.now(); previousAgentRepliesRef.current.clear();
-      conversationContextRef.current = []; lastHandledTopicRef.current = null;
-      conversationPhaseRef.current = "initial"; messageCountRef.current = 0;
+      setIsTicketMode(false); setTicketStep('name'); setTicketDept(null); setTicketUserName("");
+      lastActivityTimeRef.current = Date.now();
       isFirstUserMessageAfterTransferRef.current = true;
       if (typeof window !== "undefined") localStorage.removeItem("dar-alnujum-chat-state");
     }, 2500);
@@ -636,57 +574,37 @@ export default function Home() {
     setCurrentAgent(agent);
     setSessionAgents(prev => prev.find(a => a.employeeId === agent.employeeId) ? prev : [...prev, agent]);
     setCurrentSpeaker("agent"); setIsQueued(false); setShowDepartmentSelection(false);
-    previousAgentRepliesRef.current.clear(); conversationContextRef.current = [];
-    lastHandledTopicRef.current = null; conversationPhaseRef.current = "initial";
-    messageCountRef.current = 0; isFirstUserMessageAfterTransferRef.current = true;
+    isFirstUserMessageAfterTransferRef.current = true;
     setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). اطلعت على المحادثة السابقة، تفضل كيف يمكنني مساعدتك؟`, "assistant")]);
     setChatStatus("online"); lastActivityTimeRef.current = Date.now();
   }, []);
 
-  // تم تحديث رسالة طلب اختيار القسم لتكون واضحة أنها للدردشة المباشرة
   const handleHumanRequest = useCallback(() => {
     setShowDepartmentSelection(true); 
     setChatStatus("online");
-    setMessages(prev => [...prev, createMessage("system", "يسعدنا تواصلك المباشر! يرجى اختيار القسم المناسب ليتم تحويلك إلى الموظف المختص:", "assistant")]);
+    setMessages(prev => [...prev, createMessage("system", "يسعدنا خدمتك! يرجى اختيار القسم المناسب ليتم توجيهك للموظف المختص فوراً:", "assistant")]);
   }, []);
 
   const initiateDepartmentTransfer = useCallback((dept: Department) => {
     setChatStatus("typing");
     const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
-    setMessages(prev => [...prev, createMessage("system", `جاري البحث عن موظف متاح في ${deptOption?.name}...`)]);
+    setMessages(prev => [...prev, createMessage("system", `جاري البحث عن موظف متاح في قسم ${deptOption?.name}...`)]);
     setShowDepartmentSelection(false);
+    
     setTimeout(() => {
       const availableAgent = findAvailableAgent(dept);
-      if (availableAgent) { startAgentSession(availableAgent); }
-      else {
-        setIsQueued(true); setChatStatus("waiting");
-        setMessages(prev => [...prev, createMessage("system", `جميع موظفي ${deptOption?.name} مشغولون حالياً. تم وضعك في قائمة الانتظار.`)]);
-        setTimeout(() => {
-          const fallbackAgent = findAvailableAgent(dept) || SUPPORT_AGENTS.find(a => a.department === dept);
-          if (fallbackAgent) {
-            startAgentSession(fallbackAgent);
-            setMessages(prev => [...prev, createMessage("system", "تم توصيلك بأحد موظفينا. نعتذر عن الانتظار.")]);
-          }
-        }, SESSION_TIMEOUTS.QUEUE_CHECK_INTERVAL);
+      if (availableAgent) { 
+        startAgentSession(availableAgent); 
+      } else {
+        // Fallback to Ticket System
+        setIsTicketMode(true);
+        setTicketDept(dept);
+        setTicketStep('name');
+        setMessages(prev => [...prev, createMessage("bot", `جميع موظفي قسم ${deptOption?.name} مشغولون حالياً أو غير متاحين. \n\nلا تقلق! يمكننا إنشاء تذكرة دعم لك وسيتم الرد عليك فوراً.\n\nيرجى كتابة **اسمك الكريم** للبدء:`, "assistant")]);
+        setChatStatus("online");
       }
     }, 1500);
   }, [startAgentSession]);
-
-  const performInternalTransfer = useCallback((targetDept: Department, currentAgentName: string) => {
-    const targetAgent = findAvailableAgent(targetDept) || SUPPORT_AGENTS.find(a => a.department === targetDept);
-    if (!targetAgent) return;
-    setMessages(prev => [...prev, createMessage("agent", `هذا الطلب يخص قسم ${targetDept === 'ads' ? 'المبيعات والإعلانات' : targetDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}، سأقوم بتحويلك الآن إلى الموظف المختص مع الاحتفاظ بسجل المحادثة كاملاً.`, "assistant")]);
-    setTimeout(() => {
-      setSessionAgents(prev => prev.find(a => a.employeeId === targetAgent!.employeeId) ? prev : [...prev, targetAgent!]);
-      setCurrentAgent(targetAgent);
-      conversationPhaseRef.current = "initial";
-      isFirstUserMessageAfterTransferRef.current = true;
-      setTimeout(() => {
-        setMessages(prev => [...prev, createMessage("agent", `مرحباً، أنا ${targetAgent!.name}. اطلعت على ما سبق، وكيف يمكنني مساعدتك الآن؟`, "assistant")]);
-        setChatStatus("online"); isSendingRef.current = false; lastActivityTimeRef.current = Date.now();
-      }, 1000);
-    }, 1500);
-  }, []);
 
   // ============================================================
   // SEND MESSAGE LOGIC
@@ -698,90 +616,110 @@ export default function Home() {
     isSendingRef.current = true;
     
     const fileAttachments: Attachment[] = uploadedFiles.map(f => ({
-      type: f.type as AttachmentType,
-      url: f.preview || URL.createObjectURL(f.file),
-      fileName: f.file.name,
-      fileSize: formatFileSize(f.file.size),
-      fileType: f.file.type
+      type: f.type as AttachmentType, url: f.preview || URL.createObjectURL(f.file),
+      fileName: f.file.name, fileSize: formatFileSize(f.file.size), fileType: f.file.type
     }));
     
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent", fileAttachments.length > 0 ? fileAttachments : undefined)]);
     setText("");
     setUploadedFiles([]);
     lastActivityTimeRef.current = Date.now();
-    conversationContextRef.current.push(trimmedText);
-    if (conversationContextRef.current.length > 5) conversationContextRef.current.shift();
 
-    // التحقق من رغبة المستخدم في التواصل البشري (يشمل الآن كلمات مثل اتصل، مبيعات، دعم، إلخ)
-    if (wantsHumanContact(trimmedText) && currentSpeaker === "bot" && !showDepartmentSelection) {
-      handleHumanRequest(); isSendingRef.current = false; return;
+    // 1. Handle Ticket Mode Flow
+    if (isTicketMode) {
+      if (ticketStep === 'name') {
+        setTicketUserName(trimmedText);
+        setTicketStep('details');
+        const deptName = DEPARTMENT_OPTIONS.find(d => d.id === ticketDept)?.name || "الدعم";
+        setTimeout(() => {
+          setMessages(prev => [...prev, createMessage("bot", `أهلاً بك يا ${trimmedText}. \n\nيرجى وصف مشكلتك أو استفسارك الخاص بقسم **${deptName}** بالتفصيل، وسنقوم بتحويله للفريق المختص فوراً:`, "assistant")]);
+          setChatStatus("online");
+          isSendingRef.current = false;
+        }, 800);
+        return;
+      } 
+      if (ticketStep === 'details') {
+        setTicketStep('submitting');
+        setChatStatus("typing");
+        setTimeout(() => {
+          const ticketId = Math.floor(1000 + Math.random() * 9000);
+          const deptName = DEPARTMENT_OPTIONS.find(d => d.id === ticketDept)?.name || "الدعم";
+          setMessages(prev => [...prev, createMessage("bot", `✅ **تم إنشاء التذكرة بنجاح!**\n\n🎫 رقم التذكرة: #${ticketId}\n📌 القسم: ${deptName}\n👤 الاسم: ${ticketUserName}\n📝 التفاصيل: ${trimmedText}\n\nسيقوم فريق ${deptName} بمراجعة طلبك والرد عليك في أقرب وقت ممكن عبر هذا المحادثة أو عبر وسائل التواصل المسجلة. شكراً لصبرك!`, "assistant")]);
+          setIsTicketMode(false);
+          setTicketStep('name');
+          setTicketDept(null);
+          setTicketUserName("");
+          setChatStatus("online");
+          isSendingRef.current = false;
+        }, 2000);
+        return;
+      }
     }
 
-    const normalized = normalizeArabicText(trimmedText);
-    const isJustGreeting = GREETING_KEYWORDS.some(k => normalized.includes(k)) && normalized.length < 20;
-
+    // 2. Handle Agent Chat Flow
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
       setTimeout(() => {
-        messageCountRef.current += 1;
+        const normalized = normalizeArabicText(trimmedText);
         const isThanks = (normalized.includes("شكر") || normalized.includes("مشكور")) && !normalized.includes("لا");
-        const isNoThanks = normalized.includes("لا") && (normalized.includes("شكر") || normalized.includes("احتاج") || normalized.includes("شيء"));
         const isEndConversation = normalized.includes("هذا كل شيء") || normalized.includes("انتهيت") || normalized.includes("خلاص");
 
         if (isFirstUserMessageAfterTransferRef.current) {
           isFirstUserMessageAfterTransferRef.current = false;
-          const deptName = currentAgent.department === 'ads' ? 'المبيعات والإعلانات' : currentAgent.department === 'technical' ? 'الدعم الفني' : 'خدمة العملاء';
+          const deptName = DEPARTMENT_OPTIONS.find(d => d.id === currentAgent.department)?.name || "الدعم";
           setMessages(prev => [...prev, createMessage("agent", `أهلاً وسهلاً بك، معك ${currentAgent.name} من ${deptName}. كيف أقدر أساعدك اليوم؟`, "assistant")]);
           isSendingRef.current = false; return;
         }
 
-        if (isJustGreeting) {
-          setMessages(prev => [...prev, createMessage("agent", "أهلاً بك أستاذ، تفضل كيف أقدر أساعدك؟", "assistant")]);
+        if (isThanks) {
+          setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر يمكنني مساعدتك به؟", "assistant")]);
           isSendingRef.current = false; return;
         }
 
-        if (isThanks && !isNoThanks) {
-          setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر يمكنني مساعدتك به؟", "assistant")]);
-          conversationPhaseRef.current = "closing_pending"; isSendingRef.current = false; return;
-        }
-
-        if (isNoThanks || isEndConversation) {
-          setMessages(prev => [...prev, createMessage("agent", "شكراً لتواصلك معنا، سعدنا بخدمتك. إذا احتجت إلى أي مساعدة أو استفسار في المستقبل، فلا تتردد في التواصل معنا في أي وقت. نتمنى لك يوماً سعيداً، ونشكرك على ثقتك بـ مجلة دار النجوم.", "assistant")]);
+        if (isEndConversation) {
+          setMessages(prev => [...prev, createMessage("agent", "شكراً لتواصلك معنا، سعدنا بخدمتك. نتمنى لك يوماً سعيداً، ونشكرك على ثقتك بـ مجلة دار النجوم.", "assistant")]);
           isSendingRef.current = false; setTimeout(() => closeAgentSession(), 2500); return;
         }
 
-        const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
-        if (kbMatch && kbMatch.targetDept !== currentAgent.department) {
-          performInternalTransfer(kbMatch.targetDept, currentAgent.name);
-          isSendingRef.current = false; return;
+        // Smart internal transfer if user asks for another department while talking to an agent
+        const requestedDept = DEPARTMENT_OPTIONS.find(d => normalized.includes(d.id) || normalized.includes(d.name));
+        if (requestedDept && requestedDept.id !== currentAgent.department) {
+           setMessages(prev => [...prev, createMessage("agent", `هذا الطلب يخص قسم ${requestedDept.name}، سأقوم بتحويلك الآن إلى الزميل المختص مع الاحتفاظ بسجل المحادثة.`, "assistant")]);
+           setTimeout(() => initiateDepartmentTransfer(requestedDept.id), 1500);
+           isSendingRef.current = false; return;
         }
 
-        if (currentAgent.department === 'ads' && kbMatch && kbMatch.targetDept === 'ads') {
-          if (lastHandledTopicRef.current !== 'pricing_details') {
-            lastHandledTopicRef.current = 'pricing_details';
-            const reply = `${kbMatch.explanation}\n\nوللاطلاع على جميع التفاصيل والشروط، يمكنك زيارة:`;
-            const attachments: Attachment[] = [{ type: 'link', url: kbMatch.link, title: kbMatch.linkText, description: kbMatch.linkDesc }];
-            setMessages(prev => [...prev, createMessage("agent", reply, "assistant", "read", attachments)]);
-            conversationPhaseRef.current = "ongoing"; isSendingRef.current = false; return;
-          }
-        }
-
-        const generalReplies = currentAgent.department === 'ads' 
-          ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك؟"]
-          : currentAgent.department === 'technical'
-          ? ["حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية.", "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح المشكلة أكثر؟"]
-          : ["بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.", "حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟"];
-        
+        const generalReplies = [
+          "حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية.",
+          "بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.",
+          "شكراً لتوضيح ذلك. دعني أتحقق من الأمر وأعود لك بالحل الأنسب."
+        ];
         setMessages(prev => [...prev, createMessage("agent", generalReplies[Math.floor(Math.random() * generalReplies.length)], "assistant")]);
-        conversationPhaseRef.current = "ongoing"; isSendingRef.current = false;
+        isSendingRef.current = false;
       }, 1500);
       return; 
     }
 
+    // 3. Handle Bot Flow
     setChatStatus("typing");
     try {
+      const normalized = normalizeArabicText(trimmedText);
+      const isJustGreeting = GREETING_KEYWORDS.some(k => normalized.includes(k)) && normalized.length < 20;
+      const isExplicitEmailRequest = EXPLICIT_EMAIL_KEYWORDS.some(k => normalized.includes(k));
+
+      // Explicit Email Request (Only show if explicitly asked)
+      if (isExplicitEmailRequest) {
+        setMessages(prev => [...prev, createMessage("bot", "يمكنك التواصل معنا عبر البريد الإلكتروني الرسمي:\n📧 info@dar-alnujum.com", "assistant")]);
+        setChatStatus("online"); isSendingRef.current = false; return;
+      }
+
+      // Human Contact Request -> Show Departments
+      if (wantsHumanContact(trimmedText) && !showDepartmentSelection) {
+        handleHumanRequest(); isSendingRef.current = false; return;
+      }
+
+      // Local Knowledge Base
       const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
-      
       if (kbMatch) {
         const reply = `${kbMatch.explanation}\n\nللمزيد من التفاصيل:`;
         const attachments: Attachment[] = [{ type: 'link', url: kbMatch.link, title: kbMatch.linkText, description: kbMatch.linkDesc }];
@@ -789,11 +727,13 @@ export default function Home() {
         setChatStatus("online"); isSendingRef.current = false; return;
       }
 
+      // Greeting
       if (isJustGreeting) {
         setMessages(prev => [...prev, createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
         setChatStatus("online"); isSendingRef.current = false; return;
       }
 
+      // Fallback to AI API
       const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: (m.sender === "bot" || m.sender === "agent") ? "assistant" : "user", content: m.text }));
       if (apiMessages.length === 0 || apiMessages[apiMessages.length - 1].role !== "user") {
          apiMessages.push({ role: "user", content: trimmedText });
@@ -808,7 +748,7 @@ export default function Home() {
       
       setMessages(prev => [...prev, createMessage("bot", data.text || data.message || "عذراً، لم أتمكن من فهم طلبك بدقة.", "assistant", "read", data.attachments || [])]);
 
-      if (data.escalate === true && currentSpeaker === "bot" && !showDepartmentSelection) {
+      if (data.escalate === true && !showDepartmentSelection) {
         handleHumanRequest();
       }
     } catch (error) {
@@ -817,7 +757,7 @@ export default function Home() {
     } finally {
       setChatStatus("online"); isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession, uploadedFiles]);
+  }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, initiateDepartmentTransfer, closeAgentSession, uploadedFiles, isTicketMode, ticketStep, ticketDept, ticketUserName]);
 
   useEffect(() => { saveStateToStorage(); }, [saveStateToStorage]);
   
@@ -866,33 +806,18 @@ export default function Home() {
     });
   };
 
-  // ============================================================
-  // RENDER ATTACHMENTS
-  // ============================================================
   const renderAttachments = (attachments: Attachment[]) => {
     return (
       <div className="mt-2 space-y-2">
         {attachments.map((att, idx) => {
-          if (att.type === 'image' && att.url) {
-            return <img key={idx} src={att.url} alt="attachment" className="rounded-lg max-w-full h-auto border border-gray-600" />;
-          }
-          if (att.type === 'video' && att.url) {
-            return (
-              <video key={idx} controls className="rounded-lg max-w-full h-auto border border-gray-600">
-                <source src={att.url} type={att.fileType || 'video/mp4'} />
-                المتصفح لا يدعم تشغيل الفيديو
-              </video>
-            );
-          }
+          if (att.type === 'image' && att.url) return <img key={idx} src={att.url} alt="attachment" className="rounded-lg max-w-full h-auto border border-gray-600" />;
+          if (att.type === 'video' && att.url) return <video key={idx} controls className="rounded-lg max-w-full h-auto border border-gray-600"><source src={att.url} type={att.fileType || 'video/mp4'} />المتصفح لا يدعم تشغيل الفيديو</video>;
           if (att.type === 'file' && att.url) {
             return (
               <a key={idx} href={att.url} download={att.fileName} className="block bg-[#0b0f1a]/50 hover:bg-[#0b0f1a] border border-purple-500/30 rounded-lg p-3 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                      <polyline points="14 2 14 8 20 8"></polyline>
-                    </svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-xs text-purple-300 truncate">{att.fileName}</div>
@@ -907,21 +832,12 @@ export default function Home() {
               <a key={idx} href={att.url} target="_blank" rel="noopener noreferrer" className="block bg-gradient-to-r from-purple-600/10 to-blue-600/10 hover:from-purple-600/20 hover:to-blue-600/20 border border-purple-500/30 rounded-lg p-3 transition-all">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400">
-                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                    </svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
                   </div>
                   <div className="flex-1 min-w-0">
                     {att.title && <div className="font-bold text-sm text-purple-300 mb-1">{att.title}</div>}
                     {att.description && <div className="text-xs text-gray-400 mb-2">{att.description}</div>}
-                    <div className="text-xs text-blue-400 flex items-center gap-1">
-                      <span>فتح الرابط</span>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                        <polyline points="12 5 19 12 12 19"></polyline>
-                      </svg>
-                    </div>
+                    <div className="text-xs text-blue-400 flex items-center gap-1"><span>فتح الرابط</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></div>
                   </div>
                 </div>
               </a>
@@ -952,16 +868,8 @@ export default function Home() {
 
       {loadingProgress > 0 && (
         <div className="fixed top-0 right-0 left-0 z-[100] h-1 bg-gray-800/30">
-          <div 
-            className="absolute top-0 right-0 h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.6)]"
-            style={{ 
-              width: `${loadingProgress}%`,
-              transition: loadingProgress === 100 
-                ? 'width 0.6s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.6s ease-out' 
-                : 'width 0.4s cubic-bezier(0.25, 1, 0.5, 1)',
-              opacity: loadingProgress === 100 ? 0 : 1
-            }}
-          />
+          <div className="absolute top-0 right-0 h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.6)]"
+            style={{ width: `${loadingProgress}%`, transition: loadingProgress === 100 ? 'width 0.6s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.6s ease-out' : 'width 0.4s cubic-bezier(0.25, 1, 0.5, 1)', opacity: loadingProgress === 100 ? 0 : 1 }} />
         </div>
       )}
 
@@ -996,9 +904,7 @@ export default function Home() {
             <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[#0b0f1a] to-transparent z-10 pointer-events-none rounded-r-full"></div>
             <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[#0b0f1a] to-transparent z-10 pointer-events-none rounded-l-full"></div>
             <div className="flex whitespace-nowrap animate-seamless-scroll w-max">
-              {[...Array(10), ...Array(10)].map((_, i) => (
-                <span key={i} className="mx-8 text-purple-300 text-sm font-semibold flex items-center gap-2"> إعلان حصري: تابعوا أحدث البرامج واللقاءات على قناة مجلة دار النجوم</span>
-              ))}
+              {[...Array(10), ...Array(10)].map((_, i) => (<span key={i} className="mx-8 text-purple-300 text-sm font-semibold flex items-center gap-2"> إعلان حصري: تابعوا أحدث البرامج واللقاءات على قناة مجلة دار النجوم</span>))}
             </div>
           </div>
           <h1 className="text-4xl md:text-6xl font-black mb-4 leading-tight">مرحبًا بكم في <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span></h1>
@@ -1007,27 +913,9 @@ export default function Home() {
       </main>
 
       {/* أيقونة المساعد */}
-      <div 
-        ref={chatButtonRef}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        onClick={handleClick}
+      <div ref={chatButtonRef} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={handleClick}
         className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none"
-        style={{
-          left: `${iconPos.x}px`,
-          top: `${iconPos.y}px`,
-          width: '64px',
-          height: '64px',
-          transform: `translateX(${idleOffsetX}px) scale(${springScale})`,
-          transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-          boxShadow: isDragging 
-            ? '0 20px 25px -5px rgba(147, 51, 234, 0.5), 0 8px 10px -6px rgba(147, 51, 234, 0.5)' 
-            : '0 10px 15px -3px rgba(147, 51, 234, 0.3), 0 4px 6px -2px rgba(147, 51, 234, 0.2)'
-        }}
-        title="مركز المساعدة"
-      >
+        style={{ left: `${iconPos.x}px`, top: `${iconPos.y}px`, width: '64px', height: '64px', transform: `translateX(${idleOffsetX}px) scale(${springScale})`, transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', boxShadow: isDragging ? '0 20px 25px -5px rgba(147, 51, 234, 0.5), 0 8px 10px -6px rgba(147, 51, 234, 0.5)' : '0 10px 15px -3px rgba(147, 51, 234, 0.3), 0 4px 6px -2px rgba(147, 51, 234, 0.2)' }} title="مركز المساعدة">
         <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border-2 border-white/10 animate-slide-in-right">
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
             <g style={{ transform: headTransform, transformOrigin: '18px 18px', transition: 'transform 0.3s ease-out' }}>
@@ -1041,15 +929,7 @@ export default function Home() {
                 <circle cx="24" cy="15" r="2.8" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x - 0.3}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
                 <circle cx="25.5" cy="13.5" r="1.2" fill="white" opacity="0.9" style={{ transform: `translate(${eyePos.x * 0.3}px, ${eyePos.y * 0.3}px)` }} />
               </g>
-              <path 
-                d={chatStatus === "typing" ? "M 11 24 Q 18 31 25 24" : "M 12 24 Q 18 28 24 24"}
-                stroke="white" 
-                strokeWidth="2.5" 
-                strokeLinecap="round" 
-                fill={chatStatus === "typing" ? "white" : "none"}
-                className="transition-all duration-500 ease-in-out"
-                style={{ transformOrigin: '18px 24px' }}
-              />
+              <path d={chatStatus === "typing" ? "M 11 24 Q 18 31 25 24" : "M 12 24 Q 18 28 24 24"} stroke="white" strokeWidth="2.5" strokeLinecap="round" fill={chatStatus === "typing" ? "white" : "none"} className="transition-all duration-500 ease-in-out" style={{ transformOrigin: '18px 24px' }} />
             </g>
           </svg>
         </div>
@@ -1083,29 +963,18 @@ export default function Home() {
           </div>
         </div>
 
-        <div 
-          className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50"
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
+        <div className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
           {isDragOver && (
             <div className="absolute inset-0 bg-purple-600/20 border-2 border-dashed border-purple-500 rounded-xl flex items-center justify-center z-10">
               <div className="text-center">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mx-auto mb-2 text-purple-400">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="17 8 12 3 7 8"></polyline>
-                  <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mx-auto mb-2 text-purple-400"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                 <p className="text-purple-300 font-bold">أفلت الملفات هنا</p>
               </div>
             </div>
           )}
           
           {messages.map((msg) => {
-            if (msg.sender === "system") {
-              return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%] whitespace-pre-line">{msg.text}</span></div>;
-            }
+            if (msg.sender === "system") return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%] whitespace-pre-line">{msg.text}</span></div>;
             const isUser = msg.sender === "user";
             return (
               <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
@@ -1114,19 +983,22 @@ export default function Home() {
                   {msg.text}
                   {msg.attachments && msg.attachments.length > 0 && renderAttachments(msg.attachments)}
                 </div>
-                <span className="text-[10px] text-gray-500 mt-1 px-1 flex items-center gap-1">
-                  {msg.time}{isUser && <span>{msg.status === "read" ? "✓✓" : "✓"}</span>}
-                </span>
+                <span className="text-[10px] text-gray-500 mt-1 px-1 flex items-center gap-1">{msg.time}{isUser && <span>{msg.status === "read" ? "✓✓" : "✓"}</span>}</span>
               </div>
             );
           })}
 
+          {/* Department Selection Grid */}
           {showDepartmentSelection && currentSpeaker === "bot" && (
-            <div className="space-y-2 mt-2 animate-slide-in-right">
+            <div className="grid grid-cols-1 gap-2 mt-2 animate-slide-in-right">
               {DEPARTMENT_OPTIONS.map((dept) => (
-                <button key={dept.id} onClick={() => initiateDepartmentTransfer(dept.id)} className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group">
-                  <div className="font-bold text-sm text-purple-300 group-hover:text-purple-200">{dept.name}</div>
-                  <div className="text-xs text-gray-400 mt-1">{dept.description}</div>
+                <button key={dept.id} onClick={() => initiateDepartmentTransfer(dept.id)} className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group flex items-center gap-3">
+                  <span className="text-2xl">{dept.icon}</span>
+                  <div className="flex-1">
+                    <div className="font-bold text-sm text-purple-300 group-hover:text-purple-200">{dept.name}</div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">{dept.description}</div>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500 group-hover:text-purple-400 transform group-hover:-translate-x-1 transition-transform"><polyline points="15 18 9 12 15 6"></polyline></svg>
                 </button>
               ))}
             </div>
@@ -1151,32 +1023,13 @@ export default function Home() {
               {uploadedFiles.map(file => (
                 <div key={file.id} className="relative flex-shrink-0 w-20 h-20 bg-[#0b0f1a] rounded-lg border border-gray-700 overflow-hidden">
                   {file.preview && (file.type === 'image' || file.type === 'video') ? (
-                    file.type === 'image' ? (
-                      <img src={file.preview} alt={file.file.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <video src={file.preview} className="w-full h-full object-cover" />
-                    )
+                    file.type === 'image' ? <img src={file.preview} alt={file.file.name} className="w-full h-full object-cover" /> : <video src={file.preview} className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                      </svg>
-                    </div>
+                    <div className="w-full h-full flex items-center justify-center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></div>
                   )}
-                  {file.progress < 100 && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <div className="text-xs text-white font-bold">{file.progress}%</div>
-                    </div>
-                  )}
-                  <button 
-                    onClick={() => removeFile(file.id)}
-                    className="absolute top-1 right-1 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-700 transition-colors"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
+                  {file.progress < 100 && (<div className="absolute inset-0 bg-black/50 flex items-center justify-center"><div className="text-xs text-white font-bold">{file.progress}%</div></div>)}
+                  <button onClick={() => removeFile(file.id)} className="absolute top-1 right-1 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-700 transition-colors">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                   </button>
                 </div>
               ))}
@@ -1186,31 +1039,16 @@ export default function Home() {
 
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           <div className="flex gap-2 items-end">
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-gray-700 text-white hover:bg-gray-600"
-              title="إرفاق ملف"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
-              </svg>
+            <button onClick={() => fileInputRef.current?.click()} className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-gray-700 text-white hover:bg-gray-600" title="إرفاق ملف">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
             </button>
-            <input 
-              ref={fileInputRef}
-              type="file" 
-              multiple
-              accept={[...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOC_TYPES].join(',')}
-              onChange={(e) => handleFileSelect(e.target.files)}
-              className="hidden"
-            />
+            <input ref={fileInputRef} type="file" multiple accept={[...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOC_TYPES].join(',')} onChange={(e) => handleFileSelect(e.target.files)} className="hidden" />
             <textarea
-              id="chat-input"
-              value={text}
-              placeholder={showDepartmentSelection ? "يرجى اختيار قسم من الأعلى..." : "اكتب رسالتك هنا..."}
+              id="chat-input" value={text}
+              placeholder={showDepartmentSelection ? "يرجى اختيار قسم من الأعلى..." : isTicketMode ? (ticketStep === 'name' ? "اكتب اسمك الكريم..." : "اكتب تفاصيل استفسارك...") : "اكتب رسالتك هنا..."}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              rows={1}
-              disabled={showDepartmentSelection}
+              rows={1} disabled={showDepartmentSelection}
               className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <button onClick={sendMessage} disabled={(!text.trim() && uploadedFiles.length === 0) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
