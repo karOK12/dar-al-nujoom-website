@@ -9,7 +9,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 type Sender = "user" | "bot" | "agent" | "system";
 type AgentStatus = "online" | "away" | "offline";
 type Department = 'sales' | 'technical' | 'ads' | 'accounting' | 'partnerships' | 'orders' | 'general';
-type ChatStatus = "typing" | "online" | "waiting" | "inactive" | "closed";
+type ChatStatus = "typing" | "online" | "waiting" | "inactive" | "closed" | "temp_ended";
 type ProductShape = "circle" | "rectangle" | "square" | "portrait";
 type AttachmentType = 'image' | 'link' | 'card' | 'product' | 'file' | 'video';
 
@@ -92,7 +92,11 @@ const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'general', name: 'استفسار عام', icon: '❓', description: 'أي استفسار آخر غير مذكور أعلاه' },
 ];
 
-const SESSION_TIMEOUTS = { IDLE_TO_CLOSED: 59, QUEUE_CHECK_INTERVAL: 8000 };
+const SESSION_TIMEOUTS = { 
+  IDLE_TO_TEMP_ENDED: 59, // 59 ثانية للوضع المؤقت
+  TEMP_ENDED_TO_CLOSED: 5, // 5 ثواني إضافية قبل العودة التلقائية
+  QUEUE_CHECK_INTERVAL: 8000 
+};
 
 const TRENDING_PRODUCTS: TrendingProduct[] = [
   { id: 1, name: "كاميرا تصوير احترافية", desc: "خصم 25% لفترة محدودة", img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=150&h=150&fit=crop", shape: "circle" },
@@ -233,6 +237,7 @@ export default function Home() {
   const lastActivityTimeRef = useRef(Date.now());
   const isSendingRef = useRef(false);
   const isFirstUserMessageAfterTransferRef = useRef(true);
+  const tempEndedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
@@ -543,45 +548,64 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // AGENT INACTIVITY TIMEOUT (59 Seconds)
+  // ✅ AGENT INACTIVITY TIMEOUT - تم التعديل
   // ============================================================
   useEffect(() => {
-    if (currentSpeaker !== "agent") return;
+    if (currentSpeaker !== "agent") {
+      if (tempEndedTimeoutRef.current) {
+        clearTimeout(tempEndedTimeoutRef.current);
+        tempEndedTimeoutRef.current = null;
+      }
+      return;
+    }
 
     const interval = setInterval(() => {
       const secondsIdle = (Date.now() - lastActivityTimeRef.current) / 1000;
       
-      if (secondsIdle >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
-        setMessages(prev => {
-          if (prev.some(m => m.text.includes("انتهت مهلة الانتظار"))) return prev;
-          return [...prev, createMessage("system", "⏱️ انتهت مهلة الانتظار (59 ثانية) لعدم وجود رد. جاري العودة للمساعد الذكي...", "assistant")];
-        });
-
-        setTimeout(() => {
+      // بعد 59 ثانية: تغيير الحالة لـ "انتهى مؤقت"
+      if (secondsIdle >= SESSION_TIMEOUTS.IDLE_TO_TEMP_ENDED && chatStatus !== "temp_ended") {
+        setChatStatus("temp_ended");
+        
+        // جدولة العودة التلقائية للمساعد بعد 5 ثواني
+        tempEndedTimeoutRef.current = setTimeout(() => {
           setCurrentSpeaker("bot");
           setCurrentAgent(null);
           setSessionAgents([]);
           setChatStatus("online");
           lastActivityTimeRef.current = Date.now();
           setMessages(prev => [...prev, createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
-        }, 2000);
+        }, SESSION_TIMEOUTS.TEMP_ENDED_TO_CLOSED * 1000);
       }
     }, 1000);
 
-    return () => clearInterval(interval);
-  }, [currentSpeaker]);
+    return () => {
+      clearInterval(interval);
+      if (tempEndedTimeoutRef.current) {
+        clearTimeout(tempEndedTimeoutRef.current);
+      }
+    };
+  }, [currentSpeaker, chatStatus]);
 
   // ============================================================
-  // RESET TIMER WHEN AGENT REPLIES
+  // ✅ RESET TIMER WHEN USER OR AGENT SENDS MESSAGE
   // ============================================================
   useEffect(() => {
     if (currentSpeaker === "agent" && messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
-      if (lastMsg.sender === "agent") {
+      // إعادة ضبط المؤقت عند أي رسالة (من المستخدم أو الموظف)
+      if (lastMsg.sender === "agent" || lastMsg.sender === "user") {
+        // إذا كنا في وضع "انتهى مؤقت"، نعود لـ "متصل الآن"
+        if (chatStatus === "temp_ended") {
+          setChatStatus("online");
+          if (tempEndedTimeoutRef.current) {
+            clearTimeout(tempEndedTimeoutRef.current);
+            tempEndedTimeoutRef.current = null;
+          }
+        }
         lastActivityTimeRef.current = Date.now();
       }
     }
-  }, [messages, currentSpeaker]);
+  }, [messages, currentSpeaker, chatStatus]);
 
   const closeAgentSession = useCallback(() => {
     setTimeout(() => {
@@ -672,7 +696,7 @@ export default function Home() {
         setTimeout(() => {
           const ticketId = Math.floor(1000 + Math.random() * 9000);
           const deptName = DEPARTMENT_OPTIONS.find(d => d.id === ticketDept)?.name || "الدعم";
-          setMessages(prev => [...prev, createMessage("bot", `✅ **تم إنشاء التذكرة بنجاح!**\n\n🎫 رقم التذكرة: #${ticketId}\n📌 القسم: ${deptName}\n👤 الاسم: ${ticketUserName}\n📝 التفاصيل: ${trimmedText}\n\nسيقوم فريق ${deptName} بمراجعة طلبك والرد عليك في أقرب وقت ممكن. شكراً لصبرك!`, "assistant")]);
+          setMessages(prev => [...prev, createMessage("bot", `✅ **تم إنشاء التذكرة بنجاح!**\n\n🎫 رقم التذكرة: #${ticketId}\n📌 القسم: ${deptName}\n👤 الاسم: ${ticketUserName}\n التفاصيل: ${trimmedText}\n\nسيقوم فريق ${deptName} بمراجعة طلبك والرد عليك في أقرب وقت ممكن. شكراً لصبرك!`, "assistant")]);
           setIsTicketMode(false);
           setTicketStep('name');
           setTicketDept(null);
@@ -811,6 +835,7 @@ export default function Home() {
       case "typing": return "يكتب الآن..."; 
       case "waiting": return "جاري المعالجة...";
       case "online": return "متصل الآن";
+      case "temp_ended": return "انتهى مؤقت"; // ✅ الجديد
       case "inactive": return "انتهت المحادثة مؤقتاً";
       case "closed": return "عاد المساعد الذكي"; 
       default: return "غير نشط";
@@ -822,6 +847,7 @@ export default function Home() {
       case "typing": return "bg-yellow-400 animate-pulse"; 
       case "waiting": return "bg-orange-400 animate-pulse";
       case "online": return "bg-green-400 animate-pulse";
+      case "temp_ended": return "bg-orange-500 animate-pulse"; // ✅ برتقالي للوضع المؤقت
       case "inactive": return "bg-gray-500";
       case "closed": return "bg-green-400 animate-pulse"; 
       default: return "bg-gray-400";
@@ -903,6 +929,13 @@ export default function Home() {
         .animate-blink-human { animation: blink-human 0.12s ease-in-out; transform-origin: center; }
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
+        @keyframes move-right-to-left { 
+          0% { transform: translateX(100px); } 
+          100% { transform: translateX(0); } 
+        }
+        .animate-move-right-to-left { 
+          animation: move-right-to-left 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; 
+        }
       `}</style>
 
       {loadingProgress > 0 && (
@@ -951,7 +984,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* ✅ أيقونة المساعد: تم إزالة الظل (boxShadow: 'none') */}
+      {/* ✅ أيقونة المساعد: تم إضافة حركة من اليمين لليسار */}
       <div 
         ref={chatButtonRef} 
         onPointerDown={handlePointerDown} 
@@ -959,7 +992,7 @@ export default function Home() {
         onPointerUp={handlePointerUp} 
         onPointerCancel={handlePointerUp} 
         onClick={handleClick}
-        className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none rounded-full overflow-hidden"
+        className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none rounded-full overflow-hidden animate-move-right-to-left"
         style={{ 
           left: `${iconPos.x}px`, 
           top: `${iconPos.y}px`, 
@@ -967,11 +1000,11 @@ export default function Home() {
           height: '64px', 
           transform: `translateX(${idleOffsetX}px) scale(${springScale})`, 
           transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
-          boxShadow: 'none' // تم إخفاء الظل تماماً
+          boxShadow: 'none'
         }} 
         title="مركز المساعدة"
       >
-        <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border-2 border-white/10 animate-slide-in-right">
+        <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border-2 border-white/10">
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
             <g style={{ transform: headTransform, transformOrigin: '18px 18px', transition: 'transform 0.3s ease-out' }}>
               <g className={isBlinking ? "animate-blink-human" : ""}>
@@ -994,12 +1027,12 @@ export default function Home() {
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-40 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
-            {sessionAgents.length === 0 ? (
+            {sessionAgents.length === 0 || chatStatus === "temp_ended" ? ( // ✅ إظهار المساعد عند انتهاء المؤقت
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center border-2 border-purple-400">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="4" y="8" width="16" height="12" rx="3" fill="white" opacity="0.95"/><circle cx="9" cy="14" r="1.5" fill="#7c3aed"/><circle cx="15" cy="14" r="1.5" fill="#7c3aed"/><path d="M9 17 Q12 19 15 17" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" fill="none"/><line x1="12" y1="8" x2="12" y2="5" stroke="white" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="4" r="1.5" fill="white"/></svg>
                 </div>
-                <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] bg-green-500"></span>
+                <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111827] ${chatStatus === "temp_ended" ? "bg-orange-500" : "bg-green-500"}`}></span>
               </div>
             ) : (
               <div className="flex -space-x-3 rtl:space-x-reverse">
@@ -1010,7 +1043,9 @@ export default function Home() {
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="font-bold text-white text-sm truncate">{sessionAgents.length === 0 ? "المساعد الذكي" : currentAgent?.name}</h4>
+            <h4 className="font-bold text-white text-sm truncate">
+              {sessionAgents.length === 0 || chatStatus === "temp_ended" ? "المساعد الذكي" : currentAgent?.name}
+            </h4>
             <p className="text-xs flex items-center gap-1 truncate">
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor()}`}></span>
               <span className="truncate">{getStatusText()}</span>
