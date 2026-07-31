@@ -147,11 +147,7 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
-  // 1. إصلاح مكان الأيقونة: تبدأ من خارج الشاشة (window.innerWidth) ثم تتحرك لليسار
-  const [iconPos, setIconPos] = useState({ 
-    x: typeof window !== 'undefined' ? window.innerWidth : 0, 
-    y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0 
-  });
+  const [iconPos, setIconPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 80 : 0, y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [springScale, setSpringScale] = useState(1);
   const [headTransform, setHeadTransform] = useState("translateY(0px) rotate(0deg)");
@@ -174,7 +170,7 @@ export default function Home() {
   const hasDragged = useRef(false);
   const currentIconPos = useRef({ x: iconPos.x, y: iconPos.y });
   const targetIconPos = useRef({ x: iconPos.x, y: iconPos.y });
-  const hasEnteredRef = useRef(false);
+  const hasNudged = useRef(false);
 
   const currentSpeakerRef = useRef(currentSpeaker);
   const chatStatusRef = useRef(chatStatus);
@@ -193,20 +189,19 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // 1. حركة دخول الأيقونة من اليمين
+  // 1. أيقونة المساعد: حركة دخول ناعمة ثم حركة بسيطة لليسار مرة واحدة فقط
   // ============================================================
   useEffect(() => {
-    if (!hasEnteredRef.current && typeof window !== 'undefined') {
-      hasEnteredRef.current = true;
-      // تحريك الأيقونة من خارج الشاشة (window.innerWidth) إلى مكانها النهائي (window.innerWidth - 80)
+    if (!hasNudged.current && !isDragging) {
+      hasNudged.current = true;
       setTimeout(() => {
-        setIconPos({ x: window.innerWidth - 80, y: window.innerHeight - 80 });
-      }, 100);
+        setIconPos(prev => ({ ...prev, x: Math.max(0, prev.x - 15) }));
+      }, 800); // تتوافق مع مدة أنيميشن الدخول
     }
-  }, []);
+  }, [isDragging]);
 
   // ============================================================
-  // شريط التحميل
+  // شريط التحميل: يبدأ من اليسار ويتجه لليمين
   // ============================================================
   useEffect(() => {
     let progress = 0;
@@ -263,7 +258,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // حركة العين البشرية
+  // حركة العين البشرية (Smooth Interpolation + Random Blink)
   // ============================================================
   useEffect(() => {
     let rafId: number;
@@ -368,7 +363,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // انتهاء جلسة الموظف
+  // 5. انتهاء جلسة الموظف (59 ثانية)
   // ============================================================
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
@@ -378,7 +373,8 @@ export default function Home() {
       const elapsedSeconds = (now - lastActivityTimeRef.current) / 1000;
 
       if (elapsedSeconds >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
-        setMessages([createMessage("bot", "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟", "assistant")]);
+        // حذف جميع الرسائل والعودة للمساعد الذكي برسالة الترحيب فقط
+        setMessages([createMessage("bot", "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟ يمكنك سؤالي عن الأخبار، البرامج، أسعار الإعلانات، أو أي استفسار آخر.", "assistant")]);
         setCurrentSpeaker("bot");
         setCurrentAgent(null);
         setSessionAgents([]);
@@ -451,7 +447,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // نظام تحويل الموظفين
+  // 4. نظام تحويل الموظفين
   // ============================================================
   const handleHumanRequest = useCallback(() => {
     setShowDepartmentSelection(true);
@@ -531,7 +527,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // إرسال الصور والملفات + SEND MESSAGE LOGIC
+  // 3. إرسال الصور والملفات + SEND MESSAGE LOGIC
   // ============================================================
   const handleFileSelect = useCallback((file: File) => {
     if (file.size > 10 * 1024 * 1024) {
@@ -544,7 +540,7 @@ export default function Home() {
       return;
     }
 
-    lastActivityTimeRef.current = Date.now();
+    lastActivityTimeRef.current = Date.now(); // منع انتهاء الجلسة أثناء تجهيز الملف
 
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
@@ -564,67 +560,6 @@ export default function Home() {
       handleFileSelect(e.dataTransfer.files[0]);
     }
   }, [handleFileSelect]);
-
-  // 2. ردود الموظفين الذكية
-  const getSmartAgentReply = useCallback((userText: string, agent: Agent, messagesHistory: Message[]): string => {
-    const normalized = normalizeArabicText(userText);
-    const currentDept = agent.department;
-    
-    // قراءة آخر رسالة للمستخدم
-    const lastUserMessage = messagesHistory
-      .filter(m => m.sender === 'user')
-      .slice(-1)[0];
-    
-    // التحقق من السياق
-    const isGreeting = ["مرحبا", "هلا", "سلام", "صباح", "مساء"].some(k => normalized.includes(k));
-    const isThanks = normalized.includes("شكر") || normalized.includes("مشكور");
-    const isPricing = normalized.includes("سعر") || normalized.includes("اسعار") || normalized.includes("باقة") || normalized.includes("كم");
-    const isTechnical = normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل");
-    
-    // ردود حسب السياق
-    if (isGreeting) {
-      return "أهلاً وسهلاً بك! كيف يمكنني مساعدتك اليوم؟";
-    }
-    
-    if (isThanks) {
-      return "العفو! هذا واجبنا. هل هناك أي شيء آخر يمكنني مساعدتك به؟";
-    }
-    
-    if (isPricing && currentDept === 'ads') {
-      return `إليك تفاصيل باقاتنا الإعلانية:
-
-🔹 الباقة الأسبوعية: 135 دولار
-🔹 الباقة الشهرية: 405 دولار
-🔹 الباقة الاحترافية: 810 دولار
-
-هل تود معرفة المزيد عن أي باقة معينة؟`;
-    }
-    
-    if (isTechnical && currentDept === 'technical') {
-      return "أفهم أنك تواجه مشكلة تقنية. هل يمكنك تزويدي بتفاصيل أكثر عن المشكلة؟ متى بدأت وهل تظهر رسالة خطأ معينة؟";
-    }
-    
-    // ردود عامة ذكية
-    const generalReplies = [
-      "فهمت سؤالك. دعني أفكر في أفضل طريقة لمساعدتك.",
-      "شكراً على توضيحك. بناءً على ما ذكرته، أنصحك بـ...",
-      "سؤال ممتاز! إليك ما يمكنني تقديمه لك...",
-      "أقدر اهتمامك بهذا الموضوع. دعني أساعدك في ذلك."
-    ];
-    
-    // منع التكرار
-    const availableReplies = generalReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-    const reply = availableReplies.length > 0 
-      ? availableReplies[Math.floor(Math.random() * availableReplies.length)]
-      : generalReplies[0];
-    
-    previousAgentRepliesRef.current.add(reply);
-    if (previousAgentRepliesRef.current.size > 10) {
-      previousAgentRepliesRef.current.clear();
-    }
-    
-    return reply;
-  }, []);
 
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -659,11 +594,140 @@ export default function Home() {
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
       setTimeout(() => {
-        // استخدام الرد الذكي
-        const smartReply = getSmartAgentReply(trimmedText, currentAgent, messages);
+        const normalized = normalizeArabicText(trimmedText);
+        const currentDept = currentAgent.department;
+        messageCountRef.current += 1;
+
+        const closingKeywords = ["لا", "شكرا", "شكراً", "هذا كل شيء", "انتهيت", "خلاص", "لا شكرا", "لا احتاج"];
+        const isClosingRequest = closingKeywords.some(k => normalized.includes(k)) && normalized.length < 20;
+
+        if (isClosingRequest && (conversationPhaseRef.current === "closing" || conversationPhaseRef.current === "ongoing")) {
+          const closingReplies = [
+            "شكراً لتواصلك معنا، سعدنا بخدمتك، ونتمنى لك يوماً سعيداً.",
+            "يسعدنا دائماً خدمتك، وإذا احتجت أي مساعدة مستقبلاً فنحن هنا.",
+            "نتمنى لك كل التوفيق، وشكراً لثقتك بنا."
+          ];
+          const availableClosings = closingReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+          const agentReply = availableClosings.length > 0 
+            ? availableClosings[Math.floor(Math.random() * availableClosings.length)]
+            : closingReplies[Math.floor(Math.random() * closingReplies.length)];
+            
+          previousAgentRepliesRef.current.add(agentReply);
+          setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
+          setChatStatus("online");
+          conversationPhaseRef.current = "ended";
+          lastAgentMessageRef.current = agentReply;
+          isSendingRef.current = false;
+          setTimeout(() => closeAgentSession(), 2000);
+          return;
+        }
+
+        if (normalized.includes("سعر") || normalized.includes("اسعار") || normalized.includes("تفاصيل") || normalized.includes("اعلان") || normalized.includes("باقه") || normalized.includes("كم")) {
+          if (currentDept === 'ads') {
+            if (lastHandledTopicRef.current !== 'pricing_details') {
+              lastHandledTopicRef.current = 'pricing_details';
+              const pricingReply = `أهلاً بك أستاذ. إليك تفاصيل باقاتنا الإعلانية الأساسية:
+
+🔹 الباقة الأسبوعية: 135 دولار (مدة أسبوع، 50,000 ظهور، منصتين رئيسيتين).
+🔹 الباقة الشهرية: 405 دولار (مدة شهر، 200,000 ظهور، 3 منصات رئيسية).
+🔹 الباقة الاحترافية: 810 دولار (مدة شهر، 500,000+ ظهور، جميع المنصات مع مدير حساب مخصص).
+
+هل تود أن نبدأ بحجز إحدى هذه الباقات، أو لديك استفسار عن باقة مخصصة لميزانيتك؟`;
+              
+              previousAgentRepliesRef.current.add(pricingReply);
+              setMessages(prev => [...prev, createMessage("agent", pricingReply, "assistant")]);
+              conversationPhaseRef.current = "ongoing";
+              lastAgentMessageRef.current = pricingReply;
+              isSendingRef.current = false;
+              return;
+            }
+          } else {
+            setMessages(prev => [...prev, createMessage("agent", "العفو أستاذ، هذا الطلب يخص قسم الإعلانات. سأحولك الآن إلى زميلتي المختصة.", "assistant")]);
+            setTimeout(() => performInternalTransfer('ads', currentAgent.name), 1000);
+            isSendingRef.current = false;
+            return;
+          }
+        }
+
+        if ((normalized === "نعم" || normalized === "اي" || normalized === "تفضل" || normalized.includes("تمام") || normalized.includes("انتظار")) && lastHandledTopicRef.current === 'pricing_details') {
+            const followUp = "ممتاز. لكي أتمكن من تجهيز العرض الأنسب لك، هل يمكنك إخباري بالميزانية التقريبية المخصصة للإعلان أو المنصة المفضلة لديك؟";
+            previousAgentRepliesRef.current.add(followUp);
+            setMessages(prev => [...prev, createMessage("agent", followUp, "assistant")]);
+            conversationPhaseRef.current = "clarifying";
+            lastHandledTopicRef.current = "budget_inquiry";
+            lastAgentMessageRef.current = followUp;
+            isSendingRef.current = false;
+            return;
+        }
+
+        const isGratitude = normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || normalized.includes("الله يعطيك") || normalized.includes("انحلت") || normalized.includes("ممتاز");
+        if (isGratitude && conversationPhaseRef.current !== "closing" && conversationPhaseRef.current !== "ended") {
+          const gratitudeReplies = [
+            "العفو أستاذ، هذا واجبنا.",
+            "تدلل أستاذ، يسعدني أن تم حل الأمر.",
+            "بالعفو أستاذ، تحت أمرك بأي وقت."
+          ];
+          const availableGratitude = gratitudeReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+          const gratitudeReply = availableGratitude.length > 0 ? availableGratitude[Math.floor(Math.random() * availableGratitude.length)] : gratitudeReplies[0];
+          
+          previousAgentRepliesRef.current.add(gratitudeReply);
+          setMessages(prev => [...prev, createMessage("agent", gratitudeReply, "assistant")]);
+          
+          setTimeout(() => {
+            const followUpQuestions = ["هل تحتاج إلى أي استفسار آخر أستاذ؟", "هل هناك شيء آخر أقدر أساعدك فيه؟"];
+            const availableFollowUp = followUpQuestions.filter(q => !previousAgentRepliesRef.current.has(q));
+            const followUp = availableFollowUp.length > 0 ? availableFollowUp[Math.floor(Math.random() * availableFollowUp.length)] : followUpQuestions[0];
+            
+            previousAgentRepliesRef.current.add(followUp);
+            setMessages(prev => [...prev, createMessage("agent", followUp, "assistant")]);
+            awaitingFinalConfirmationRef.current = true;
+            conversationPhaseRef.current = "closing";
+            lastAgentMessageRef.current = followUp;
+            setChatStatus("online");
+            isSendingRef.current = false;
+          }, 1000);
+          return;
+        }
+
+        if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("معلق")) {
+          if (currentDept === 'technical') {
+            if (lastHandledTopicRef.current !== 'technical_details') {
+                lastHandledTopicRef.current = 'technical_details';
+                const techReplies = [
+                  "حاضر، يسعدني مساعدتك. لكي أتمكن من فحص الأمر بدقة، هل يمكنك تزويدي برقم الطلب أو لقطة شاشة للخطأ؟",
+                  "أكيد، أنا هنا لمساعدتك. يرجى تزويدي بتفاصيل أكثر: متى بدأت المشكلة؟ وهل تظهر رسالة خطأ معينة؟"
+                ];
+                const available = techReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+                const agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : techReplies[0];
+                
+                previousAgentRepliesRef.current.add(agentReply);
+                setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
+                conversationPhaseRef.current = "clarifying";
+                lastAgentMessageRef.current = agentReply;
+                isSendingRef.current = false;
+                return;
+            }
+          } else {
+            setMessages(prev => [...prev, createMessage("agent", "العفو أستاذ، هذا الطلب يخص قسم الدعم الفني. سأحولك الآن إلى زميلي المختص.", "assistant")]);
+            setTimeout(() => performInternalTransfer('technical', currentAgent.name), 1000);
+            isSendingRef.current = false;
+            return;
+          }
+        }
+
+        const generalReplies = currentDept === 'ads' 
+          ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب لمتجرك؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك لنبدأ منها؟"]
+          : currentDept === 'technical'
+          ? ["حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية عن المشكلة.", "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح المشكلة أكثر؟"]
+          : ["بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.", "حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟"];
         
-        setMessages(prev => [...prev, createMessage("agent", smartReply, "assistant")]);
-        setChatStatus("online");
+        const available = generalReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+        const agentReply = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : generalReplies[0];
+        
+        previousAgentRepliesRef.current.add(agentReply);
+        setMessages(prev => [...prev, createMessage("agent", agentReply, "assistant")]);
+        lastAgentMessageRef.current = agentReply;
+        conversationPhaseRef.current = "ongoing";
         isSendingRef.current = false;
       }, 1500);
       return; 
@@ -709,7 +773,7 @@ export default function Home() {
       setChatStatus("online");
       isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, currentAgent, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession, selectedFile, getSmartAgentReply]);
+  }, [text, currentSpeaker, currentAgent, checkAndPerformEscalation, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession, selectedFile]);
 
   // ============================================================
   // EFFECTS
@@ -722,14 +786,14 @@ export default function Home() {
     if (!hasSaved) {
       setChatStatus("typing");
       setTimeout(() => {
-        setMessages([createMessage("bot", "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟", "assistant")]);
+        setMessages([createMessage("bot", "أهلاً بك في قناة مجلة دار النجوم! 🌟 أنا المساعد الذكي. كيف يمكنني خدمتك اليوم؟ يمكنك سؤالي عن الأخبار، البرامج، أسعار الإعلانات، أو أي استفسار آخر.", "assistant")]);
         setChatStatus("online");
       }, 800);
     }
   }, [open, messages.length, loadStateFromStorage]);
 
   // ============================================================
-  // RENDER HELPERS
+  // 6. ترتيب واجهة المحادثة (RENDER HELPERS)
   // ============================================================
   const getStatusText = () => {
     switch (chatStatus) {
@@ -782,40 +846,11 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
       <style jsx global>{`
-        /* 3. نقل شريط التمرير إلى اليمين */
-        .scrollbar-hide::-webkit-scrollbar {
-          width: 6px;
-        }
-        .scrollbar-hide::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .scrollbar-hide::-webkit-scrollbar-thumb {
-          background-color: rgba(139, 92, 246, 0.3);
-          border-radius: 20px;
-        }
-        .scrollbar-hide::-webkit-scrollbar-thumb:hover {
-          background-color: rgba(139, 92, 246, 0.5);
-        }
-        
-        @keyframes seamless-scroll { 
-          0% { transform: translateX(0); } 
-          100% { transform: translateX(-50%); } 
-        }
-        .animate-seamless-scroll { 
-          animation: seamless-scroll 50s linear infinite; 
-          will-change: transform; 
-        }
-        .animate-seamless-scroll:hover { 
-          animation-play-state: paused; 
-        }
-        
-        @keyframes slide-in-right { 
-          0% { transform: translateX(100px); opacity: 0; } 
-          100% { transform: translateX(0); opacity: 1; } 
-        }
-        .animate-slide-in-right { 
-          animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
-        }
+        @keyframes seamless-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .animate-seamless-scroll { animation: seamless-scroll 50s linear infinite; will-change: transform; }
+        .animate-seamless-scroll:hover { animation-play-state: paused; }
+        @keyframes slide-in-right { 0% { transform: translateX(100px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
+        .animate-slide-in-right { animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         
         @keyframes blink-human {
           0%, 100% { transform: scaleY(1); }
@@ -854,6 +889,7 @@ export default function Home() {
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
       `}</style>
 
+      {/* 7. شريط التحميل: يبدأ من اليسار ويتجه لليمين */}
       {loadingProgress > 0 && (
         <div className="fixed top-0 left-0 z-[100] h-1 bg-gray-800/50 w-full">
           <div 
@@ -874,7 +910,7 @@ export default function Home() {
             <span className="text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">قناة مجلة دار النجوم</span>
           </a>
           <div className="flex-1 max-w-md mx-2 hidden md:block">
-            <input type="text" placeholder=" ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
+            <input type="text" placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
           </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
             <a href="/upgrade" className="hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg transition">ترقية 👑</a>
@@ -889,7 +925,6 @@ export default function Home() {
       <div className="bg-[#111827] border-b border-gray-800 overflow-hidden relative py-3">
         <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-[#111827] to-transparent z-10 pointer-events-none"></div>
         <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-[#111827] to-transparent z-10 pointer-events-none"></div>
-        {/* 4. اتجاه التمرير من اليمين لليسار */}
         <div className="flex animate-seamless-scroll w-max">
           {renderSeamlessItems()}
         </div>
@@ -911,7 +946,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 1. أيقونة المساعد: تبدأ من خارج الشاشة وتتحرك لليسار */}
+      {/* 1 & 2. أيقونة المساعد: حركة دخول + سحب وإفلات سلس */}
       <div 
         ref={chatButtonRef}
         onPointerDown={(e) => {
@@ -948,8 +983,7 @@ export default function Home() {
         style={{ 
           left: `${iconPos.x}px`, 
           top: `${iconPos.y}px`,
-          cursor: isDragging ? 'grabbing' : 'grab',
-          transition: isDragging ? 'none' : 'all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)'
+          cursor: isDragging ? 'grabbing' : 'grab'
         }}
         title="مركز المساعدة"
       >
@@ -1002,14 +1036,13 @@ export default function Home() {
           </div>
         </div>
 
-        {/* 3. دعم سحب وإفلات الملفات + شريط التمرير على اليمين */}
+        {/* 3. دعم سحب وإفلات الملفات داخل المحادثة */}
         <div 
           ref={chatContainerRef}
           className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50 relative"
           onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
           onDragLeave={() => setIsDragOver(false)}
           onDrop={handleDrop}
-          style={{ direction: 'rtl' }}
         >
           {isDragOver && (
             <div className="absolute inset-0 bg-purple-600/20 border-2 border-dashed border-purple-500 rounded-xl flex items-center justify-center z-10 backdrop-blur-sm">
@@ -1085,6 +1118,7 @@ export default function Home() {
         </div>
 
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
+          {/* 3. معاينة الصورة/الملف قبل الإرسال */}
           {selectedFile && (
             <div className="mb-2 p-2 bg-[#0b0f1a] rounded-lg border border-gray-700 flex items-center gap-3 relative">
               {selectedFile.file.type.startsWith('image/') ? (
