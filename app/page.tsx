@@ -115,29 +115,26 @@ const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/mov', 'video/webm'];
 const ALLOWED_DOC_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
 
 // ============================================================
-// 3. تحسين ردود الموظفين (أكثر طبيعية وسياقية)
+// ADVANCED AGENT RESPONSES (Human-like & Contextual)
 // ============================================================
 const getSmartAgentResponse = (text: string, agentName: string, deptName: string, history: Set<string>): string => {
   const normalized = normalizeArabicText(text);
-
-  // 1. ردود الشكر والإنهاء
+  
+  // ردود مخصصة حسب السياق
   if (normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || normalized.includes("يعطيك")) {
     return "العفو! هذا واجبنا. هل هناك أي استفسار آخر يمكنني مساعدتك به؟";
   }
   if (normalized.includes("لا") || normalized.includes("خلاص") || normalized.includes("انتهيت") || normalized.includes("هذا كل شيء")) {
     return "شكراً لتواصلك معنا، سعدنا بخدمتك. إذا احتجت إلى أي مساعدة مستقبلاً، فلا تتردد في التواصل معنا. نتمنى لك يوماً سعيداً!";
   }
-
-  // 2. ردود مخصصة حسب القسم والسؤال
   if (normalized.includes("سعر") || normalized.includes("اسعار") || normalized.includes("اعلان") || normalized.includes("باقة") || normalized.includes("كم")) {
     return `يسعدني ذلك! باقاتنا تبدأ من 135$ للأسبوعية و 405$ للشهرية. هل تود أن أرسل لك تفاصيل الباقات على الرابط، أم لديك ميزانية محددة في ذهنك لنصمم لك عرضاً مخصصاً؟`;
   }
-
   if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("دخول") || normalized.includes("حساب")) {
     return `أعتذر عن هذا الإزعاج. لكي أتمكن من مساعدتك بشكل دقيق، هل يمكنك تزويدي برقم الطلب أو وصف أكثر تفصيلاً للمشكلة التي تواجهك؟`;
   }
 
-  // 3. ردود عامة طبيعية وغير مكررة
+  // ردود عامة طبيعية وغير مكررة
   const naturalReplies = [
     "فهمت عليك تماماً. هل يمكنك تزويدي بالمزيد من التفاصيل لأتمكن من خدمتك بشكل أفضل؟",
     "شكراً على توضيحك. دعني أتحقق من هذا الأمر وأعود لك بالحل الأنسب في أقرب وقت.",
@@ -151,7 +148,7 @@ const getSmartAgentResponse = (text: string, agentName: string, deptName: string
     : naturalReplies[Math.floor(Math.random() * naturalReplies.length)];
     
   history.add(chosenReply);
-  if (history.size > 5) history.clear(); // الحفاظ على الذاكرة صغيرة
+  if (history.size > 5) history.clear(); // الحفاظ على الذاكرة صغيرة ومنع التكرار
 
   return chosenReply;
 };
@@ -552,18 +549,16 @@ export default function Home() {
     } catch (e) { return false; }
   }, []);
 
-  // 1. تعديل انتهاء جلسة الموظف والعودة للمساعد الذكي مع تصفير الدردشة
+  // 2. تعديل انتهاء جلسة الموظف والعودة للمساعد الذكي مع تصفير الدردشة
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
-
-    let inactivityTimer: NodeJS.Timeout;
-
-    const startInactivityTimer = () => {
-      clearTimeout(inactivityTimer);
-      inactivityTimer = setTimeout(() => {
-        // 1. تصفير الدردشة تماماً
+    
+    const interval = setInterval(() => {
+      const elapsed = (Date.now() - lastActivityTimeRef.current) / 1000;
+      
+      if (elapsed >= SESSION_TIMEOUTS.SOFT_INACTIVE) {
+        // تصفير الدردشة والعودة للمساعد الذكي فوراً
         setMessages([]);
-        // 2. إعادة تعيين الحالات إلى المساعد الذكي
         setCurrentSpeaker("bot");
         setCurrentAgent(null);
         setSessionAgents([]);
@@ -574,19 +569,15 @@ export default function Home() {
         isFirstUserMessageAfterTransferRef.current = true;
         agentResponseHistoryRef.current.clear();
         
-        // 3. إظهار رسالة الترحيب من المساعد الذكي
+        // إظهار رسالة الترحيب بعد تأخير بسيط
         setTimeout(() => {
           setMessages([createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
-        }, 300);
-        
-      }, SESSION_TIMEOUTS.SOFT_INACTIVE); // 59 ثانية
-    };
-
-    // إعادة ضبط المؤقت عند إضافة أي رسالة جديدة
-    startInactivityTimer();
-
-    return () => clearTimeout(inactivityTimer);
-  }, [messages, currentSpeaker]);
+        }, 500);
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [currentSpeaker]);
 
   const closeAgentSession = useCallback(() => {
     setTimeout(() => {
@@ -833,6 +824,15 @@ export default function Home() {
         .animate-blink-human { animation: blink-human 0.12s ease-in-out; transform-origin: center; }
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
+        
+        /* 1. إصلاح ظهور الرسائل: حركة ظهور ناعمة بدلاً من الانزلاق من اليمين */
+        @keyframes fadeIn { 
+          from { opacity: 0; transform: translateY(5px); } 
+          to { opacity: 1; transform: translateY(0); } 
+        }
+        .animate-fade-in { 
+          animation: fadeIn 0.3s ease-out forwards; 
+        }
       `}</style>
 
       {loadingProgress > 0 && (
@@ -881,7 +881,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 2. إزالة الظل الأسود: تم استخدام ظل بنفسجي مخصص فقط */}
+      {/* 3. إخفاء الظل الأسود: استخدام ظل بنفسجي مخصص وصافي فقط */}
       <div ref={chatButtonRef} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={handleClick}
         className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none"
         style={{ 
@@ -892,8 +892,8 @@ export default function Home() {
           transform: `translateX(${idleOffsetX}px) scale(${springScale})`, 
           transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
           boxShadow: isDragging 
-            ? '0 20px 25px -5px rgba(147, 51, 234, 0.5), 0 8px 10px -6px rgba(147, 51, 234, 0.5)' 
-            : '0 10px 20px -5px rgba(147, 51, 234, 0.4)' // ظل بنفسجي فقط بدون أسود
+            ? '0 20px 25px -5px rgba(147, 51, 234, 0.6), 0 8px 10px -6px rgba(147, 51, 234, 0.4)' 
+            : '0 10px 25px -5px rgba(147, 51, 234, 0.4)' // ظل بنفسجي صافي بدون أسود
         }} 
         title="مركز المساعدة"
       >
@@ -957,7 +957,8 @@ export default function Home() {
             if (msg.sender === "system") return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%] whitespace-pre-line">{msg.text}</span></div>;
             const isUser = msg.sender === "user";
             return (
-              <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
+              // تم إزالة animate-slide-in-right واستبدالها بـ animate-fade-in لظهور طبيعي
+              <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"} animate-fade-in`}>
                 {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
                 <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative whitespace-pre-line ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
                   {msg.text}
@@ -969,7 +970,7 @@ export default function Home() {
           })}
 
           {showDepartmentSelection && currentSpeaker === "bot" && (
-            <div className="grid grid-cols-1 gap-2 mt-2 animate-slide-in-right">
+            <div className="grid grid-cols-1 gap-2 mt-2 animate-fade-in">
               {DEPARTMENT_OPTIONS.map((dept) => (
                 <button key={dept.id} onClick={() => initiateDepartmentTransfer(dept.id)} className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group flex items-center gap-3">
                   <span className="text-2xl">{dept.icon}</span>
@@ -984,7 +985,7 @@ export default function Home() {
           )}
 
           {chatStatus === "typing" && !showDepartmentSelection && (
-            <div className="flex flex-col items-start">
+            <div className="flex flex-col items-start animate-fade-in">
               <span className="text-[10px] text-gray-400 mb-1 ml-1">{currentSpeaker === "agent" && currentAgent ? currentAgent.name : "المساعد الذكي"}</span>
               <div className="bg-[#1f2937] border border-purple-500/30 rounded-2xl rounded-tl-sm p-3 flex gap-1.5 items-center h-10">
                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '0ms' }}></span>
