@@ -8,7 +8,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 type Sender = "user" | "bot" | "agent" | "system";
 type AgentStatus = "online" | "away" | "offline";
-type Department = 'support' | 'ads' | 'technical';
+type Department = 'sales' | 'technical' | 'ads' | 'accounting' | 'partnerships' | 'orders' | 'general';
 type ChatStatus = "typing" | "online" | "waiting" | "inactive" | "closed";
 type ProductShape = "circle" | "rectangle" | "square" | "portrait";
 type AttachmentType = 'image' | 'link' | 'card' | 'product' | 'file' | 'video';
@@ -42,12 +42,12 @@ interface Agent {
   status: AgentStatus;
   lastActivity: string;
   isBusy: boolean;
-  isRealAgent?: boolean;
 }
 
 interface DepartmentOption {
   id: Department;
   name: string;
+  icon: string;
   description: string;
 }
 
@@ -72,15 +72,24 @@ interface UploadedFile {
 // ============================================================
 
 const SUPPORT_AGENTS: Agent[] = [
-  { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
-  { employeeId: "EMP-002", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
-  { employeeId: "EMP-003", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=47", role: "مسؤولة الإعلانات والمبيعات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
+  { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "ممثل مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-002", name: "منى العلي", img: "https://i.pravatar.cc/150?img=44", role: "أخصائية مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-003", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=47", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-004", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=32", role: "مديرة الإعلانات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-005", name: "أحمد المحاسب", img: "https://i.pravatar.cc/150?img=11", role: "قسم المحاسبة", department: 'accounting', status: 'away', lastActivity: new Date().toISOString(), isBusy: true },
+  { employeeId: "EMP-006", name: "ليلى الشراكات", img: "https://i.pravatar.cc/150?img=5", role: "منسقة شراكات", department: 'partnerships', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-007", name: "عمر المتابعة", img: "https://i.pravatar.cc/150?img=12", role: "متابعة الطلبات", department: 'orders', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-008", name: "فاطمة الخدمة", img: "https://i.pravatar.cc/150?img=9", role: "خدمة العملاء", department: 'general', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
 ];
 
 const DEPARTMENT_OPTIONS: DepartmentOption[] = [
-  { id: 'support', name: 'استفسارات عامة وخدمة العملاء', description: 'تواصل مباشر مع موظف خدمة العملاء' },
-  { id: 'ads', name: 'قسم المبيعات والإعلانات', description: 'تواصل مباشر مع فريق المبيعات والدعاية' },
-  { id: 'technical', name: 'قسم الدعم الفني', description: 'تواصل مباشر مع فريق الدعم الفني' },
+  { id: 'sales', name: 'المبيعات', icon: '🛒', description: 'حجز باقات، استفسارات عن الأسعار والعروض' },
+  { id: 'technical', name: 'الدعم الفني', icon: '🛠️', description: 'حل المشاكل التقنية، أخطاء الموقع، تسجيل الدخول' },
+  { id: 'ads', name: 'الإعلانات والرعاية', icon: '📢', description: 'حجز مساحات إعلانية، رعاية البرامج والمحتوى' },
+  { id: 'accounting', name: 'المحاسبة', icon: '💳', description: 'الفواتير، طرق الدفع، الاسترجاع المالي' },
+  { id: 'partnerships', name: 'الشراكات', icon: '🤝', description: 'تعاون مع المؤثرين، شركاء استراتيجيين' },
+  { id: 'orders', name: 'متابعة الطلبات', icon: '📦', description: 'حالة الطلب، أرقام التتبع، الشحن والتوصيل' },
+  { id: 'general', name: 'استفسار عام', icon: '❓', description: 'أي استفسار آخر غير مذكور أعلاه' },
 ];
 
 const SESSION_TIMEOUTS = { IDLE_TO_CLOSED: 60, QUEUE_CHECK_INTERVAL: 8000 };
@@ -95,43 +104,28 @@ const TRENDING_PRODUCTS: TrendingProduct[] = [
 const EXACT_WELCOME_MESSAGE = "أهلاً وسهلاً بك في قناة مجلة دار النجوم. يسعدني مساعدتك، كيف أستطيع خدمتك اليوم؟";
 
 const LOCAL_KNOWLEDGE_BASE = [
-  { 
-    keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض"], 
-    targetDept: 'ads' as Department,
-    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الإعلانية الأساسية:\n🔹 الأسبوعية: 135$ (50,000 ظهور)\n🔹 الشهرية: 405$ (200,000 ظهور)\n🔹 الاحترافية: 810$ (500,000+ ظهور)",
+  {
+    keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض"],
+    targetDept: 'sales' as Department,
+    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الأساسية:\n🔹 الأسبوعية: 135$\n🔹 الشهرية: 405$\n🔹 الاحترافية: 810$",
     link: "/pricing",
     linkText: "صفحة الأسعار والتفاصيل الكاملة",
     linkDesc: "اطلع على جميع الباقات والشروط"
   },
-  { 
-    keywords: ["سياسة", "خصوصية"], 
-    targetDept: 'support' as Department,
-    explanation: "يمكنك الاطلاع على كافة التفاصيل المتعلقة بحماية البيانات والشروط القانونية:",
+  {
+    keywords: ["سياسة", "خصوصية"],
+    targetDept: 'general' as Department,
+    explanation: "يمكنك الاطلاع على كافة التفاصيل المتعلقة بحماية البيانات:",
     link: "/privacy",
     linkText: "سياسة الخصوصية",
     linkDesc: "سياسة حماية البيانات والخصوصية"
-  },
-  { 
-    keywords: ["شروط", "احكام"], 
-    targetDept: 'support' as Department,
-    explanation: "جميع الشروط والأحكام المنظمة لاستخدام المنصة متاحة هنا:",
-    link: "/terms",
-    linkText: "الشروط والأحكام",
-    linkDesc: "الشروط القانونية لاستخدام المنصة"
-  },
-  {
-    keywords: ["من نحن", "تعرف علينا"],
-    targetDept: 'support' as Department,
-    explanation: "نحن منصة دار النجوم الإعلامية، منصتكم الأولى لعالم المشاهير والمحتوى الحصري.",
-    link: "/about",
-    linkText: "من نحن",
-    linkDesc: "تعرف على فريقنا ورؤيتنا"
   }
 ];
 
 const GREETING_KEYWORDS = ["مرحبا", "هلا", "سلام", "صباح", "مساء", "اهلين", "السلام"];
+const EXPLICIT_EMAIL_KEYWORDS = ["ايميل", "بريد", "email", "عنوان البريد"];
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/mov', 'video/webm'];
 const ALLOWED_DOC_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
@@ -155,11 +149,7 @@ const normalizeArabicText = (text: string): string => {
 
 const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
-  const humanRequestKeywords = [
-    "موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", 
-    "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول",
-    "تواصل", "اتصل", "مبيعات", "دعم فني", "اعلانات", "استفسار", "بريد", "ايميل"
-  ];
+  const humanRequestKeywords = ["موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول", "دعم", "مساعدة"];
   return humanRequestKeywords.some(keyword => normalized.includes(keyword));
 };
 
@@ -197,36 +187,39 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [search, setSearch] = useState("");
-  
+
   const [currentSpeaker, setCurrentSpeaker] = useState<"bot" | "agent">("bot");
   const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
   const [sessionAgents, setSessionAgents] = useState<Agent[]>([]);
   const [chatStatus, setChatStatus] = useState<ChatStatus>("online");
   const [isQueued, setIsQueued] = useState(false);
   const [showDepartmentSelection, setShowDepartmentSelection] = useState(false);
-  
+
+  const [isTicketMode, setIsTicketMode] = useState(false);
+  const [ticketStep, setTicketStep] = useState<'name' | 'details' | 'submitting'>('name');
+  const [ticketDept, setTicketDept] = useState<Department | null>(null);
+  const [ticketUserName, setTicketUserName] = useState("");
+
   const [loadingProgress, setLoadingProgress] = useState(0);
-  
-  // Animation & Drag States
+
   const [iconPos, setIconPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 80 : 0, y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [springScale, setSpringScale] = useState(1);
   const [idleOffsetX, setIdleOffsetX] = useState(0);
   const [headTransform, setHeadTransform] = useState("translateY(0px) rotate(0deg)");
-  
+
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
-  
-  // File Upload States
+
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
-  
+
   const targetEyePos = useRef({ x: 0, y: 0 });
   const currentEyePos = useRef({ x: 0, y: 0 });
   const microSaccade = useRef({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const dragStartPos = useRef({ x: 0, y: 0 });
   const pointerStartPos = useRef({ x: 0, y: 0 });
   const hasDragged = useRef(false);
@@ -237,20 +230,11 @@ export default function Home() {
   const chatStatusRef = useRef(chatStatus);
   const lastActivityTimeRef = useRef(Date.now());
   const isSendingRef = useRef(false);
-  const previousAgentRepliesRef = useRef<Set<string>>(new Set());
-  
-  const conversationContextRef = useRef<string[]>([]);
-  const lastHandledTopicRef = useRef<string | null>(null);
-  const conversationPhaseRef = useRef<"initial" | "ongoing" | "clarifying" | "closing_pending" | "ended">("initial");
-  const messageCountRef = useRef<number>(0);
   const isFirstUserMessageAfterTransferRef = useRef(true);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
-  // ============================================================
-  // LOAD SAVED POSITION
-  // ============================================================
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedPos = localStorage.getItem('chat-icon-pos');
@@ -267,9 +251,6 @@ export default function Home() {
     }
   }, []);
 
-  // ============================================================
-  // LOADING BAR LOGIC (RTL)
-  // ============================================================
   useEffect(() => {
     let progress = 0;
     let isComplete = false;
@@ -311,9 +292,6 @@ export default function Home() {
     };
   }, []);
 
-  // ============================================================
-  // IDLE ANIMATION LOGIC
-  // ============================================================
   useEffect(() => {
     if (isDragging) {
       setIdleOffsetX(0);
@@ -332,9 +310,6 @@ export default function Home() {
     return () => { clearTimeout(moveTimeout); clearTimeout(cycleTimeout); };
   }, [isDragging]);
 
-  // ============================================================
-  // ADVANCED ANIMATION LOOP
-  // ============================================================
   useEffect(() => {
     let rafId: number;
     let time = 0;
@@ -368,7 +343,6 @@ export default function Home() {
     return () => cancelAnimationFrame(rafId);
   }, [isDragging]);
 
-  // Eye Tracking
   useEffect(() => {
     const handleMove = (clientX: number, clientY: number) => {
       if (!chatButtonRef.current || isDragging) return;
@@ -397,9 +371,7 @@ export default function Home() {
   useEffect(() => {
     if (open) {
       targetEyePos.current = { x: 0, y: -2.5 };
-      if (chatStatus === "typing") {
-        targetEyePos.current = { x: 0, y: -3.0 };
-      }
+      if (chatStatus === "typing") targetEyePos.current = { x: 0, y: -3.0 };
     } else {
       targetEyePos.current = { x: 0, y: 0 };
     }
@@ -430,35 +402,24 @@ export default function Home() {
     return () => { clearTimeout(blinkTimeout); clearTimeout(idleTimeout); };
   }, [isDragging, open]);
 
-  // ============================================================
-  // DRAG & DROP LOGIC WITH SNAP TO EDGE
-  // ============================================================
   const snapToEdge = useCallback((x: number, y: number) => {
     const screenWidth = window.innerWidth;
     const screenHeight = window.innerHeight;
     const iconSize = 64;
     const margin = 10;
-    
+
     const distToLeft = x;
     const distToRight = screenWidth - x - iconSize;
     const distToTop = y;
     const distToBottom = screenHeight - y - iconSize;
-    
     const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
-    
-    let snappedX = x;
-    let snappedY = y;
-    
-    if (minDist === distToLeft) {
-      snappedX = margin;
-    } else if (minDist === distToRight) {
-      snappedX = screenWidth - iconSize - margin;
-    } else if (minDist === distToTop) {
-      snappedY = margin;
-    } else {
-      snappedY = screenHeight - iconSize - margin;
-    }
-    
+
+    let snappedX = x, snappedY = y;
+    if (minDist === distToLeft) snappedX = margin;
+    else if (minDist === distToRight) snappedX = screenWidth - iconSize - margin;
+    else if (minDist === distToTop) snappedY = margin;
+    else snappedY = screenHeight - iconSize - margin;
+
     return { x: snappedX, y: snappedY };
   }, []);
 
@@ -489,12 +450,10 @@ export default function Home() {
     if (!isDragging) return;
     setIsDragging(false);
     chatButtonRef.current?.releasePointerCapture(e.pointerId);
-    
     const snapped = snapToEdge(currentIconPos.current.x, currentIconPos.current.y);
     targetIconPos.current = snapped;
     currentIconPos.current = snapped;
     setIconPos(snapped);
-    
     if (typeof window !== 'undefined') localStorage.setItem('chat-icon-pos', JSON.stringify(snapped));
   }, [isDragging, snapToEdge]);
 
@@ -503,50 +462,28 @@ export default function Home() {
     hasDragged.current = false;
   }, []);
 
-  // ============================================================
-  // FILE UPLOAD LOGIC
-  // ============================================================
   const handleFileSelect = useCallback((files: FileList | null) => {
     if (!files) return;
-    
     Array.from(files).forEach(file => {
-      if (file.size > MAX_FILE_SIZE) {
-        alert(`حجم الملف "${file.name}" يتجاوز الحد المسموح (10MB)`);
-        return;
-      }
-      
-      const isAllowed = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOC_TYPES].includes(file.type);
-      if (!isAllowed) {
-        alert(`نوع الملف "${file.name}" غير مدعوم`);
-        return;
-      }
-      
+      if (file.size > MAX_FILE_SIZE) { alert(`حجم الملف "${file.name}" يتجاوز الحد المسموح (10MB)`); return; } 
+      const isAllowed = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOC_TYPES].includes(file.type); 
+      if (!isAllowed) { alert(`نوع الملف "${file.name}" غير مدعوم`); return; }
+
       const fileType = getFileType(file);
-      const uploadedFile: UploadedFile = {
-        id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-        file,
-        progress: 0,
-        type: fileType
-      };
-      
+      const uploadedFile: UploadedFile = { id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`, file, progress: 0, type: fileType };
+
       if (fileType === 'image' || fileType === 'video') {
         const reader = new FileReader();
-        reader.onload = (e) => {
-          uploadedFile.preview = e.target?.result as string;
-          setUploadedFiles(prev => [...prev, uploadedFile]);
-        };
+        reader.onload = (e) => { uploadedFile.preview = e.target?.result as string; setUploadedFiles(prev => [...prev, uploadedFile]); };
         reader.readAsDataURL(file);
       } else {
         setUploadedFiles(prev => [...prev, uploadedFile]);
       }
-      
+
       let progress = 0;
       const interval = setInterval(() => {
         progress += 10;
-        if (progress >= 100) {
-          progress = 100;
-          clearInterval(interval);
-        }
+        if (progress >= 100) { progress = 100; clearInterval(interval); }
         setUploadedFiles(prev => prev.map(f => f.id === uploadedFile.id ? { ...f, progress } : f));
       }, 100);
     });
@@ -557,12 +494,9 @@ export default function Home() {
   const handleDragLeave = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); }, []);
   const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); handleFileSelect(e.dataTransfer.files); }, [handleFileSelect]);
 
-  // ============================================================
-  // SESSION & MESSAGE LOGIC
-  // ============================================================
   const saveStateToStorage = useCallback(() => {
     if (typeof window === 'undefined') return;
-    try { localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({ messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued })); } 
+    try { localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({ messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued })); }
     catch (e) { console.error('Save state error:', e); }
   }, [messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued]);
 
@@ -575,9 +509,8 @@ export default function Home() {
       setMessages(parsed.messages || []);
       setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
       setChatStatus("online"); setIsQueued(false); setShowDepartmentSelection(false);
-      previousAgentRepliesRef.current.clear(); conversationContextRef.current = [];
-      lastHandledTopicRef.current = null; conversationPhaseRef.current = "initial";
-      messageCountRef.current = 0; isFirstUserMessageAfterTransferRef.current = true;
+      setIsTicketMode(false); setTicketStep('name'); setTicketDept(null); setTicketUserName("");
+      isFirstUserMessageAfterTransferRef.current = true;
       return true;
     } catch (e) { return false; }
   }, []);
@@ -594,8 +527,7 @@ export default function Home() {
       if ((Date.now() - lastActivityTimeRef.current) / 1000 >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
         setMessages(prev => [...prev, createMessage("system", "أنا موجود إذا احتجت أي مساعدة في أي وقت.", "assistant")]);
         setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
-        setChatStatus("online"); conversationPhaseRef.current = "initial";
-        lastActivityTimeRef.current = Date.now();
+        setChatStatus("online"); lastActivityTimeRef.current = Date.now();
       }
     }, 1000);
     return () => clearInterval(interval);
@@ -606,9 +538,8 @@ export default function Home() {
       setMessages([createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
       setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
       setIsQueued(false); setShowDepartmentSelection(false); setChatStatus("online");
-      lastActivityTimeRef.current = Date.now(); previousAgentRepliesRef.current.clear();
-      conversationContextRef.current = []; lastHandledTopicRef.current = null;
-      conversationPhaseRef.current = "initial"; messageCountRef.current = 0;
+      setIsTicketMode(false); setTicketStep('name'); setTicketDept(null); setTicketUserName("");
+      lastActivityTimeRef.current = Date.now();
       isFirstUserMessageAfterTransferRef.current = true;
       if (typeof window !== "undefined") localStorage.removeItem("dar-alnujum-chat-state");
     }, 2500);
@@ -618,185 +549,143 @@ export default function Home() {
     setCurrentAgent(agent);
     setSessionAgents(prev => prev.find(a => a.employeeId === agent.employeeId) ? prev : [...prev, agent]);
     setCurrentSpeaker("agent"); setIsQueued(false); setShowDepartmentSelection(false);
-    previousAgentRepliesRef.current.clear(); conversationContextRef.current = [];
-    lastHandledTopicRef.current = null; conversationPhaseRef.current = "initial";
-    messageCountRef.current = 0; isFirstUserMessageAfterTransferRef.current = true;
+    isFirstUserMessageAfterTransferRef.current = true;
     setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). اطلعت على المحادثة السابقة، تفضل كيف يمكنني مساعدتك؟`, "assistant")]);
     setChatStatus("online"); lastActivityTimeRef.current = Date.now();
   }, []);
 
   const handleHumanRequest = useCallback(() => {
-    setShowDepartmentSelection(true); 
+    setShowDepartmentSelection(true);
     setChatStatus("online");
-    setMessages(prev => [...prev, createMessage("system", "يسعدنا تواصلك المباشر! يرجى اختيار القسم المناسب ليتم تحويلك إلى الموظف المختص:", "assistant")]);
+    setMessages(prev => [...prev, createMessage("system", "يسعدنا خدمتك! يرجى اختيار القسم المناسب ليتم توجيهك للموظف المختص فوراً:", "assistant")]);
   }, []);
 
   const initiateDepartmentTransfer = useCallback((dept: Department) => {
-    setChatStatus("typing");
     const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
-    setMessages(prev => [...prev, createMessage("system", `جاري البحث عن موظف متاح في ${deptOption?.name}...`)]);
     setShowDepartmentSelection(false);
-    setTimeout(() => {
-      const availableAgent = findAvailableAgent(dept);
-      if (availableAgent) { startAgentSession(availableAgent); }
-      else {
-        setIsQueued(true); setChatStatus("waiting");
-        setMessages(prev => [...prev, createMessage("system", `جميع موظفي ${deptOption?.name} مشغولون حالياً. تم وضعك في قائمة الانتظار.`)]);
-        setTimeout(() => {
-          const fallbackAgent = findAvailableAgent(dept) || SUPPORT_AGENTS.find(a => a.department === dept);
-          if (fallbackAgent) {
-            startAgentSession(fallbackAgent);
-            setMessages(prev => [...prev, createMessage("system", "تم توصيلك بأحد موظفينا. نعتذر عن الانتظار.")]);
-          }
-        }, SESSION_TIMEOUTS.QUEUE_CHECK_INTERVAL);
-      }
-    }, 1500);
+
+    const availableAgent = findAvailableAgent(dept);
+    if (availableAgent) {
+      startAgentSession(availableAgent);
+    } else {
+      setIsTicketMode(true);
+      setTicketDept(dept);
+      setTicketStep('name');
+      setMessages(prev => [...prev, createMessage("bot", `جميع موظفي قسم ${deptOption?.name} مشغولون حالياً.\n\nلا تقلق! يمكننا إنشاء تذكرة دعم لك.\n\nيرجى كتابة اسمك الكريم للبدء:`, "assistant")]);
+      setChatStatus("online");
+    }
   }, [startAgentSession]);
 
-  const performInternalTransfer = useCallback((targetDept: Department, currentAgentName: string) => {
-    const targetAgent = findAvailableAgent(targetDept) || SUPPORT_AGENTS.find(a => a.department === targetDept);
-    if (!targetAgent) return;
-    setMessages(prev => [...prev, createMessage("agent", `هذا الطلب يخص قسم ${targetDept === 'ads' ? 'المبيعات والإعلانات' : targetDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}، سأقوم بتحويلك الآن إلى الموظف المختص مع الاحتفاظ بسجل المحادثة كاملاً.`, "assistant")]);
-    setTimeout(() => {
-      setSessionAgents(prev => prev.find(a => a.employeeId === targetAgent!.employeeId) ? prev : [...prev, targetAgent!]);
-      setCurrentAgent(targetAgent);
-      conversationPhaseRef.current = "initial";
-      isFirstUserMessageAfterTransferRef.current = true;
-      setTimeout(() => {
-        setMessages(prev => [...prev, createMessage("agent", `مرحباً، أنا ${targetAgent!.name}. اطلعت على ما سبق، وكيف يمكنني مساعدتك الآن؟`, "assistant")]);
-        setChatStatus("online"); isSendingRef.current = false; lastActivityTimeRef.current = Date.now();
-      }, 1000);
-    }, 1500);
-  }, []);
-
-  // ============================================================
-  // SEND MESSAGE LOGIC (محدثة لدعم رفع الملفات عبر API)
-  // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
     if ((!trimmedText && uploadedFiles.length === 0) || isSendingRef.current) return;
 
     isSendingRef.current = true;
-    
-    // 1. رفع الملفات فعلياً عبر الـ API
-    const fileAttachments: Attachment[] = [];
-    for (const uploadedFile of uploadedFiles) {
-      try {
-        const formData = new FormData();
-        formData.append('file', uploadedFile.file);
-        
-        const uploadResponse = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (!uploadResponse.ok) throw new Error('فشل رفع الملف');
-        
-        const uploadData = await uploadResponse.json();
-        
-        fileAttachments.push({
-          type: uploadedFile.type as AttachmentType,
-          url: uploadData.url, // الرابط الدائم من الخادم
-          fileName: uploadedFile.file.name,
-          fileSize: formatFileSize(uploadedFile.file.size),
-          fileType: uploadedFile.file.type
-        });
-      } catch (error) {
-        console.error('File upload error:', error);
-        // حل بديل آمن: في حال فشل الرفع، نستخدم الرابط المحلي مؤقتاً حتى لا تفقد البيانات
-        fileAttachments.push({
-          type: uploadedFile.type as AttachmentType,
-          url: uploadedFile.preview || URL.createObjectURL(uploadedFile.file),
-          fileName: uploadedFile.file.name,
-          fileSize: formatFileSize(uploadedFile.file.size),
-          fileType: uploadedFile.file.type
-        });
-      }
-    }
-    
-    // 2. إضافة الرسالة والمرفقات إلى المحادثة
+
+    const fileAttachments: Attachment[] = uploadedFiles.map(f => ({
+      type: f.type as AttachmentType, url: f.preview || URL.createObjectURL(f.file),
+      fileName: f.file.name, fileSize: formatFileSize(f.file.size), fileType: f.file.type
+    }));
+
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent", fileAttachments.length > 0 ? fileAttachments : undefined)]);
     setText("");
     setUploadedFiles([]);
     lastActivityTimeRef.current = Date.now();
-    conversationContextRef.current.push(trimmedText);
-    if (conversationContextRef.current.length > 5) conversationContextRef.current.shift();
 
-    // 3. منطق التحويل إلى موظف بشري
-    if (wantsHumanContact(trimmedText) && currentSpeaker === "bot" && !showDepartmentSelection) {
-      handleHumanRequest(); isSendingRef.current = false; return;
+    if (isTicketMode) {
+      if (ticketStep === 'name') {
+        setTicketUserName(trimmedText);
+        setTicketStep('details');
+        const deptName = DEPARTMENT_OPTIONS.find(d => d.id === ticketDept)?.name || "الدعم";
+        setTimeout(() => {
+          setMessages(prev => [...prev, createMessage("bot", `أهلاً بك يا ${trimmedText}. \n\nيرجى وصف مشكلتك أو استفسارك الخاص بقسم **${deptName}** بالتفصيل:`, "assistant")]);
+          setChatStatus("online");
+          isSendingRef.current = false;
+        }, 600);
+        return;
+      }
+      if (ticketStep === 'details') {
+        setTicketStep('submitting');
+        setChatStatus("typing");
+        setTimeout(() => {
+          const ticketId = Math.floor(1000 + Math.random() * 9000);
+          const deptName = DEPARTMENT_OPTIONS.find(d => d.id === ticketDept)?.name || "الدعم";
+          setMessages(prev => [...prev, createMessage("bot", `✅ **تم إنشاء التذكرة بنجاح!**\n\n🎫 رقم التذكرة: #${ticketId}\n📌 القسم: ${deptName}\n👤 الاسم: ${ticketUserName}\n📝 التفاصيل: ${trimmedText}\n\nسيقوم الفريق بمراجعة طلبك والرد عليك في أقرب وقت. شكراً لصبرك!`, "assistant")]);
+          setIsTicketMode(false);
+          setTicketStep('name');
+          setTicketDept(null);
+          setTicketUserName("");
+          setChatStatus("online");
+          isSendingRef.current = false;
+        }, 1500);
+        return;
+      }
     }
 
-    const normalized = normalizeArabicText(trimmedText);
-    const isJustGreeting = GREETING_KEYWORDS.some(k => normalized.includes(k)) && normalized.length < 20;
-
-    // 4. منطق الرد من الموظف البشري
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
       setTimeout(() => {
-        messageCountRef.current += 1;
+        const normalized = normalizeArabicText(trimmedText);
         const isThanks = (normalized.includes("شكر") || normalized.includes("مشكور")) && !normalized.includes("لا");
-        const isNoThanks = normalized.includes("لا") && (normalized.includes("شكر") || normalized.includes("احتاج") || normalized.includes("شيء"));
         const isEndConversation = normalized.includes("هذا كل شيء") || normalized.includes("انتهيت") || normalized.includes("خلاص");
 
         if (isFirstUserMessageAfterTransferRef.current) {
           isFirstUserMessageAfterTransferRef.current = false;
-          const deptName = currentAgent.department === 'ads' ? 'المبيعات والإعلانات' : currentAgent.department === 'technical' ? 'الدعم الفني' : 'خدمة العملاء';
+          const deptName = DEPARTMENT_OPTIONS.find(d => d.id === currentAgent.department)?.name || "الدعم";
           setMessages(prev => [...prev, createMessage("agent", `أهلاً وسهلاً بك، معك ${currentAgent.name} من ${deptName}. كيف أقدر أساعدك اليوم؟`, "assistant")]);
           setChatStatus("online");
           isSendingRef.current = false; return;
         }
 
-        if (isJustGreeting) {
-          setMessages(prev => [...prev, createMessage("agent", "أهلاً بك أستاذ، تفضل كيف أقدر أساعدك؟", "assistant")]);
+        if (isThanks) {
+          setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر يمكنني مساعدتك به؟", "assistant")]);
           setChatStatus("online");
           isSendingRef.current = false; return;
         }
 
-        if (isThanks && !isNoThanks) {
-          setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر يمكنني مساعدتك به؟", "assistant")]);
-          conversationPhaseRef.current = "closing_pending"; isSendingRef.current = false; return;
-        }
-
-        if (isNoThanks || isEndConversation) {
-          setMessages(prev => [...prev, createMessage("agent", "شكراً لتواصلك معنا، سعدنا بخدمتك. إذا احتجت إلى أي مساعدة أو استفسار في المستقبل، فلا تتردد في التواصل معنا في أي وقت. نتمنى لك يوماً سعيداً، ونشكرك على ثقتك بـ مجلة دار النجوم.", "assistant")]);
+        if (isEndConversation) {
+          setMessages(prev => [...prev, createMessage("agent", "شكراً لتواصلك معنا، سعدنا بخدمتك. نتمنى لك يوماً سعيداً، ونشكرك على ثقتك بـ مجلة دار النجوم.", "assistant")]);
           setChatStatus("online");
           isSendingRef.current = false; setTimeout(() => closeAgentSession(), 2500); return;
         }
 
-        const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
-        if (kbMatch && kbMatch.targetDept !== currentAgent.department) {
-          performInternalTransfer(kbMatch.targetDept, currentAgent.name);
-          isSendingRef.current = false; return;
+        const requestedDept = DEPARTMENT_OPTIONS.find(d => normalized.includes(d.id) || normalized.includes(d.name));
+        if (requestedDept && requestedDept.id !== currentAgent.department) {
+          setMessages(prev => [...prev, createMessage("agent", `هذا الطلب يخص قسم ${requestedDept.name}، سأقوم بتحويلك الآن إلى الزميل المختص.`, "assistant")]);
+          setChatStatus("online");
+          isSendingRef.current = false;
+          setTimeout(() => initiateDepartmentTransfer(requestedDept.id), 1000);
+          return;
         }
 
-        if (currentAgent.department === 'ads' && kbMatch && kbMatch.targetDept === 'ads') {
-          if (lastHandledTopicRef.current !== 'pricing_details') {
-            lastHandledTopicRef.current = 'pricing_details';
-            const reply = `${kbMatch.explanation}\n\nوللاطلاع على جميع التفاصيل والشروط، يمكنك زيارة:`;
-            const attachments: Attachment[] = [{ type: 'link', url: kbMatch.link, title: kbMatch.linkText, description: kbMatch.linkDesc }];
-            setMessages(prev => [...prev, createMessage("agent", reply, "assistant", "read", attachments)]);
-            conversationPhaseRef.current = "ongoing"; isSendingRef.current = false; return;
-          }
-        }
-
-        const generalReplies = currentAgent.department === 'ads' 
-          ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك؟"]
-          : currentAgent.department === 'technical'
-          ? ["حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية.", "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح المشكلة أكثر؟"]
-          : ["بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.", "حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟"];
-        
+        const generalReplies = [
+          "حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية.",
+          "بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.",
+          "شكراً لتوضيح ذلك. دعني أتحقق من الأمر وأعود لك بالحل الأنسب."
+        ];
         setMessages(prev => [...prev, createMessage("agent", generalReplies[Math.floor(Math.random() * generalReplies.length)], "assistant")]);
-        conversationPhaseRef.current = "ongoing"; isSendingRef.current = false;
-      }, 1500);
-      return; 
+        setChatStatus("online");
+        isSendingRef.current = false;
+      }, 1200);
+      return;
     }
 
-    // 5. منطق الرد من الذكاء الاصطناعي (Bot)
     setChatStatus("typing");
     try {
+      const normalized = normalizeArabicText(trimmedText);
+      const isJustGreeting = GREETING_KEYWORDS.some(k => normalized.includes(k)) && normalized.length < 20;
+      const isExplicitEmailRequest = EXPLICIT_EMAIL_KEYWORDS.some(k => normalized.includes(k));
+
+      if (isExplicitEmailRequest) {
+        setMessages(prev => [...prev, createMessage("bot", "يمكنك التواصل معنا عبر البريد الإلكتروني الرسمي:\n📧 info@dar-alnujum.com", "assistant")]);
+        setChatStatus("online"); isSendingRef.current = false; return;
+      }
+
+      if (wantsHumanContact(trimmedText) && !showDepartmentSelection) {
+        handleHumanRequest(); isSendingRef.current = false; return;
+      }
+
       const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
-      
       if (kbMatch) {
         const reply = `${kbMatch.explanation}\n\nللمزيد من التفاصيل:`;
         const attachments: Attachment[] = [{ type: 'link', url: kbMatch.link, title: kbMatch.linkText, description: kbMatch.linkDesc }];
@@ -811,7 +700,7 @@ export default function Home() {
 
       const apiMessages = messages.filter(m => m.sender !== "system").map(m => ({ role: (m.sender === "bot" || m.sender === "agent") ? "assistant" : "user", content: m.text }));
       if (apiMessages.length === 0 || apiMessages[apiMessages.length - 1].role !== "user") {
-         apiMessages.push({ role: "user", content: trimmedText });
+        apiMessages.push({ role: "user", content: trimmedText });
       }
 
       const response = await fetch('/api/chat', {
@@ -820,7 +709,7 @@ export default function Home() {
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
-      
+
       setMessages(prev => [...prev, createMessage("bot", data.text || data.message || "عذراً، لم أتمكن من فهم طلبك بدقة.", "assistant", "read", data.attachments || [])]);
 
       if (data.escalate === true && !showDepartmentSelection) {
@@ -832,10 +721,10 @@ export default function Home() {
     } finally {
       setChatStatus("online"); isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, initiateDepartmentTransfer, closeAgentSession, uploadedFiles]);
+  }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, initiateDepartmentTransfer, closeAgentSession, uploadedFiles, isTicketMode, ticketStep, ticketDept, ticketUserName]);
 
   useEffect(() => { saveStateToStorage(); }, [saveStateToStorage]);
-  
+
   useEffect(() => {
     if (!open || messages.length > 0) return;
     const hasSaved = loadStateFromStorage();
@@ -1009,7 +898,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* أيقونة المساعد العائمة (لم يتم تعديلها) */}
+      {/* أيقونة المساعد العائمة */}
       <div 
         ref={chatButtonRef}
         onPointerDown={handlePointerDown}
@@ -1128,14 +1017,14 @@ export default function Home() {
             <div className="space-y-2 mt-2 animate-slide-in-right">
               {DEPARTMENT_OPTIONS.map((dept) => (
                 <button key={dept.id} onClick={() => initiateDepartmentTransfer(dept.id)} className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group">
-                  <div className="font-bold text-sm text-purple-300 group-hover:text-purple-200">{dept.name}</div>
+                  <div className="font-bold text-sm text-purple-300 group-hover:text-purple-200">{dept.icon} {dept.name}</div>
                   <div className="text-xs text-gray-400 mt-1">{dept.description}</div>
                 </button>
               ))}
             </div>
           )}
 
-          {chatStatus === "typing" && !showDepartmentSelection && (
+          {chatStatus === "typing" && !showDepartmentSelection && !isTicketMode && (
             <div className="flex flex-col items-start">
               <span className="text-[10px] text-gray-400 mb-1 ml-1">{currentSpeaker === "agent" && currentAgent ? currentAgent.name : "المساعد الذكي"}</span>
               <div className="bg-[#1f2937] border border-purple-500/30 rounded-2xl rounded-tl-sm p-3 flex gap-1.5 items-center h-10">
@@ -1147,7 +1036,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* معاينة الملفات المرفقة قبل الإرسال مع إمكانية الحذف */}
+        {/* معاينة الملفات المرفقة قبل الإرسال */}
         {uploadedFiles.length > 0 && (
           <div className="p-3 border-t border-gray-700 bg-[#1f2937]/30">
             <div className="flex gap-2 overflow-x-auto pb-2">
@@ -1187,17 +1076,14 @@ export default function Home() {
           </div>
         )}
 
-        {/* ============================================================ */}
-        {/* منطقة إدخال الرسائل المحدثة: تحتوي على 3 عناصر متجاورة بوضوح */}
-        {/* ============================================================ */}
+        {/* منطقة إدخال الرسائل */}
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           <div className="flex items-end gap-2 bg-[#0b0f1a] border border-gray-700 rounded-xl focus-within:ring-2 focus-within:ring-purple-500/50 focus-within:border-purple-500 transition-all p-2">
             
-            {/* 1. حقل كتابة الرسالة */}
             <textarea
               id="chat-input" 
               value={text}
-              placeholder={showDepartmentSelection ? "يرجى اختيار قسم من الأعلى..." : "اكتب رسالتك هنا..."}
+              placeholder={showDepartmentSelection ? "يرجى اختيار قسم من الأعلى..." : isTicketMode ? (ticketStep === 'name' ? "اكتب اسمك الكريم..." : "اكتب تفاصيل استفسارك...") : "اكتب رسالتك هنا..."}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               rows={1} 
@@ -1205,7 +1091,6 @@ export default function Home() {
               className="flex-1 bg-transparent text-white px-3 py-2.5 text-sm focus:outline-none placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[44px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
             />
             
-            {/* 2. زر إرفاق الصور/الملفات (أيقونة واضحة ومضمونة) */}
             <button 
               onClick={() => fileInputRef.current?.click()}
               disabled={showDepartmentSelection}
@@ -1219,17 +1104,15 @@ export default function Home() {
               </svg>
             </button>
             
-            {/* حقل الإدخال المخفي للملفات */}
             <input 
               ref={fileInputRef}
               type="file" 
               multiple
-              accept="image/*,video/*,.pdf,.doc,.docx"
+              accept={[...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOC_TYPES].join(',')}
               onChange={(e) => handleFileSelect(e.target.files)}
               className="hidden"
             />
             
-            {/* 3. زر الإرسال */}
             <button 
               onClick={sendMessage} 
               disabled={(!text.trim() && uploadedFiles.length === 0) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
