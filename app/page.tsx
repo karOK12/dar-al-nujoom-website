@@ -147,8 +147,11 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
-  // الأيقونة: تبدأ من خارج الشاشة (right: -80px) ثم تنتقل لـ right: 24px (6 * 4)
-  const [iconRight, setIconRight] = useState(-80);
+  // 1. إصلاح مكان الأيقونة: تبدأ من خارج الشاشة (window.innerWidth) ثم تتحرك لليسار
+  const [iconPos, setIconPos] = useState({ 
+    x: typeof window !== 'undefined' ? window.innerWidth : 0, 
+    y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0 
+  });
   const [isDragging, setIsDragging] = useState(false);
   const [springScale, setSpringScale] = useState(1);
   const [headTransform, setHeadTransform] = useState("translateY(0px) rotate(0deg)");
@@ -169,8 +172,8 @@ export default function Home() {
   const dragStartPos = useRef({ x: 0, y: 0 });
   const pointerStartPos = useRef({ x: 0, y: 0 });
   const hasDragged = useRef(false);
-  const currentIconPos = useRef({ x: 24, y: 24 }); // bottom-6 = 24px, right-6 = 24px
-  const targetIconPos = useRef({ x: 24, y: 24 });
+  const currentIconPos = useRef({ x: iconPos.x, y: iconPos.y });
+  const targetIconPos = useRef({ x: iconPos.x, y: iconPos.y });
   const hasEnteredRef = useRef(false);
 
   const currentSpeakerRef = useRef(currentSpeaker);
@@ -190,14 +193,14 @@ export default function Home() {
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
 
   // ============================================================
-  // 1. حركة دخول الأيقونة من خارج الشاشة (اليمين) إلى أسفل اليمين
+  // 1. حركة دخول الأيقونة من اليمين
   // ============================================================
   useEffect(() => {
-    if (!hasEnteredRef.current) {
+    if (!hasEnteredRef.current && typeof window !== 'undefined') {
       hasEnteredRef.current = true;
-      // بعد 100ms، تنتقل الأيقونة من right: -80px إلى right: 24px (bottom-6 right-6)
+      // تحريك الأيقونة من خارج الشاشة (window.innerWidth) إلى مكانها النهائي (window.innerWidth - 80)
       setTimeout(() => {
-        setIconRight(24);
+        setIconPos({ x: window.innerWidth - 80, y: window.innerHeight - 80 });
       }, 100);
     }
   }, []);
@@ -528,69 +531,6 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // 2. ردود الموظفين الذكية
-  // ============================================================
-  const getSmartAgentReply = useCallback((userText: string, agent: Agent, messagesHistory: Message[]): string => {
-    const normalized = normalizeArabicText(userText);
-    const currentDept = agent.department;
-    
-    // قراءة آخر رسالة للمستخدم
-    const lastUserMessage = messagesHistory
-      .filter(m => m.sender === 'user')
-      .slice(-1)[0];
-    
-    // التحقق من السياق
-    const isGreeting = ["مرحبا", "هلا", "سلام", "صباح", "مساء"].some(k => normalized.includes(k));
-    const isThanks = normalized.includes("شكر") || normalized.includes("مشكور");
-    const isPricing = normalized.includes("سعر") || normalized.includes("اسعار") || normalized.includes("باقة") || normalized.includes("كم");
-    const isTechnical = normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل");
-    
-    // ردود حسب السياق
-    if (isGreeting) {
-      return "أهلاً وسهلاً بك! كيف يمكنني مساعدتك اليوم؟";
-    }
-    
-    if (isThanks) {
-      return "العفو! هذا واجبنا. هل هناك أي شيء آخر يمكنني مساعدتك به؟";
-    }
-    
-    if (isPricing && currentDept === 'ads') {
-      return `إليك تفاصيل باقاتنا الإعلانية:
-
-🔹 الباقة الأسبوعية: 135 دولار
-🔹 الباقة الشهرية: 405 دولار
- الباقة الاحترافية: 810 دولار
-
-هل تود معرفة المزيد عن أي باقة معينة؟`;
-    }
-    
-    if (isTechnical && currentDept === 'technical') {
-      return "أفهم أنك تواجه مشكلة تقنية. هل يمكنك تزويدي بتفاصيل أكثر عن المشكلة؟ متى بدأت وهل تظهر رسالة خطأ معينة؟";
-    }
-    
-    // ردود عامة ذكية
-    const generalReplies = [
-      "فهمت سؤالك. دعني أفكر في أفضل طريقة لمساعدتك.",
-      "شكراً على توضيحك. بناءً على ما ذكرته، أنصحك بـ...",
-      "سؤال ممتاز! إليك ما يمكنني تقديمه لك...",
-      "أقدر اهتمامك بهذا الموضوع. دعني أساعدك في ذلك."
-    ];
-    
-    // منع التكرار
-    const availableReplies = generalReplies.filter(r => !previousAgentRepliesRef.current.has(r));
-    const reply = availableReplies.length > 0 
-      ? availableReplies[Math.floor(Math.random() * availableReplies.length)]
-      : generalReplies[0];
-    
-    previousAgentRepliesRef.current.add(reply);
-    if (previousAgentRepliesRef.current.size > 10) {
-      previousAgentRepliesRef.current.clear();
-    }
-    
-    return reply;
-  }, []);
-
-  // ============================================================
   // إرسال الصور والملفات + SEND MESSAGE LOGIC
   // ============================================================
   const handleFileSelect = useCallback((file: File) => {
@@ -624,6 +564,67 @@ export default function Home() {
       handleFileSelect(e.dataTransfer.files[0]);
     }
   }, [handleFileSelect]);
+
+  // 2. ردود الموظفين الذكية
+  const getSmartAgentReply = useCallback((userText: string, agent: Agent, messagesHistory: Message[]): string => {
+    const normalized = normalizeArabicText(userText);
+    const currentDept = agent.department;
+    
+    // قراءة آخر رسالة للمستخدم
+    const lastUserMessage = messagesHistory
+      .filter(m => m.sender === 'user')
+      .slice(-1)[0];
+    
+    // التحقق من السياق
+    const isGreeting = ["مرحبا", "هلا", "سلام", "صباح", "مساء"].some(k => normalized.includes(k));
+    const isThanks = normalized.includes("شكر") || normalized.includes("مشكور");
+    const isPricing = normalized.includes("سعر") || normalized.includes("اسعار") || normalized.includes("باقة") || normalized.includes("كم");
+    const isTechnical = normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل");
+    
+    // ردود حسب السياق
+    if (isGreeting) {
+      return "أهلاً وسهلاً بك! كيف يمكنني مساعدتك اليوم؟";
+    }
+    
+    if (isThanks) {
+      return "العفو! هذا واجبنا. هل هناك أي شيء آخر يمكنني مساعدتك به؟";
+    }
+    
+    if (isPricing && currentDept === 'ads') {
+      return `إليك تفاصيل باقاتنا الإعلانية:
+
+🔹 الباقة الأسبوعية: 135 دولار
+🔹 الباقة الشهرية: 405 دولار
+🔹 الباقة الاحترافية: 810 دولار
+
+هل تود معرفة المزيد عن أي باقة معينة؟`;
+    }
+    
+    if (isTechnical && currentDept === 'technical') {
+      return "أفهم أنك تواجه مشكلة تقنية. هل يمكنك تزويدي بتفاصيل أكثر عن المشكلة؟ متى بدأت وهل تظهر رسالة خطأ معينة؟";
+    }
+    
+    // ردود عامة ذكية
+    const generalReplies = [
+      "فهمت سؤالك. دعني أفكر في أفضل طريقة لمساعدتك.",
+      "شكراً على توضيحك. بناءً على ما ذكرته، أنصحك بـ...",
+      "سؤال ممتاز! إليك ما يمكنني تقديمه لك...",
+      "أقدر اهتمامك بهذا الموضوع. دعني أساعدك في ذلك."
+    ];
+    
+    // منع التكرار
+    const availableReplies = generalReplies.filter(r => !previousAgentRepliesRef.current.has(r));
+    const reply = availableReplies.length > 0 
+      ? availableReplies[Math.floor(Math.random() * availableReplies.length)]
+      : generalReplies[0];
+    
+    previousAgentRepliesRef.current.add(reply);
+    if (previousAgentRepliesRef.current.size > 10) {
+      previousAgentRepliesRef.current.clear();
+    }
+    
+    return reply;
+  }, []);
 
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -781,13 +782,12 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#0b0f1a] text-white font-sans flex flex-col">
       <style jsx global>{`
-        /* 3. نقل شريط التمرير إلى اليمين - متوافق مع RTL */
+        /* 3. نقل شريط التمرير إلى اليمين */
         .scrollbar-hide::-webkit-scrollbar {
           width: 6px;
         }
         .scrollbar-hide::-webkit-scrollbar-track {
           background: transparent;
-          margin-right: 0;
         }
         .scrollbar-hide::-webkit-scrollbar-thumb {
           background-color: rgba(139, 92, 246, 0.3);
@@ -797,7 +797,6 @@ export default function Home() {
           background-color: rgba(139, 92, 246, 0.5);
         }
         
-        /* 4. اتجاه التمرير من اليمين لليسار */
         @keyframes seamless-scroll { 
           0% { transform: translateX(0); } 
           100% { transform: translateX(-50%); } 
@@ -810,13 +809,12 @@ export default function Home() {
           animation-play-state: paused; 
         }
         
-        /* حركة دخول الأيقونة من اليمين */
-        @keyframes slide-in-from-right { 
-          0% { right: -80px; opacity: 0; } 
-          100% { right: 24px; opacity: 1; } 
+        @keyframes slide-in-right { 
+          0% { transform: translateX(100px); opacity: 0; } 
+          100% { transform: translateX(0); opacity: 1; } 
         }
-        .animate-slide-in-from-right { 
-          animation: slide-in-from-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
+        .animate-slide-in-right { 
+          animation: slide-in-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
         }
         
         @keyframes blink-human {
@@ -913,14 +911,14 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 1. أيقونة المساعد: تبدأ من خارج الشاشة (right: -80px) وتنتقل إلى right: 24px (أسفل اليمين) */}
+      {/* 1. أيقونة المساعد: تبدأ من خارج الشاشة وتتحرك لليسار */}
       <div 
         ref={chatButtonRef}
         onPointerDown={(e) => {
           setIsDragging(true);
           hasDragged.current = false;
           pointerStartPos.current = { x: e.clientX, y: e.clientY };
-          dragStartPos.current = { x: currentIconPos.current.x, y: currentIconPos.current.y };
+          dragStartPos.current = { x: iconPos.x, y: iconPos.y };
           (e.target as HTMLElement).setPointerCapture(e.pointerId);
         }}
         onPointerMove={(e) => {
@@ -946,9 +944,10 @@ export default function Home() {
             setOpen(!open);
           }
         }}
-        className="fixed bottom-6 w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-grab active:cursor-grabbing hover:scale-110 z-50 border-2 border-white/10 animate-slide-in-from-right select-none touch-none"
+        className="fixed w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 cursor-grab active:cursor-grabbing hover:scale-110 transition-transform duration-300 z-50 border-2 border-white/10 animate-slide-in-right select-none touch-none"
         style={{ 
-          right: `${iconRight}px`,
+          left: `${iconPos.x}px`, 
+          top: `${iconPos.y}px`,
           cursor: isDragging ? 'grabbing' : 'grab',
           transition: isDragging ? 'none' : 'all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)'
         }}
@@ -1003,7 +1002,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* 3. شريط التمرير على اليمين + دعم سحب وإفلات الملفات */}
+        {/* 3. دعم سحب وإفلات الملفات + شريط التمرير على اليمين */}
         <div 
           ref={chatContainerRef}
           className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50 relative"
