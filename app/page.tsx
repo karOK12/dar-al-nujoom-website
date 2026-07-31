@@ -85,10 +85,10 @@ const SUPPORT_AGENTS: Agent[] = [
 const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'sales', name: 'المبيعات', icon: '🛒', description: 'حجز باقات، استفسارات عن الأسعار والعروض' },
   { id: 'technical', name: 'الدعم الفني', icon: '🛠️', description: 'حل المشاكل التقنية، أخطاء الموقع، تسجيل الدخول' },
-  { id: 'ads', name: 'الإعلانات والرعاية', icon: '📢', description: 'حجز مساحات إعلانية، رعاية البرامج والمحتوى' },
+  { id: 'ads', name: 'الإعلانات والرعاية', icon: '', description: 'حجز مساحات إعلانية، رعاية البرامج والمحتوى' },
   { id: 'accounting', name: 'المحاسبة', icon: '💳', description: 'الفواتير، طرق الدفع، الاسترجاع المالي' },
   { id: 'partnerships', name: 'الشراكات', icon: '🤝', description: 'تعاون مع المؤثرين، شركاء استراتيجيين' },
-  { id: 'orders', name: 'متابعة الطلبات', icon: '📦', description: 'حالة الطلب، أرقام التتبع، الشحن والتوصيل' },
+  { id: 'orders', name: 'متابعة الطلبات', icon: '', description: 'حالة الطلب، أرقام التتبع، الشحن والتوصيل' },
   { id: 'general', name: 'استفسار عام', icon: '❓', description: 'أي استفسار آخر غير مذكور أعلاه' },
 ];
 
@@ -582,10 +582,40 @@ export default function Home() {
 
     isSendingRef.current = true;
 
-    const fileAttachments: Attachment[] = uploadedFiles.map(f => ({
-      type: f.type as AttachmentType, url: f.preview || URL.createObjectURL(f.file),
-      fileName: f.file.name, fileSize: formatFileSize(f.file.size), fileType: f.file.type
-    }));
+    // رفع الملفات عبر API
+    const fileAttachments: Attachment[] = [];
+    for (const uploadedFile of uploadedFiles) {
+      try {
+        const formData = new FormData();
+        formData.append('file', uploadedFile.file);
+        
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!uploadResponse.ok) throw new Error('فشل رفع الملف');
+        
+        const uploadData = await uploadResponse.json();
+        
+        fileAttachments.push({
+          type: uploadedFile.type as AttachmentType,
+          url: uploadData.url,
+          fileName: uploadedFile.file.name,
+          fileSize: formatFileSize(uploadedFile.file.size),
+          fileType: uploadedFile.file.type
+        });
+      } catch (error) {
+        console.error('File upload error:', error);
+        fileAttachments.push({
+          type: uploadedFile.type as AttachmentType,
+          url: uploadedFile.preview || URL.createObjectURL(uploadedFile.file),
+          fileName: uploadedFile.file.name,
+          fileSize: formatFileSize(uploadedFile.file.size),
+          fileType: uploadedFile.file.type
+        });
+      }
+    }
 
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent", fileAttachments.length > 0 ? fileAttachments : undefined)]);
     setText("");
@@ -864,7 +894,7 @@ export default function Home() {
             <span className="text-base md:text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">قناة مجلة دار النجوم</span>
           </a>
           <div className="flex-1 max-w-md mx-2 hidden md:block">
-            <input type="text" placeholder="🔎 ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
+            <input type="text" placeholder=" ابحث عن مشاهير، برامج، أو محتوى..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#1f2937] text-white px-4 py-2 rounded-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition placeholder-gray-500 text-sm" />
           </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
             <a href="/upgrade" className="hidden sm:flex items-center gap-1 px-3 md:px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs md:text-sm font-bold hover:shadow-lg transition">ترقية 👑</a>
@@ -1076,7 +1106,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* منطقة إدخال الرسائل */}
+        {/* منطقة إدخال الرسائل مع زر إرفاق الملفات */}
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           <div className="flex items-end gap-2 bg-[#0b0f1a] border border-gray-700 rounded-xl focus-within:ring-2 focus-within:ring-purple-500/50 focus-within:border-purple-500 transition-all p-2">
             
@@ -1091,6 +1121,7 @@ export default function Home() {
               className="flex-1 bg-transparent text-white px-3 py-2.5 text-sm focus:outline-none placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[44px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
             />
             
+            {/* زر إرفاق الملفات (الأيقونة الموجودة داخل المحادثة) */}
             <button 
               onClick={() => fileInputRef.current?.click()}
               disabled={showDepartmentSelection}
