@@ -670,7 +670,7 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // SEND MESSAGE LOGIC
+  // SEND MESSAGE LOGIC (محدثة لدعم رفع الملفات عبر API)
   // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
@@ -678,14 +678,43 @@ export default function Home() {
 
     isSendingRef.current = true;
     
-    const fileAttachments: Attachment[] = uploadedFiles.map(f => ({
-      type: f.type as AttachmentType,
-      url: f.preview || URL.createObjectURL(f.file),
-      fileName: f.file.name,
-      fileSize: formatFileSize(f.file.size),
-      fileType: f.file.type
-    }));
+    // 1. رفع الملفات فعلياً عبر الـ API
+    const fileAttachments: Attachment[] = [];
+    for (const uploadedFile of uploadedFiles) {
+      try {
+        const formData = new FormData();
+        formData.append('file', uploadedFile.file);
+        
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!uploadResponse.ok) throw new Error('فشل رفع الملف');
+        
+        const uploadData = await uploadResponse.json();
+        
+        fileAttachments.push({
+          type: uploadedFile.type as AttachmentType,
+          url: uploadData.url, // الرابط الدائم من الخادم
+          fileName: uploadedFile.file.name,
+          fileSize: formatFileSize(uploadedFile.file.size),
+          fileType: uploadedFile.file.type
+        });
+      } catch (error) {
+        console.error('File upload error:', error);
+        // حل بديل آمن: في حال فشل الرفع، نستخدم الرابط المحلي مؤقتاً حتى لا تفقد البيانات
+        fileAttachments.push({
+          type: uploadedFile.type as AttachmentType,
+          url: uploadedFile.preview || URL.createObjectURL(uploadedFile.file),
+          fileName: uploadedFile.file.name,
+          fileSize: formatFileSize(uploadedFile.file.size),
+          fileType: uploadedFile.file.type
+        });
+      }
+    }
     
+    // 2. إضافة الرسالة والمرفقات إلى المحادثة
     setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent", fileAttachments.length > 0 ? fileAttachments : undefined)]);
     setText("");
     setUploadedFiles([]);
@@ -693,6 +722,7 @@ export default function Home() {
     conversationContextRef.current.push(trimmedText);
     if (conversationContextRef.current.length > 5) conversationContextRef.current.shift();
 
+    // 3. منطق التحويل إلى موظف بشري
     if (wantsHumanContact(trimmedText) && currentSpeaker === "bot" && !showDepartmentSelection) {
       handleHumanRequest(); isSendingRef.current = false; return;
     }
@@ -700,6 +730,7 @@ export default function Home() {
     const normalized = normalizeArabicText(trimmedText);
     const isJustGreeting = GREETING_KEYWORDS.some(k => normalized.includes(k)) && normalized.length < 20;
 
+    // 4. منطق الرد من الموظف البشري
     if (currentSpeaker === "agent" && currentAgent) {
       setChatStatus("typing");
       setTimeout(() => {
@@ -761,6 +792,7 @@ export default function Home() {
       return; 
     }
 
+    // 5. منطق الرد من الذكاء الاصطناعي (Bot)
     setChatStatus("typing");
     try {
       const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
