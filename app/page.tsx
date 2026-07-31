@@ -1155,13 +1155,29 @@ export default function Home() {
           </div>
         )}
 
+        {/* ============================================================ */}
+        {/* منطقة الإدخال المحدثة: أيقونة الصورة مدمجة داخل الحقل */}
+        {/* ============================================================ */}
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
-          <div className="flex gap-2 items-end">
-            {/* زر رفع الصور المخصص */}
+          <div className="relative flex items-end gap-2 bg-[#0b0f1a] border border-gray-700 rounded-xl focus-within:ring-2 focus-within:ring-purple-500/50 focus-within:border-purple-500 transition-all">
+            
+            <textarea
+              id="chat-input" 
+              value={text}
+              placeholder={showDepartmentSelection ? "يرجى اختيار قسم من الأعلى..." : "اكتب رسالتك هنا..."}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              rows={1} 
+              disabled={showDepartmentSelection}
+              className="flex-1 bg-transparent text-white px-4 py-3 pr-10 text-sm focus:outline-none placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            
+            {/* أيقونة الصورة داخل الحقل من الجهة اليمنى */}
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-gray-700 text-white hover:bg-gray-600"
-              title="إرفاق صورة"
+              className="absolute right-2 bottom-2.5 p-1.5 rounded-lg text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              title="إرفاق صورة أو ملف"
+              disabled={showDepartmentSelection}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -1169,6 +1185,7 @@ export default function Home() {
                 <polyline points="21 15 16 10 5 21"></polyline>
               </svg>
             </button>
+            
             <input 
               ref={fileInputRef}
               type="file" 
@@ -1177,17 +1194,18 @@ export default function Home() {
               onChange={(e) => handleFileSelect(e.target.files)}
               className="hidden"
             />
-            <textarea
-              id="chat-input" value={text}
-              placeholder={showDepartmentSelection ? "يرجى اختيار قسم من الأعلى..." : "اكتب رسالتك هنا..."}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              rows={1} disabled={showDepartmentSelection}
-              className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
-            />
-            <button onClick={sendMessage} disabled={(!text.trim() && uploadedFiles.length === 0) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+            
+            <button 
+              onClick={sendMessage} 
+              disabled={(!text.trim() && uploadedFiles.length === 0) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
+              className="p-3 m-1 rounded-xl text-sm font-bold transition bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
             </button>
+            
           </div>
         </div>
       </div>
