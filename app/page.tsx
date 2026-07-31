@@ -8,19 +8,15 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 type Sender = "user" | "bot" | "agent" | "system";
 type AgentStatus = "online" | "away" | "offline";
-type Department = 'sales' | 'technical' | 'ads' | 'management';
+type Department = 'support' | 'ads' | 'technical';
 type ChatStatus = "typing" | "online" | "waiting" | "inactive" | "closed";
 type ProductShape = "circle" | "rectangle" | "square" | "portrait";
-type AttachmentType = 'image' | 'link' | 'card' | 'product' | 'file' | 'video';
 
 interface Attachment {
-  type: AttachmentType;
+  type: 'image' | 'link' | 'card' | 'product';
   url?: string;
   title?: string;
   description?: string;
-  fileName?: string;
-  fileSize?: string;
-  fileType?: string;
 }
 
 interface Message {
@@ -42,12 +38,13 @@ interface Agent {
   status: AgentStatus;
   lastActivity: string;
   isBusy: boolean;
+  email?: string;
+  isRealAgent?: boolean;
 }
 
 interface DepartmentOption {
   id: Department;
   name: string;
-  icon: string;
   description: string;
 }
 
@@ -59,33 +56,23 @@ interface TrendingProduct {
   shape: ProductShape;
 }
 
-interface UploadedFile {
-  id: string;
-  file: File;
-  preview?: string;
-  progress: number;
-  type: 'image' | 'video' | 'document';
-}
-
 // ============================================================
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
 const SUPPORT_AGENTS: Agent[] = [
-  { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "ممثل مبيعات", department: 'sales', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-002", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-003", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=32", role: "مديرة الإعلانات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
-  { employeeId: "EMP-004", name: "أحمد المدير", img: "https://i.pravatar.cc/150?img=11", role: "مدير عام", department: 'management', status: 'online', lastActivity: new Date().toISOString(), isBusy: false },
+  { employeeId: "EMP-001", name: "خالد الأحمد", img: "https://i.pravatar.cc/150?img=68", role: "خدمة العملاء", department: 'support', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
+  { employeeId: "EMP-002", name: "نورة السالم", img: "https://i.pravatar.cc/150?img=44", role: "دعم فني متقدم", department: 'technical', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
+  { employeeId: "EMP-003", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=47", role: "مسؤولة الإعلانات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
 ];
 
 const DEPARTMENT_OPTIONS: DepartmentOption[] = [
-  { id: 'sales', name: 'التواصل مع المبيعات', icon: '🛒', description: 'حجز باقات، استفسارات عن الأسعار والعروض' },
-  { id: 'technical', name: 'التواصل مع الدعم الفني', icon: '🛠️', description: 'حل المشاكل التقنية، أخطاء الموقع، تسجيل الدخول' },
-  { id: 'ads', name: 'التواصل مع الإعلانات', icon: '📢', description: 'حجز مساحات إعلانية، رعاية البرامج والمحتوى' },
-  { id: 'management', name: 'التواصل مع الإدارة', icon: '👨‍💼', description: 'شكاوى، مقترحات، أو طلبات إدارية خاصة' },
+  { id: 'support', name: 'فريق الدعم وخدمة العملاء', description: 'للاستفسارات العامة وخدمة العملاء' },
+  { id: 'ads', name: 'فريق الإعلانات والمبيعات', description: 'لحجز الإعلانات والاستفسار عن الأسعار والباقات' },
+  { id: 'technical', name: 'فريق الدعم الفني', description: 'لحل المشاكل التقنية وأخطاء الموقع' },
 ];
 
-const SESSION_TIMEOUTS = { SOFT_INACTIVE: 59, HARD_RESET: 600, QUEUE_CHECK_INTERVAL: 8000 };
+const SESSION_TIMEOUTS = { IDLE_TO_CLOSED: 60, QUEUE_CHECK_INTERVAL: 8000 };
 
 const TRENDING_PRODUCTS: TrendingProduct[] = [
   { id: 1, name: "كاميرا تصوير احترافية", desc: "خصم 25% لفترة محدودة", img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=150&h=150&fit=crop", shape: "circle" },
@@ -94,64 +81,34 @@ const TRENDING_PRODUCTS: TrendingProduct[] = [
   { id: 4, name: "ميكروفون بث مباشر", desc: "جودة صوت استثنائية", img: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=150&h=200&fit=crop", shape: "portrait" },
 ];
 
+// الجملة المطلوبة حرفياً للترحيب
 const EXACT_WELCOME_MESSAGE = "أهلاً وسهلاً بك في قناة مجلة دار النجوم. يسعدني مساعدتك، كيف أستطيع خدمتك اليوم؟";
 
 const LOCAL_KNOWLEDGE_BASE = [
   { 
     keywords: ["سعر", "اسعار", "اعلان", "باقة", "اشتراك", "تكلفة", "عروض"], 
-    targetDept: 'sales' as Department,
-    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الأساسية:\n🔹 الأسبوعية: 135$\n🔹 الشهرية: 405$\n🔹 الاحترافية: 810$",
+    targetDept: 'ads' as Department,
+    explanation: "يسعدني مساعدتك. هذه هي باقاتنا الإعلانية الأساسية:\n🔹 الأسبوعية: 135$\n🔹 الشهرية: 405$\n🔹 الاحترافية: 810$",
     link: "/pricing",
-    linkText: "صفحة الأسعار والتفاصيل الكاملة",
-    linkDesc: "اطلع على جميع الباقات والشروط"
+    linkText: "صفحة الأسعار والتفاصيل الكاملة"
+  },
+  { 
+    keywords: ["سياسة", "خصوصية"], 
+    targetDept: 'support' as Department,
+    explanation: "يمكنك الاطلاع على كافة التفاصيل المتعلقة بحماية البيانات والشروط القانونية من خلال الرابط التالي:",
+    link: "/privacy",
+    linkText: "سياسة الخصوصية"
+  },
+  { 
+    keywords: ["شروط", "احكام"], 
+    targetDept: 'support' as Department,
+    explanation: "جميع الشروط والأحكام المنظمة لاستخدام المنصة متاحة هنا:",
+    link: "/terms",
+    linkText: "الشروط والأحكام"
   }
 ];
 
 const GREETING_KEYWORDS = ["مرحبا", "هلا", "سلام", "صباح", "مساء", "اهلين", "السلام"];
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
-const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/mov', 'video/webm'];
-const ALLOWED_DOC_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-
-// ============================================================
-// ADVANCED AGENT RESPONSES (Human-like & Contextual)
-// ============================================================
-const getSmartAgentResponse = (text: string, agentName: string, deptName: string, history: Set<string>): string => {
-  const normalized = normalizeArabicText(text);
-  
-  // ردود مخصصة حسب السياق
-  if (normalized.includes("شكر") || normalized.includes("مشكور") || normalized.includes("يسلمو") || normalized.includes("يعطيك")) {
-    return "العفو! هذا واجبنا. هل هناك أي استفسار آخر يمكنني مساعدتك به؟";
-  }
-  if (normalized.includes("لا") || normalized.includes("خلاص") || normalized.includes("انتهيت") || normalized.includes("هذا كل شيء")) {
-    return "شكراً لتواصلك معنا، سعدنا بخدمتك. إذا احتجت إلى أي مساعدة مستقبلاً، فلا تتردد في التواصل معنا. نتمنى لك يوماً سعيداً!";
-  }
-  if (normalized.includes("سعر") || normalized.includes("اسعار") || normalized.includes("اعلان") || normalized.includes("باقة") || normalized.includes("كم")) {
-    return `يسعدني ذلك! باقاتنا تبدأ من 135$ للأسبوعية و 405$ للشهرية. هل تود أن أرسل لك تفاصيل الباقات على الرابط، أم لديك ميزانية محددة في ذهنك لنصمم لك عرضاً مخصصاً؟`;
-  }
-  if (normalized.includes("مشكله") || normalized.includes("خطأ") || normalized.includes("لا يعمل") || normalized.includes("دخول") || normalized.includes("حساب")) {
-    return `أعتذر عن هذا الإزعاج. لكي أتمكن من مساعدتك بشكل دقيق، هل يمكنك تزويدي برقم الطلب أو وصف أكثر تفصيلاً للمشكلة التي تواجهك؟`;
-  }
-
-  // ردود عامة طبيعية وغير مكررة
-  const naturalReplies = [
-    "فهمت عليك تماماً. هل يمكنك تزويدي بالمزيد من التفاصيل لأتمكن من خدمتك بشكل أفضل؟",
-    "شكراً على توضيحك. دعني أتحقق من هذا الأمر وأعود لك بالحل الأنسب في أقرب وقت.",
-    "أقدر اهتمامك بهذا الموضوع. هل هناك جانب معين تود أن نركز عليه أكثر؟",
-    "حاضر، أنا معك تماماً. هل هناك أي تفاصيل أخرى تود إضافتها؟"
-  ];
-  
-  const availableReplies = naturalReplies.filter(r => !history.has(r));
-  const chosenReply = availableReplies.length > 0 
-    ? availableReplies[Math.floor(Math.random() * availableReplies.length)] 
-    : naturalReplies[Math.floor(Math.random() * naturalReplies.length)];
-    
-  history.add(chosenReply);
-  if (history.size > 5) history.clear(); // الحفاظ على الذاكرة صغيرة ومنع التكرار
-
-  return chosenReply;
-};
 
 // ============================================================
 // UTILITY FUNCTIONS
@@ -172,7 +129,7 @@ const normalizeArabicText = (text: string): string => {
 
 const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
-  const humanRequestKeywords = ["موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول", "دعم", "مساعدة", "مبيعات", "إدارة", "إعلانات"];
+  const humanRequestKeywords = ["موظف", "شخص", "انسان", "بشري", "حقيقي", "ممثل", "خدمة العملاء", "فريق الدعم", "اكلم", "اتحدث", "اتواصل", "حولني", "تحويل", "ادارة", "مسؤول"];
   return humanRequestKeywords.some(keyword => normalized.includes(keyword));
 };
 
@@ -186,20 +143,6 @@ const createMessage = (sender: Sender, text: string, role?: "user" | "assistant"
   time: new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
   status, attachments
 });
-
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-};
-
-const getFileType = (file: File): 'image' | 'video' | 'document' => {
-  if (ALLOWED_IMAGE_TYPES.includes(file.type)) return 'image';
-  if (ALLOWED_VIDEO_TYPES.includes(file.type)) return 'video';
-  return 'document';
-};
 
 // ============================================================
 // MAIN COMPONENT
@@ -220,6 +163,7 @@ export default function Home() {
   
   const [loadingProgress, setLoadingProgress] = useState(0);
   
+  // Animation & Drag States
   const [iconPos, setIconPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 80 : 0, y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [springScale, setSpringScale] = useState(1);
@@ -229,14 +173,10 @@ export default function Home() {
   const [eyePos, setEyePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
   
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [isDragOver, setIsDragOver] = useState(false);
-  
   const targetEyePos = useRef({ x: 0, y: 0 });
   const currentEyePos = useRef({ x: 0, y: 0 });
   const microSaccade = useRef({ x: 0, y: 0 });
   const chatButtonRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const dragStartPos = useRef({ x: 0, y: 0 });
   const pointerStartPos = useRef({ x: 0, y: 0 });
@@ -248,9 +188,13 @@ export default function Home() {
   const chatStatusRef = useRef(chatStatus);
   const lastActivityTimeRef = useRef(Date.now());
   const isSendingRef = useRef(false);
+  const previousAgentRepliesRef = useRef<Set<string>>(new Set());
+  
+  const conversationContextRef = useRef<string[]>([]);
+  const lastHandledTopicRef = useRef<string | null>(null);
+  const conversationPhaseRef = useRef<"initial" | "ongoing" | "clarifying" | "closing_pending" | "ended">("initial");
+  const messageCountRef = useRef<number>(0);
   const isFirstUserMessageAfterTransferRef = useRef(true);
-  const agentResponseHistoryRef = useRef<Set<string>>(new Set());
-  const hasIconAnimatedRef = useRef(false);
 
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { chatStatusRef.current = chatStatus; }, [chatStatus]);
@@ -319,30 +263,41 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // ICON ANIMATION (Run ONCE on mount)
+  // IDLE ANIMATION LOGIC
   // ============================================================
   useEffect(() => {
-    if (!hasIconAnimatedRef.current && !isDragging) {
-      hasIconAnimatedRef.current = true;
-      setIdleOffsetX(-12);
-      setTimeout(() => {
-        setIdleOffsetX(0);
-      }, 400);
+    if (isDragging) {
+      setIdleOffsetX(0);
+      return;
     }
+    let moveTimeout: NodeJS.Timeout;
+    let cycleTimeout: NodeJS.Timeout;
+    const startCycle = () => {
+      setIdleOffsetX(-12);
+      moveTimeout = setTimeout(() => {
+        setIdleOffsetX(0);
+        cycleTimeout = setTimeout(startCycle, 12000);
+      }, 400);
+    };
+    cycleTimeout = setTimeout(startCycle, 12000);
+    return () => { clearTimeout(moveTimeout); clearTimeout(cycleTimeout); };
   }, [isDragging]);
 
   // ============================================================
-  // ADVANCED ANIMATION LOOP (Eyes, Head, Drag)
+  // ADVANCED ANIMATION LOOP (Eyes + Head Breathing + Drag Spring)
   // ============================================================
   useEffect(() => {
     let rafId: number;
     let time = 0;
     const animate = () => {
       time += 0.015;
+      
+      // Head breathing and slight tilt
       const breathY = Math.sin(time) * 1.0;
       const tilt = Math.sin(time * 0.7) * 1.0;
       setHeadTransform(`translateY(${breathY}px) rotate(${tilt}deg)`);
 
+      // Micro-saccades
       if (Math.random() < 0.008) {
         microSaccade.current = { x: (Math.random() - 0.5) * 0.8, y: (Math.random() - 0.5) * 0.8 };
       }
@@ -367,7 +322,7 @@ export default function Home() {
     return () => cancelAnimationFrame(rafId);
   }, [isDragging]);
 
-  // Eye Tracking
+  // Eye Tracking (Mouse & Touch)
   useEffect(() => {
     const handleMove = (clientX: number, clientY: number) => {
       if (!chatButtonRef.current || isDragging) return;
@@ -379,7 +334,7 @@ export default function Home() {
       const moveDist = (distance / 300) * 2.2;
       let targetX = Math.cos(angle) * moveDist;
       let targetY = Math.sin(angle) * moveDist;
-      if (chatStatusRef.current === "typing") targetY -= 0.8;
+      if (chatStatusRef.current === "typing") targetY -= 0.8; // Look up slightly when thinking/typing
       targetEyePos.current = { x: targetX, y: targetY };
     };
 
@@ -393,15 +348,21 @@ export default function Home() {
     return () => { window.removeEventListener("mousemove", handleMouseMove); window.removeEventListener("touchmove", handleTouchMove); };
   }, [isDragging]);
 
+  // Eye Direction based on Chat State
   useEffect(() => {
     if (open) {
+      // Look up towards the chat box and input field
       targetEyePos.current = { x: 0, y: -2.5 };
-      if (chatStatus === "typing") targetEyePos.current = { x: 0, y: -3.0 };
+      if (chatStatus === "typing") {
+        // Look more specifically at the input area
+        targetEyePos.current = { x: 0, y: -3.0 };
+      }
     } else {
       targetEyePos.current = { x: 0, y: 0 };
     }
   }, [open, chatStatus]);
 
+  // Blinking & Idle Glance
   useEffect(() => {
     let blinkTimeout: NodeJS.Timeout;
     let idleTimeout: NodeJS.Timeout;
@@ -428,29 +389,8 @@ export default function Home() {
   }, [isDragging, open]);
 
   // ============================================================
-  // DRAG & DROP LOGIC WITH SNAP TO EDGE
+  // DRAG & DROP LOGIC
   // ============================================================
-  const snapToEdge = useCallback((x: number, y: number) => {
-    const screenWidth = window.innerWidth;
-    const screenHeight = window.innerHeight;
-    const iconSize = 64;
-    const margin = 10;
-    
-    const distToLeft = x;
-    const distToRight = screenWidth - x - iconSize;
-    const distToTop = y;
-    const distToBottom = screenHeight - y - iconSize;
-    const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
-    
-    let snappedX = x, snappedY = y;
-    if (minDist === distToLeft) snappedX = margin;
-    else if (minDist === distToRight) snappedX = screenWidth - iconSize - margin;
-    else if (minDist === distToTop) snappedY = margin;
-    else snappedY = screenHeight - iconSize - margin;
-    
-    return { x: snappedX, y: snappedY };
-  }, []);
-
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -478,12 +418,8 @@ export default function Home() {
     if (!isDragging) return;
     setIsDragging(false);
     chatButtonRef.current?.releasePointerCapture(e.pointerId);
-    const snapped = snapToEdge(currentIconPos.current.x, currentIconPos.current.y);
-    targetIconPos.current = snapped;
-    currentIconPos.current = snapped;
-    setIconPos(snapped);
-    if (typeof window !== 'undefined') localStorage.setItem('chat-icon-pos', JSON.stringify(snapped));
-  }, [isDragging, snapToEdge]);
+    if (typeof window !== 'undefined') localStorage.setItem('chat-icon-pos', JSON.stringify(targetIconPos.current));
+  }, [isDragging]);
 
   const handleClick = useCallback(() => {
     if (!hasDragged.current) setOpen(prev => !prev);
@@ -491,47 +427,13 @@ export default function Home() {
   }, []);
 
   // ============================================================
-  // FILE UPLOAD LOGIC
-  // ============================================================
-  const handleFileSelect = useCallback((files: FileList | null) => {
-    if (!files) return;
-    Array.from(files).forEach(file => {
-      if (file.size > MAX_FILE_SIZE) { alert(`حجم الملف "${file.name}" يتجاوز الحد المسموح (10MB)`); return; }
-      const isAllowed = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOC_TYPES].includes(file.type);
-      if (!isAllowed) { alert(`نوع الملف "${file.name}" غير مدعوم`); return; }
-      
-      const fileType = getFileType(file);
-      const uploadedFile: UploadedFile = { id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`, file, progress: 0, type: fileType };
-      
-      if (fileType === 'image' || fileType === 'video') {
-        const reader = new FileReader();
-        reader.onload = (e) => { uploadedFile.preview = e.target?.result as string; setUploadedFiles(prev => [...prev, uploadedFile]); };
-        reader.readAsDataURL(file);
-      } else {
-        setUploadedFiles(prev => [...prev, uploadedFile]);
-      }
-      
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 10;
-        if (progress >= 100) { progress = 100; clearInterval(interval); }
-        setUploadedFiles(prev => prev.map(f => f.id === uploadedFile.id ? { ...f, progress } : f));
-      }, 100);
-    });
-  }, []);
-
-  const removeFile = useCallback((fileId: string) => setUploadedFiles(prev => prev.filter(f => f.id !== fileId)), []);
-  const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(true); }, []);
-  const handleDragLeave = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); }, []);
-  const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); handleFileSelect(e.dataTransfer.files); }, [handleFileSelect]);
-
-  // ============================================================
   // SESSION & MESSAGE LOGIC
   // ============================================================
   const saveStateToStorage = useCallback(() => {
     if (typeof window === 'undefined') return;
-    try { localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({ messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued })); } 
-    catch (e) { console.error('Save state error:', e); }
+    try {
+      localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({ messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued }));
+    } catch (e) { console.error('Save state error:', e); }
   }, [messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued]);
 
   const loadStateFromStorage = useCallback((): boolean => {
@@ -543,39 +445,30 @@ export default function Home() {
       setMessages(parsed.messages || []);
       setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
       setChatStatus("online"); setIsQueued(false); setShowDepartmentSelection(false);
-      isFirstUserMessageAfterTransferRef.current = true;
-      agentResponseHistoryRef.current.clear();
+      previousAgentRepliesRef.current.clear(); conversationContextRef.current = [];
+      lastHandledTopicRef.current = null; conversationPhaseRef.current = "initial";
+      messageCountRef.current = 0; isFirstUserMessageAfterTransferRef.current = true;
       return true;
     } catch (e) { return false; }
   }, []);
 
-  // 2. تعديل انتهاء جلسة الموظف والعودة للمساعد الذكي مع تصفير الدردشة
+  useEffect(() => {
+    if (currentSpeaker === "agent" || currentSpeaker === "bot") {
+      if (chatStatus === "inactive") setChatStatus("online");
+    }
+  }, [messages, currentSpeaker]);
+
   useEffect(() => {
     if (currentSpeaker !== "agent") return;
-    
     const interval = setInterval(() => {
-      const elapsed = (Date.now() - lastActivityTimeRef.current) / 1000;
-      
-      if (elapsed >= SESSION_TIMEOUTS.SOFT_INACTIVE) {
-        // تصفير الدردشة والعودة للمساعد الذكي فوراً
-        setMessages([]);
-        setCurrentSpeaker("bot");
-        setCurrentAgent(null);
-        setSessionAgents([]);
-        setChatStatus("online");
-        setIsQueued(false);
-        setShowDepartmentSelection(false);
+      if ((Date.now() - lastActivityTimeRef.current) / 1000 >= SESSION_TIMEOUTS.IDLE_TO_CLOSED) {
+        // الجملة المطلوبة حرفياً عند الخمول
+        setMessages(prev => [...prev, createMessage("system", "أنا موجود إذا احتجت أي مساعدة في أي وقت.", "assistant")]);
+        setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
+        setChatStatus("online"); conversationPhaseRef.current = "initial";
         lastActivityTimeRef.current = Date.now();
-        isFirstUserMessageAfterTransferRef.current = true;
-        agentResponseHistoryRef.current.clear();
-        
-        // إظهار رسالة الترحيب بعد تأخير بسيط
-        setTimeout(() => {
-          setMessages([createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
-        }, 500);
       }
     }, 1000);
-    
     return () => clearInterval(interval);
   }, [currentSpeaker]);
 
@@ -584,9 +477,10 @@ export default function Home() {
       setMessages([createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
       setCurrentSpeaker("bot"); setCurrentAgent(null); setSessionAgents([]);
       setIsQueued(false); setShowDepartmentSelection(false); setChatStatus("online");
-      lastActivityTimeRef.current = Date.now();
+      lastActivityTimeRef.current = Date.now(); previousAgentRepliesRef.current.clear();
+      conversationContextRef.current = []; lastHandledTopicRef.current = null;
+      conversationPhaseRef.current = "initial"; messageCountRef.current = 0;
       isFirstUserMessageAfterTransferRef.current = true;
-      agentResponseHistoryRef.current.clear();
       if (typeof window !== "undefined") localStorage.removeItem("dar-alnujum-chat-state");
     }, 2500);
   }, []);
@@ -595,90 +489,143 @@ export default function Home() {
     setCurrentAgent(agent);
     setSessionAgents(prev => prev.find(a => a.employeeId === agent.employeeId) ? prev : [...prev, agent]);
     setCurrentSpeaker("agent"); setIsQueued(false); setShowDepartmentSelection(false);
-    isFirstUserMessageAfterTransferRef.current = true;
-    agentResponseHistoryRef.current.clear();
+    previousAgentRepliesRef.current.clear(); conversationContextRef.current = [];
+    lastHandledTopicRef.current = null; conversationPhaseRef.current = "initial";
+    messageCountRef.current = 0; isFirstUserMessageAfterTransferRef.current = true;
     setMessages(prev => [...prev, createMessage("agent", `أهلاً بك، أنا ${agent.name} (${agent.role}). اطلعت على المحادثة السابقة، تفضل كيف يمكنني مساعدتك؟`, "assistant")]);
     setChatStatus("online"); lastActivityTimeRef.current = Date.now();
   }, []);
 
   const handleHumanRequest = useCallback(() => {
-    setShowDepartmentSelection(true); 
-    setChatStatus("online");
-    setMessages(prev => [...prev, createMessage("system", "يسعدنا خدمتك! يرجى اختيار القسم الذي ترغب في التواصل معه مباشرة:", "assistant")]);
+    setShowDepartmentSelection(true); setChatStatus("online");
+    setMessages(prev => [...prev, createMessage("system", "يرجى اختيار القسم الذي ترغب في التواصل معه:")]);
   }, []);
 
   const initiateDepartmentTransfer = useCallback((dept: Department) => {
-    const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
-    setShowDepartmentSelection(false);
     setChatStatus("typing");
-    
+    const deptOption = DEPARTMENT_OPTIONS.find(d => d.id === dept);
+    setMessages(prev => [...prev, createMessage("system", `جاري البحث عن موظف متاح في ${deptOption?.name}...`)]);
+    setShowDepartmentSelection(false);
     setTimeout(() => {
       const availableAgent = findAvailableAgent(dept);
-      if (availableAgent) { 
-        startAgentSession(availableAgent); 
-      } else {
-        setMessages(prev => [...prev, createMessage("system", `الموظف غير متصل حاليًا، سيتم الرد عليك عند عودته. (تم حفظ رسالتك في صندوق وارد قسم ${deptOption?.name})`, "assistant")]);
-        setChatStatus("online");
+      if (availableAgent) { startAgentSession(availableAgent); }
+      else {
+        setIsQueued(true); setChatStatus("waiting");
+        setMessages(prev => [...prev, createMessage("system", `جميع موظفي ${deptOption?.name} مشغولون حالياً. تم وضعك في قائمة الانتظار.`)]);
+        setTimeout(() => {
+          const fallbackAgent = findAvailableAgent(dept) || SUPPORT_AGENTS.find(a => a.department === dept);
+          if (fallbackAgent) {
+            startAgentSession(fallbackAgent);
+            setMessages(prev => [...prev, createMessage("system", "تم توصيلك بأحد موظفينا. نعتذر عن الانتظار.")]);
+          }
+        }, SESSION_TIMEOUTS.QUEUE_CHECK_INTERVAL);
       }
-    }, 1000);
+    }, 1500);
   }, [startAgentSession]);
 
+  const performInternalTransfer = useCallback((targetDept: Department, currentAgentName: string) => {
+    const targetAgent = findAvailableAgent(targetDept) || SUPPORT_AGENTS.find(a => a.department === targetDept);
+    if (!targetAgent) return;
+    setMessages(prev => [...prev, createMessage("agent", `هذا الطلب يخص قسم ${targetDept === 'ads' ? 'الإعلانات' : targetDept === 'technical' ? 'الدعم الفني' : 'خدمة العملاء'}، سأقوم بتحويلك الآن إلى الموظف المختص مع الاحتفاظ بسجل المحادثة كاملاً.`, "assistant")]);
+    setTimeout(() => {
+      setSessionAgents(prev => prev.find(a => a.employeeId === targetAgent!.employeeId) ? prev : [...prev, targetAgent!]);
+      setCurrentAgent(targetAgent);
+      conversationPhaseRef.current = "initial";
+      isFirstUserMessageAfterTransferRef.current = true;
+      setTimeout(() => {
+        setMessages(prev => [...prev, createMessage("agent", `مرحباً، أنا ${targetAgent!.name}. اطلعت على ما سبق، وكيف يمكنني مساعدتك الآن؟`, "assistant")]);
+        setChatStatus("online"); isSendingRef.current = false; lastActivityTimeRef.current = Date.now();
+      }, 1000);
+    }, 1500);
+  }, []);
+
+  // ============================================================
+  // SEND MESSAGE & SMART ROUTING LOGIC
+  // ============================================================
   const sendMessage = useCallback(async () => {
     const trimmedText = text.trim();
-    if ((!trimmedText && uploadedFiles.length === 0) || isSendingRef.current) return;
+    if (!trimmedText || isSendingRef.current) return;
 
     isSendingRef.current = true;
-    
-    const fileAttachments: Attachment[] = uploadedFiles.map(f => ({
-      type: f.type as AttachmentType, url: f.preview || URL.createObjectURL(f.file),
-      fileName: f.file.name, fileSize: formatFileSize(f.file.size), fileType: f.file.type
-    }));
-    
-    setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent", fileAttachments.length > 0 ? fileAttachments : undefined)]);
+    setMessages(prev => [...prev, createMessage("user", trimmedText, "user", "sent")]);
     setText("");
-    setUploadedFiles([]);
     lastActivityTimeRef.current = Date.now();
+    conversationContextRef.current.push(trimmedText);
+    if (conversationContextRef.current.length > 5) conversationContextRef.current.shift();
 
-    // Handle Agent Chat Flow
+    if (wantsHumanContact(trimmedText) && currentSpeaker === "bot" && !showDepartmentSelection) {
+      handleHumanRequest(); isSendingRef.current = false; return;
+    }
+
+    const normalized = normalizeArabicText(trimmedText);
+    const isJustGreeting = GREETING_KEYWORDS.some(k => normalized.includes(k)) && normalized.length < 20;
+
     if (currentSpeaker === "agent" && currentAgent) {
-      if (chatStatus === "inactive") {
-        setChatStatus("online");
-      }
-
       setChatStatus("typing");
       setTimeout(() => {
+        messageCountRef.current += 1;
+        const isThanks = (normalized.includes("شكر") || normalized.includes("مشكور")) && !normalized.includes("لا");
+        const isNoThanks = normalized.includes("لا") && (normalized.includes("شكر") || normalized.includes("احتاج") || normalized.includes("شيء"));
+        const isEndConversation = normalized.includes("هذا كل شيء") || normalized.includes("انتهيت") || normalized.includes("خلاص");
+
         if (isFirstUserMessageAfterTransferRef.current) {
           isFirstUserMessageAfterTransferRef.current = false;
-          const deptName = DEPARTMENT_OPTIONS.find(d => d.id === currentAgent.department)?.name || "الدعم";
+          const deptName = currentAgent.department === 'ads' ? 'الإعلانات' : currentAgent.department === 'technical' ? 'الدعم الفني' : 'خدمة العملاء';
           setMessages(prev => [...prev, createMessage("agent", `أهلاً وسهلاً بك، معك ${currentAgent.name} من ${deptName}. كيف أقدر أساعدك اليوم؟`, "assistant")]);
-          setChatStatus("online");
           isSendingRef.current = false; return;
         }
 
-        const deptName = DEPARTMENT_OPTIONS.find(d => d.id === currentAgent.department)?.name || "الدعم";
-        const smartReply = getSmartAgentResponse(trimmedText, currentAgent.name, deptName, agentResponseHistoryRef.current);
+        if (isJustGreeting) {
+          setMessages(prev => [...prev, createMessage("agent", "أهلاً بك أستاذ، تفضل كيف أقدر أساعدك؟", "assistant")]);
+          isSendingRef.current = false; return;
+        }
+
+        if (isThanks && !isNoThanks) {
+          // الجملة المطلوبة حرفياً للختام
+          setMessages(prev => [...prev, createMessage("agent", "العفو، هذا واجبنا. هل يوجد أي استفسار آخر يمكنني مساعدتك به؟", "assistant")]);
+          conversationPhaseRef.current = "closing_pending"; isSendingRef.current = false; return;
+        }
+
+        if (isNoThanks || isEndConversation) {
+          setMessages(prev => [...prev, createMessage("agent", "شكراً لتواصلك معنا، سعدنا بخدمتك. إذا احتجت إلى أي مساعدة أو استفسار في المستقبل، فلا تتردد في التواصل معنا في أي وقت. نتمنى لك يوماً سعيداً، ونشكرك على ثقتك بـ مجلة دار النجوم.", "assistant")]);
+          isSendingRef.current = false; setTimeout(() => closeAgentSession(), 2500); return;
+        }
+
+        const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
+        if (kbMatch && kbMatch.targetDept !== currentAgent.department) {
+          performInternalTransfer(kbMatch.targetDept, currentAgent.name);
+          isSendingRef.current = false; return;
+        }
+
+        if (currentAgent.department === 'ads' && kbMatch && kbMatch.targetDept === 'ads') {
+          if (lastHandledTopicRef.current !== 'pricing_details') {
+            lastHandledTopicRef.current = 'pricing_details';
+            const reply = `${kbMatch.explanation}\n\nوللاطلاع على جميع التفاصيل والشروط، يمكنك زيارة: ${kbMatch.linkText}`;
+            const attachments: Attachment[] = [{ type: 'link', url: kbMatch.link, title: kbMatch.linkText, description: "اضغط هنا للانتقال" }];
+            setMessages(prev => [...prev, createMessage("agent", reply, "assistant", "read", attachments)]);
+            conversationPhaseRef.current = "ongoing"; isSendingRef.current = false; return;
+          }
+        }
+
+        const generalReplies = currentAgent.department === 'ads' 
+          ? ["بكل سرور. كيف يمكنني مساعدتك في اختيار الباقة الأنسب؟", "حاضر، أنا معك. هل لديك ميزانية محددة في ذهنك؟"]
+          : currentAgent.department === 'technical'
+          ? ["حاضر، أنا أتابع معك. يرجى تزويدي بأي تفاصيل إضافية.", "أكيد، سأقوم بمساعدتك. هل يمكنك توضيح المشكلة أكثر؟"]
+          : ["بكل سرور. تفضل، أنا أستمع إليك وسأقوم باللازم فوراً.", "حاضر، يسعدني خدمتك. كيف أقدر أساعدك؟"];
         
-        setMessages(prev => [...prev, createMessage("agent", smartReply, "assistant")]);
-        setChatStatus("online");
-        isSendingRef.current = false;
-      }, 1200);
+        setMessages(prev => [...prev, createMessage("agent", generalReplies[Math.floor(Math.random() * generalReplies.length)], "assistant")]);
+        conversationPhaseRef.current = "ongoing"; isSendingRef.current = false;
+      }, 1500);
       return; 
     }
 
-    // Handle Bot Flow
     setChatStatus("typing");
     try {
-      const normalized = normalizeArabicText(trimmedText);
-      const isJustGreeting = GREETING_KEYWORDS.some(k => normalized.includes(k)) && normalized.length < 20;
-
-      if (wantsHumanContact(trimmedText) && !showDepartmentSelection) {
-        handleHumanRequest(); isSendingRef.current = false; return;
-      }
-
       const kbMatch = LOCAL_KNOWLEDGE_BASE.find(kb => kb.keywords.some(k => normalized.includes(k)));
+      
       if (kbMatch) {
-        const reply = `${kbMatch.explanation}\n\nللمزيد من التفاصيل:`;
-        const attachments: Attachment[] = [{ type: 'link', url: kbMatch.link, title: kbMatch.linkText, description: kbMatch.linkDesc }];
+        const reply = `${kbMatch.explanation}\n\nللمزيد من التفاصيل، تفضل بزيارة: ${kbMatch.linkText}`;
+        const attachments: Attachment[] = [{ type: 'link', url: kbMatch.link, title: kbMatch.linkText, description: "رابط مباشر" }];
         setMessages(prev => [...prev, createMessage("bot", reply, "assistant", "read", attachments)]);
         setChatStatus("online"); isSendingRef.current = false; return;
       }
@@ -702,7 +649,7 @@ export default function Home() {
       
       setMessages(prev => [...prev, createMessage("bot", data.text || data.message || "عذراً، لم أتمكن من فهم طلبك بدقة.", "assistant", "read", data.attachments || [])]);
 
-      if (data.escalate === true && !showDepartmentSelection) {
+      if (data.escalate === true && currentSpeaker === "bot" && !showDepartmentSelection) {
         handleHumanRequest();
       }
     } catch (error) {
@@ -711,7 +658,7 @@ export default function Home() {
     } finally {
       setChatStatus("online"); isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, initiateDepartmentTransfer, closeAgentSession, uploadedFiles, chatStatus]);
+  }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession]);
 
   useEffect(() => { saveStateToStorage(); }, [saveStateToStorage]);
   
@@ -721,6 +668,7 @@ export default function Home() {
     if (!hasSaved) {
       setChatStatus("typing");
       setTimeout(() => {
+        // استخدام جملة الترحيب المطلوبة حرفياً
         setMessages([createMessage("bot", EXACT_WELCOME_MESSAGE, "assistant")]);
         setChatStatus("online");
       }, 800);
@@ -729,23 +677,17 @@ export default function Home() {
 
   const getStatusText = () => {
     switch (chatStatus) {
-      case "typing": return "يكتب الآن..."; 
-      case "online": return "متصل الآن";
-      case "waiting": return "في قائمة الانتظار..."; 
-      case "inactive": return "انتهى مؤقتاً"; 
-      case "closed": return "عاد المساعد الذكي"; 
-      default: return "غير نشط";
+      case "typing": return "يكتب الآن..."; case "online": return "متصل الآن";
+      case "waiting": return "في قائمة الانتظار..."; case "inactive": return "انتهت المحادثة مؤقتاً";
+      case "closed": return "عاد المساعد الذكي"; default: return "غير نشط";
     }
   };
 
   const getStatusColor = () => {
     switch (chatStatus) {
-      case "typing": return "bg-yellow-400 animate-pulse"; 
-      case "online": return "bg-green-400 animate-pulse";
-      case "waiting": return "bg-orange-400 animate-pulse"; 
-      case "inactive": return "bg-gray-500"; 
-      case "closed": return "bg-green-400 animate-pulse"; 
-      default: return "bg-gray-400";
+      case "typing": return "bg-yellow-400 animate-pulse"; case "online": return "bg-green-400 animate-pulse";
+      case "waiting": return "bg-orange-400 animate-pulse"; case "inactive": return "bg-gray-500";
+      case "closed": return "bg-green-400 animate-pulse"; default: return "bg-gray-400";
     }
   };
 
@@ -766,49 +708,6 @@ export default function Home() {
     });
   };
 
-  const renderAttachments = (attachments: Attachment[]) => {
-    return (
-      <div className="mt-2 space-y-2">
-        {attachments.map((att, idx) => {
-          if (att.type === 'image' && att.url) return <img key={idx} src={att.url} alt="attachment" className="rounded-lg max-w-full h-auto border border-gray-600" />;
-          if (att.type === 'video' && att.url) return <video key={idx} controls className="rounded-lg max-w-full h-auto border border-gray-600"><source src={att.url} type={att.fileType || 'video/mp4'} />المتصفح لا يدعم تشغيل الفيديو</video>;
-          if (att.type === 'file' && att.url) {
-            return (
-              <a key={idx} href={att.url} download={att.fileName} className="block bg-[#0b0f1a]/50 hover:bg-[#0b0f1a] border border-purple-500/30 rounded-lg p-3 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-xs text-purple-300 truncate">{att.fileName}</div>
-                    <div className="text-[10px] text-gray-400">{att.fileSize}</div>
-                  </div>
-                </div>
-              </a>
-            );
-          }
-          if ((att.type === 'link' || att.type === 'card' || att.type === 'product') && att.url) {
-            return (
-              <a key={idx} href={att.url} target="_blank" rel="noopener noreferrer" className="block bg-gradient-to-r from-purple-600/10 to-blue-600/10 hover:from-purple-600/20 hover:to-blue-600/20 border border-purple-500/30 rounded-lg p-3 transition-all">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {att.title && <div className="font-bold text-sm text-purple-300 mb-1">{att.title}</div>}
-                    {att.description && <div className="text-xs text-gray-400 mb-2">{att.description}</div>}
-                    <div className="text-xs text-blue-400 flex items-center gap-1"><span>فتح الرابط</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></div>
-                  </div>
-                </div>
-              </a>
-            );
-          }
-          return null;
-        })}
-      </div>
-    );
-  };
-
   // ============================================================
   // JSX
   // ============================================================
@@ -824,21 +723,20 @@ export default function Home() {
         .animate-blink-human { animation: blink-human 0.12s ease-in-out; transform-origin: center; }
         @keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
         .animate-typing { animation: typing 1.4s infinite ease-in-out; }
-        
-        /* 1. إصلاح ظهور الرسائل: حركة ظهور ناعمة بدلاً من الانزلاق من اليمين */
-        @keyframes fadeIn { 
-          from { opacity: 0; transform: translateY(5px); } 
-          to { opacity: 1; transform: translateY(0); } 
-        }
-        .animate-fade-in { 
-          animation: fadeIn 0.3s ease-out forwards; 
-        }
       `}</style>
 
       {loadingProgress > 0 && (
         <div className="fixed top-0 right-0 left-0 z-[100] h-1 bg-gray-800/30">
-          <div className="absolute top-0 right-0 h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.6)]"
-            style={{ width: `${loadingProgress}%`, transition: loadingProgress === 100 ? 'width 0.6s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.6s ease-out' : 'width 0.4s cubic-bezier(0.25, 1, 0.5, 1)', opacity: loadingProgress === 100 ? 0 : 1 }} />
+          <div 
+            className="absolute top-0 right-0 h-full bg-gradient-to-l from-purple-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.6)]"
+            style={{ 
+              width: `${loadingProgress}%`,
+              transition: loadingProgress === 100 
+                ? 'width 0.6s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.6s ease-out' 
+                : 'width 0.4s cubic-bezier(0.25, 1, 0.5, 1)',
+              opacity: loadingProgress === 100 ? 0 : 1
+            }}
+          />
         </div>
       )}
 
@@ -873,7 +771,9 @@ export default function Home() {
             <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[#0b0f1a] to-transparent z-10 pointer-events-none rounded-r-full"></div>
             <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[#0b0f1a] to-transparent z-10 pointer-events-none rounded-l-full"></div>
             <div className="flex whitespace-nowrap animate-seamless-scroll w-max">
-              {[...Array(10), ...Array(10)].map((_, i) => (<span key={i} className="mx-8 text-purple-300 text-sm font-semibold flex items-center gap-2"> إعلان حصري: تابعوا أحدث البرامج واللقاءات على قناة مجلة دار النجوم</span>))}
+              {[...Array(10), ...Array(10)].map((_, i) => (
+                <span key={i} className="mx-8 text-purple-300 text-sm font-semibold flex items-center gap-2"> إعلان حصري: تابعوا أحدث البرامج واللقاءات على قناة مجلة دار النجوم</span>
+              ))}
             </div>
           </div>
           <h1 className="text-4xl md:text-6xl font-black mb-4 leading-tight">مرحبًا بكم في <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">دار النجوم</span></h1>
@@ -881,24 +781,31 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 3. إخفاء الظل الأسود: استخدام ظل بنفسجي مخصص وصافي فقط */}
-      <div ref={chatButtonRef} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={handleClick}
+      {/* أيقونة المساعد مع حركة الرأس والتنفس والعيون المتقدمة */}
+      <div 
+        ref={chatButtonRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onClick={handleClick}
         className="fixed z-50 cursor-grab active:cursor-grabbing select-none touch-none"
-        style={{ 
-          left: `${iconPos.x}px`, 
-          top: `${iconPos.y}px`, 
-          width: '64px', 
-          height: '64px', 
-          transform: `translateX(${idleOffsetX}px) scale(${springScale})`, 
-          transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
+        style={{
+          left: `${iconPos.x}px`,
+          top: `${iconPos.y}px`,
+          width: '64px',
+          height: '64px',
+          transform: `translateX(${idleOffsetX}px) scale(${springScale})`,
+          transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
           boxShadow: isDragging 
-            ? '0 20px 25px -5px rgba(147, 51, 234, 0.6), 0 8px 10px -6px rgba(147, 51, 234, 0.4)' 
-            : '0 10px 25px -5px rgba(147, 51, 234, 0.4)' // ظل بنفسجي صافي بدون أسود
-        }} 
+            ? '0 20px 25px -5px rgba(147, 51, 234, 0.5), 0 8px 10px -6px rgba(147, 51, 234, 0.5)' 
+            : '0 10px 15px -3px rgba(147, 51, 234, 0.3), 0 4px 6px -2px rgba(147, 51, 234, 0.2)'
+        }}
         title="مركز المساعدة"
       >
         <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center border-2 border-white/10 animate-slide-in-right">
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* تطبيق حركة الرأس والتنفس على المجموعة الكاملة */}
             <g style={{ transform: headTransform, transformOrigin: '18px 18px', transition: 'transform 0.3s ease-out' }}>
               <g className={isBlinking ? "animate-blink-human" : ""}>
                 <circle cx="12" cy="15" r="5.5" fill="white" />
@@ -910,12 +817,21 @@ export default function Home() {
                 <circle cx="24" cy="15" r="2.8" fill="#0b0f1a" style={{ transform: `translate(${eyePos.x - 0.3}px, ${eyePos.y}px)`, transition: 'transform 0.1s linear' }} />
                 <circle cx="25.5" cy="13.5" r="1.2" fill="white" opacity="0.9" style={{ transform: `translate(${eyePos.x * 0.3}px, ${eyePos.y * 0.3}px)` }} />
               </g>
-              <path d={chatStatus === "typing" ? "M 11 24 Q 18 31 25 24" : "M 12 24 Q 18 28 24 24"} stroke="white" strokeWidth="2.5" strokeLinecap="round" fill={chatStatus === "typing" ? "white" : "none"} className="transition-all duration-500 ease-in-out" style={{ transformOrigin: '18px 24px' }} />
+              <path 
+                d={chatStatus === "typing" ? "M 11 24 Q 18 31 25 24" : "M 12 24 Q 18 28 24 24"}
+                stroke="white" 
+                strokeWidth="2.5" 
+                strokeLinecap="round" 
+                fill={chatStatus === "typing" ? "white" : "none"}
+                className="transition-all duration-500 ease-in-out"
+                style={{ transformOrigin: '18px 24px' }}
+              />
             </g>
           </svg>
         </div>
       </div>
 
+      {/* صندوق الدردشة */}
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-40 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -943,49 +859,55 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-          {isDragOver && (
-            <div className="absolute inset-0 bg-purple-600/20 border-2 border-dashed border-purple-500 rounded-xl flex items-center justify-center z-10">
-              <div className="text-center">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mx-auto mb-2 text-purple-400"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                <p className="text-purple-300 font-bold">أفلت الملفات هنا</p>
-              </div>
-            </div>
-          )}
-          
+        <div className="h-80 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-[#0b0f1a]/50">
           {messages.map((msg) => {
-            if (msg.sender === "system") return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%] whitespace-pre-line">{msg.text}</span></div>;
+            if (msg.sender === "system") {
+              return <div key={msg.id} className="flex justify-center my-2"><span className="text-[10px] bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 text-center max-w-[90%] whitespace-pre-line">{msg.text}</span></div>;
+            }
             const isUser = msg.sender === "user";
             return (
-              // تم إزالة animate-slide-in-right واستبدالها بـ animate-fade-in لظهور طبيعي
-              <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"} animate-fade-in`}>
+              <div key={msg.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
                 {!isUser && <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.sender === "agent" && currentAgent ? `${currentAgent.name} (${currentAgent.role})` : "المساعد الذكي"}</span>}
                 <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed relative whitespace-pre-line ${isUser ? "bg-purple-600 text-white rounded-tr-sm" : "bg-[#1f2937] text-gray-200 border border-purple-500/30 rounded-tl-sm"}`}>
                   {msg.text}
-                  {msg.attachments && msg.attachments.length > 0 && renderAttachments(msg.attachments)}
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {msg.attachments.map((att, idx) => {
+                        if (att.type === 'image' && att.url) return <img key={idx} src={att.url} alt="attachment" className="rounded-lg max-w-full h-auto border border-gray-600" />;
+                        if ((att.type === 'link' || att.type === 'card' || att.type === 'product') && att.url) {
+                          return (
+                            <a key={idx} href={att.url} target="_blank" rel="noopener noreferrer" className="block bg-[#0b0f1a]/50 hover:bg-[#0b0f1a] border border-purple-500/30 rounded-lg p-2 transition-colors">
+                              {att.title && <div className="font-bold text-xs text-purple-300 mb-1">{att.title}</div>}
+                              {att.description && <div className="text-[10px] text-gray-400">{att.description}</div>}
+                              <div className="text-[10px] text-blue-400 mt-1 truncate">{att.url}</div>
+                            </a>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                  )}
                 </div>
-                <span className="text-[10px] text-gray-500 mt-1 px-1 flex items-center gap-1">{msg.time}{isUser && <span>{msg.status === "read" ? "✓✓" : "✓"}</span>}</span>
+                <span className="text-[10px] text-gray-500 mt-1 px-1 flex items-center gap-1">
+                  {msg.time}{isUser && <span>{msg.status === "read" ? "✓✓" : "✓"}</span>}
+                </span>
               </div>
             );
           })}
 
           {showDepartmentSelection && currentSpeaker === "bot" && (
-            <div className="grid grid-cols-1 gap-2 mt-2 animate-fade-in">
+            <div className="space-y-2 mt-2 animate-slide-in-right">
               {DEPARTMENT_OPTIONS.map((dept) => (
-                <button key={dept.id} onClick={() => initiateDepartmentTransfer(dept.id)} className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group flex items-center gap-3">
-                  <span className="text-2xl">{dept.icon}</span>
-                  <div className="flex-1">
-                    <div className="font-bold text-sm text-purple-300 group-hover:text-purple-200">{dept.name}</div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">{dept.description}</div>
-                  </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500 group-hover:text-purple-400 transform group-hover:-translate-x-1 transition-transform"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                <button key={dept.id} onClick={() => initiateDepartmentTransfer(dept.id)} className="w-full text-right bg-[#1f2937] hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500 rounded-xl p-3 transition-all duration-200 group">
+                  <div className="font-bold text-sm text-purple-300 group-hover:text-purple-200">{dept.name}</div>
+                  <div className="text-xs text-gray-400 mt-1">{dept.description}</div>
                 </button>
               ))}
             </div>
           )}
 
           {chatStatus === "typing" && !showDepartmentSelection && (
-            <div className="flex flex-col items-start animate-fade-in">
+            <div className="flex flex-col items-start">
               <span className="text-[10px] text-gray-400 mb-1 ml-1">{currentSpeaker === "agent" && currentAgent ? currentAgent.name : "المساعد الذكي"}</span>
               <div className="bg-[#1f2937] border border-purple-500/30 rounded-2xl rounded-tl-sm p-3 flex gap-1.5 items-center h-10">
                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-typing" style={{ animationDelay: '0ms' }}></span>
@@ -996,41 +918,19 @@ export default function Home() {
           )}
         </div>
 
-        {uploadedFiles.length > 0 && (
-          <div className="p-3 border-t border-gray-700 bg-[#1f2937]/30">
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {uploadedFiles.map(file => (
-                <div key={file.id} className="relative flex-shrink-0 w-20 h-20 bg-[#0b0f1a] rounded-lg border border-gray-700 overflow-hidden">
-                  {file.preview && (file.type === 'image' || file.type === 'video') ? (
-                    file.type === 'image' ? <img src={file.preview} alt={file.file.name} className="w-full h-full object-cover" /> : <video src={file.preview} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-400"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></div>
-                  )}
-                  {file.progress < 100 && (<div className="absolute inset-0 bg-black/50 flex items-center justify-center"><div className="text-xs text-white font-bold">{file.progress}%</div></div>)}
-                  <button onClick={() => removeFile(file.id)} className="absolute top-1 right-1 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-700 transition-colors">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           <div className="flex gap-2 items-end">
-            <button onClick={() => fileInputRef.current?.click()} className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-gray-700 text-white hover:bg-gray-600" title="إرفاق ملف">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
-            </button>
-            <input ref={fileInputRef} type="file" multiple accept={[...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOC_TYPES].join(',')} onChange={(e) => handleFileSelect(e.target.files)} className="hidden" />
             <textarea
-              id="chat-input" value={text}
+              id="chat-input"
+              value={text}
               placeholder={showDepartmentSelection ? "يرجى اختيار قسم من الأعلى..." : "اكتب رسالتك هنا..."}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              rows={1} disabled={showDepartmentSelection}
+              rows={1}
+              disabled={showDepartmentSelection}
               className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            <button onClick={sendMessage} disabled={(!text.trim() && uploadedFiles.length === 0) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            <button onClick={sendMessage} disabled={!text.trim() || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
             </button>
           </div>
