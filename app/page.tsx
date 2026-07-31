@@ -77,7 +77,6 @@ const SUPPORT_AGENTS: Agent[] = [
   { employeeId: "EMP-003", name: "سارة المالكي", img: "https://i.pravatar.cc/150?img=47", role: "مسؤولة الإعلانات والمبيعات", department: 'ads', status: 'online', lastActivity: new Date().toISOString(), isBusy: false, isRealAgent: false },
 ];
 
-// تم تحديث أسماء الأقسام لتطابق طلبك تماماً
 const DEPARTMENT_OPTIONS: DepartmentOption[] = [
   { id: 'support', name: 'استفسارات عامة وخدمة العملاء', description: 'تواصل مباشر مع موظف خدمة العملاء' },
   { id: 'ads', name: 'قسم المبيعات والإعلانات', description: 'تواصل مباشر مع فريق المبيعات والدعاية' },
@@ -154,7 +153,6 @@ const normalizeArabicText = (text: string): string => {
     .toLowerCase();
 };
 
-// تم توسيع الكلمات المفتاحية لتشمل طلبات التواصل المباشر
 const wantsHumanContact = (inputText: string): boolean => {
   const normalized = normalizeArabicText(inputText);
   const humanRequestKeywords = [
@@ -554,34 +552,18 @@ export default function Home() {
     });
   }, []);
 
-  const removeFile = useCallback((fileId: string) => {
-    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    handleFileSelect(e.dataTransfer.files);
-  }, [handleFileSelect]);
+  const removeFile = useCallback((fileId: string) => setUploadedFiles(prev => prev.filter(f => f.id !== fileId)), []);
+  const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(true); }, []);
+  const handleDragLeave = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); }, []);
+  const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); handleFileSelect(e.dataTransfer.files); }, [handleFileSelect]);
 
   // ============================================================
   // SESSION & MESSAGE LOGIC
   // ============================================================
   const saveStateToStorage = useCallback(() => {
     if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({ messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued }));
-    } catch (e) { console.error('Save state error:', e); }
+    try { localStorage.setItem('dar-alnujum-chat-state', JSON.stringify({ messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued })); } 
+    catch (e) { console.error('Save state error:', e); }
   }, [messages, currentSpeaker, currentAgent, sessionAgents, chatStatus, isQueued]);
 
   const loadStateFromStorage = useCallback((): boolean => {
@@ -643,7 +625,6 @@ export default function Home() {
     setChatStatus("online"); lastActivityTimeRef.current = Date.now();
   }, []);
 
-  // تم تحديث رسالة طلب اختيار القسم لتكون واضحة أنها للدردشة المباشرة
   const handleHumanRequest = useCallback(() => {
     setShowDepartmentSelection(true); 
     setChatStatus("online");
@@ -712,7 +693,6 @@ export default function Home() {
     conversationContextRef.current.push(trimmedText);
     if (conversationContextRef.current.length > 5) conversationContextRef.current.shift();
 
-    // التحقق من رغبة المستخدم في التواصل البشري (يشمل الآن كلمات مثل اتصل، مبيعات، دعم، إلخ)
     if (wantsHumanContact(trimmedText) && currentSpeaker === "bot" && !showDepartmentSelection) {
       handleHumanRequest(); isSendingRef.current = false; return;
     }
@@ -732,11 +712,13 @@ export default function Home() {
           isFirstUserMessageAfterTransferRef.current = false;
           const deptName = currentAgent.department === 'ads' ? 'المبيعات والإعلانات' : currentAgent.department === 'technical' ? 'الدعم الفني' : 'خدمة العملاء';
           setMessages(prev => [...prev, createMessage("agent", `أهلاً وسهلاً بك، معك ${currentAgent.name} من ${deptName}. كيف أقدر أساعدك اليوم؟`, "assistant")]);
+          setChatStatus("online");
           isSendingRef.current = false; return;
         }
 
         if (isJustGreeting) {
           setMessages(prev => [...prev, createMessage("agent", "أهلاً بك أستاذ، تفضل كيف أقدر أساعدك؟", "assistant")]);
+          setChatStatus("online");
           isSendingRef.current = false; return;
         }
 
@@ -747,6 +729,7 @@ export default function Home() {
 
         if (isNoThanks || isEndConversation) {
           setMessages(prev => [...prev, createMessage("agent", "شكراً لتواصلك معنا، سعدنا بخدمتك. إذا احتجت إلى أي مساعدة أو استفسار في المستقبل، فلا تتردد في التواصل معنا في أي وقت. نتمنى لك يوماً سعيداً، ونشكرك على ثقتك بـ مجلة دار النجوم.", "assistant")]);
+          setChatStatus("online");
           isSendingRef.current = false; setTimeout(() => closeAgentSession(), 2500); return;
         }
 
@@ -808,7 +791,7 @@ export default function Home() {
       
       setMessages(prev => [...prev, createMessage("bot", data.text || data.message || "عذراً، لم أتمكن من فهم طلبك بدقة.", "assistant", "read", data.attachments || [])]);
 
-      if (data.escalate === true && currentSpeaker === "bot" && !showDepartmentSelection) {
+      if (data.escalate === true && !showDepartmentSelection) {
         handleHumanRequest();
       }
     } catch (error) {
@@ -817,7 +800,7 @@ export default function Home() {
     } finally {
       setChatStatus("online"); isSendingRef.current = false;
     }
-  }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, performInternalTransfer, closeAgentSession, uploadedFiles]);
+  }, [text, currentSpeaker, currentAgent, showDepartmentSelection, handleHumanRequest, messages, initiateDepartmentTransfer, closeAgentSession, uploadedFiles]);
 
   useEffect(() => { saveStateToStorage(); }, [saveStateToStorage]);
   
@@ -866,24 +849,12 @@ export default function Home() {
     });
   };
 
-  // ============================================================
-  // RENDER ATTACHMENTS
-  // ============================================================
   const renderAttachments = (attachments: Attachment[]) => {
     return (
       <div className="mt-2 space-y-2">
         {attachments.map((att, idx) => {
-          if (att.type === 'image' && att.url) {
-            return <img key={idx} src={att.url} alt="attachment" className="rounded-lg max-w-full h-auto border border-gray-600" />;
-          }
-          if (att.type === 'video' && att.url) {
-            return (
-              <video key={idx} controls className="rounded-lg max-w-full h-auto border border-gray-600">
-                <source src={att.url} type={att.fileType || 'video/mp4'} />
-                المتصفح لا يدعم تشغيل الفيديو
-              </video>
-            );
-          }
+          if (att.type === 'image' && att.url) return <img key={idx} src={att.url} alt="attachment" className="rounded-lg max-w-full h-auto border border-gray-600" />;
+          if (att.type === 'video' && att.url) return <video key={idx} controls className="rounded-lg max-w-full h-auto border border-gray-600"><source src={att.url} type={att.fileType || 'video/mp4'} />المتصفح لا يدعم تشغيل الفيديو</video>;
           if (att.type === 'file' && att.url) {
             return (
               <a key={idx} href={att.url} download={att.fileName} className="block bg-[#0b0f1a]/50 hover:bg-[#0b0f1a] border border-purple-500/30 rounded-lg p-3 transition-colors">
@@ -1186,31 +1157,32 @@ export default function Home() {
 
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           <div className="flex gap-2 items-end">
+            {/* زر رفع الصور المخصص */}
             <button 
               onClick={() => fileInputRef.current?.click()}
               className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-gray-700 text-white hover:bg-gray-600"
-              title="إرفاق ملف"
+              title="إرفاق صورة"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
               </svg>
             </button>
             <input 
               ref={fileInputRef}
               type="file" 
               multiple
-              accept={[...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOC_TYPES].join(',')}
+              accept="image/*,video/*,.pdf,.doc,.docx"
               onChange={(e) => handleFileSelect(e.target.files)}
               className="hidden"
             />
             <textarea
-              id="chat-input"
-              value={text}
+              id="chat-input" value={text}
               placeholder={showDepartmentSelection ? "يرجى اختيار قسم من الأعلى..." : "اكتب رسالتك هنا..."}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              rows={1}
-              disabled={showDepartmentSelection}
+              rows={1} disabled={showDepartmentSelection}
               className="flex-1 bg-[#0b0f1a] text-white px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <button onClick={sendMessage} disabled={(!text.trim() && uploadedFiles.length === 0) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} className="p-3 rounded-xl text-sm font-bold transition mb-0.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
