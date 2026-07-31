@@ -1026,9 +1026,8 @@ export default function Home() {
         </div>
       </div>
 
-      {/* صندوق الدردشة - تم تعديل الأيقونة في الرأس إلى مشبك الورق */}
+      {/* صندوق الدردشة */}
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-40 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
-        {/* رأس الصندوق (بنفسجي) مع أيقونة رفع الصور */}
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
             {sessionAgents.length === 0 ? (
@@ -1053,17 +1052,6 @@ export default function Home() {
               <span className="truncate">{getStatusText()}</span>
             </p>
           </div>
-          {/* ✅ أيقونة رفع الصور/الملفات (مشبك الورق) داخل الرأس البنفسجي */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={showDepartmentSelection}
-            className="text-purple-400/60 hover:text-purple-300 transition-colors p-1 rounded-full hover:bg-purple-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
-            title="إرفاق صورة أو ملف"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-            </svg>
-          </button>
         </div>
 
         <div 
@@ -1167,9 +1155,13 @@ export default function Home() {
           </div>
         )}
 
-        {/* منطقة إدخال الرسائل (مع بقاء زر الإرفاق الأصلي اختيارياً) */}
+        {/* ============================================================ */}
+        {/* منطقة إدخال الرسائل المحدثة: تحتوي على 3 عناصر متجاورة بوضوح */}
+        {/* ============================================================ */}
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           <div className="flex items-end gap-2 bg-[#0b0f1a] border border-gray-700 rounded-xl focus-within:ring-2 focus-within:ring-purple-500/50 focus-within:border-purple-500 transition-all p-2">
+            
+            {/* 1. حقل كتابة الرسالة */}
             <textarea
               id="chat-input" 
               value={text}
@@ -1178,19 +1170,24 @@ export default function Home() {
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               rows={1} 
               disabled={showDepartmentSelection}
-              className="flex-1 bg-transparent text-white px-3 py-2 text-sm focus:outline-none placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[40px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-transparent text-white px-3 py-2.5 text-sm focus:outline-none placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[44px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            {/* يمكنك إبقاء زر الإرفاق هنا أو إزالته، اخترت إبقاءه لتعدد الخيارات */}
+            
+            {/* 2. زر إرفاق الصور/الملفات (أيقونة واضحة ومضمونة) */}
             <button 
               onClick={() => fileInputRef.current?.click()}
               disabled={showDepartmentSelection}
-              className="p-2 rounded-lg text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              className="p-2.5 rounded-lg text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 mb-0.5"
               title="إرفاق صورة أو ملف"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
               </svg>
             </button>
+            
+            {/* حقل الإدخال المخفي للملفات */}
             <input 
               ref={fileInputRef}
               type="file" 
@@ -1199,17 +1196,20 @@ export default function Home() {
               onChange={(e) => handleFileSelect(e.target.files)}
               className="hidden"
             />
+            
+            {/* 3. زر الإرسال */}
             <button 
               onClick={sendMessage} 
               disabled={(!text.trim() && uploadedFiles.length === 0) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
-              className="p-2 rounded-lg text-sm font-bold transition bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              className="p-2.5 rounded-lg text-sm font-bold transition bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 mb-0.5"
               title="إرسال"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13" />
                 <polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
             </button>
+            
           </div>
         </div>
       </div>
