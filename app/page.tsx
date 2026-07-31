@@ -1026,8 +1026,11 @@ export default function Home() {
         </div>
       </div>
 
-      {/* صندوق الدردشة */}
+      {/* ============================================================ */}
+      {/* صندوق الدردشة - تمت إضافة الأيقونة في الرأس */}
+      {/* ============================================================ */}
       <div className={`fixed bottom-24 right-6 w-80 md:w-96 bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 z-40 flex flex-col ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}`}>
+        {/* رأس الصندوق (بنفسجي) مع الأيقونة الجديدة */}
         <div className="p-4 border-b border-gray-700 flex items-center gap-3 bg-[#1f2937]/50 rounded-t-2xl">
           <div className="flex items-center gap-2 flex-shrink-0">
             {sessionAgents.length === 0 ? (
@@ -1052,6 +1055,18 @@ export default function Home() {
               <span className="truncate">{getStatusText()}</span>
             </p>
           </div>
+          {/* ✅ الأيقونة الجديدة (ثلاث نقاط) */}
+          <button
+            onClick={() => console.log("إجراء إضافي - يمكنك تخصيصه")}
+            className="text-purple-400/40 hover:text-purple-400 transition-colors p-1 rounded-full hover:bg-purple-500/10"
+            title="إجراء إضافي"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="5" r="1.5" />
+              <circle cx="12" cy="12" r="1.5" />
+              <circle cx="12" cy="19" r="1.5" />
+            </svg>
+          </button>
         </div>
 
         <div 
@@ -1155,14 +1170,9 @@ export default function Home() {
           </div>
         )}
 
-        {/* ============================================================ */}
-        {/* منطقة إدخال الرسائل المحدثة: تحتوي على 3 عناصر متجاورة */}
-        {/* 1. حقل الكتابة | 2. زر الإرفاق | 3. زر الإرسال */}
-        {/* ============================================================ */}
+        {/* منطقة إدخال الرسائل */}
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
           <div className="flex items-end gap-2 bg-[#0b0f1a] border border-gray-700 rounded-xl focus-within:ring-2 focus-within:ring-purple-500/50 focus-within:border-purple-500 transition-all p-2">
-            
-            {/* 1. حقل كتابة الرسالة */}
             <textarea
               id="chat-input" 
               value={text}
@@ -1173,8 +1183,6 @@ export default function Home() {
               disabled={showDepartmentSelection}
               className="flex-1 bg-transparent text-white px-3 py-2 text-sm focus:outline-none placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[40px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            
-            {/* 2. زر إرفاق الصور/الملفات (الزر الثالث الجديد) */}
             <button 
               onClick={() => fileInputRef.current?.click()}
               disabled={showDepartmentSelection}
@@ -1185,8 +1193,6 @@ export default function Home() {
                 <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
               </svg>
             </button>
-            
-            {/* حقل الإدخال المخفي للملفات */}
             <input 
               ref={fileInputRef}
               type="file" 
@@ -1195,8 +1201,6 @@ export default function Home() {
               onChange={(e) => handleFileSelect(e.target.files)}
               className="hidden"
             />
-            
-            {/* 3. زر الإرسال */}
             <button 
               onClick={sendMessage} 
               disabled={(!text.trim() && uploadedFiles.length === 0) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
@@ -1208,7 +1212,6 @@ export default function Home() {
                 <polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
             </button>
-            
           </div>
         </div>
       </div>
