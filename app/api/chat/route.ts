@@ -8,7 +8,12 @@ interface ChatMessage {
   content: string;
 }
 
-import { getRandomOnlineAgent } from "@/lib/agents";
+// --- مصفوفة الموظفين الوهمية ---
+const MOCK_AGENTS = [
+  { id: 'agent_001', name: 'خالد', department: 'الدعم الفني', isOnline: true },
+  { id: 'agent_002', name: 'سارة', department: 'خدمة العملاء', isOnline: true },
+  { id: 'agent_003', name: 'أحمد', department: 'الدعم المالي', isOnline: false },
+];
 
 export async function POST(req: Request) {
   try {
@@ -46,7 +51,11 @@ export async function POST(req: Request) {
     const isEscalation = escalationKeywords.some(keyword => lowerText.includes(keyword));
 
     if (isEscalation) {
-    const assignedAgent = getRandomOnlineAgent();
+      const onlineAgents = MOCK_AGENTS.filter(agent => agent.isOnline);
+      const assignedAgent = onlineAgents.length > 0
+        ? onlineAgents[Math.floor(Math.random() * onlineAgents.length)]
+        : MOCK_AGENTS[0];
+
       const ticketId = uuidv4();
 
       try {
