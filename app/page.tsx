@@ -977,7 +977,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* أيقونة المساعد */}
+      {/* أيقونة المساعد العائمة (لم يتم تعديلها) */}
       <div 
         ref={chatButtonRef}
         onPointerDown={handlePointerDown}
@@ -1115,7 +1115,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* File Upload Preview */}
+        {/* معاينة الملفات المرفقة قبل الإرسال مع إمكانية الحذف */}
         {uploadedFiles.length > 0 && (
           <div className="p-3 border-t border-gray-700 bg-[#1f2937]/30">
             <div className="flex gap-2 overflow-x-auto pb-2">
@@ -1156,11 +1156,13 @@ export default function Home() {
         )}
 
         {/* ============================================================ */}
-        {/* منطقة الإدخال المحدثة: أيقونة الصورة مدمجة داخل الحقل */}
+        {/* منطقة إدخال الرسائل المحدثة: تحتوي على 3 عناصر متجاورة */}
+        {/* 1. حقل الكتابة | 2. زر الإرفاق | 3. زر الإرسال */}
         {/* ============================================================ */}
         <div className="p-3 border-t border-gray-700 bg-[#1f2937]/50 rounded-b-2xl">
-          <div className="relative flex items-end gap-2 bg-[#0b0f1a] border border-gray-700 rounded-xl focus-within:ring-2 focus-within:ring-purple-500/50 focus-within:border-purple-500 transition-all">
+          <div className="flex items-end gap-2 bg-[#0b0f1a] border border-gray-700 rounded-xl focus-within:ring-2 focus-within:ring-purple-500/50 focus-within:border-purple-500 transition-all p-2">
             
+            {/* 1. حقل كتابة الرسالة */}
             <textarea
               id="chat-input" 
               value={text}
@@ -1169,23 +1171,22 @@ export default function Home() {
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               rows={1} 
               disabled={showDepartmentSelection}
-              className="flex-1 bg-transparent text-white px-4 py-3 pr-10 text-sm focus:outline-none placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[42px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-transparent text-white px-3 py-2 text-sm focus:outline-none placeholder-gray-500 resize-none overflow-y-auto max-h-32 min-h-[40px] leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
             />
             
-            {/* أيقونة الصورة داخل الحقل من الجهة اليمنى */}
+            {/* 2. زر إرفاق الصور/الملفات (الزر الثالث الجديد) */}
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="absolute right-2 bottom-2.5 p-1.5 rounded-lg text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              title="إرفاق صورة أو ملف"
               disabled={showDepartmentSelection}
+              className="p-2 rounded-lg text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              title="إرفاق صورة أو ملف"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <polyline points="21 15 16 10 5 21"></polyline>
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
               </svg>
             </button>
             
+            {/* حقل الإدخال المخفي للملفات */}
             <input 
               ref={fileInputRef}
               type="file" 
@@ -1195,10 +1196,12 @@ export default function Home() {
               className="hidden"
             />
             
+            {/* 3. زر الإرسال */}
             <button 
               onClick={sendMessage} 
               disabled={(!text.trim() && uploadedFiles.length === 0) || chatStatus === "typing" || showDepartmentSelection || isSendingRef.current} 
-              className="p-3 m-1 rounded-xl text-sm font-bold transition bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 rounded-lg text-sm font-bold transition bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              title="إرسال"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13" />
